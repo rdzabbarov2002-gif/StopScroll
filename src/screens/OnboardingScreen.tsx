@@ -1,0 +1,226 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
+import Slider from "@react-native-community/slider";
+import { useState } from "react";
+import { View } from "react-native";
+
+import { AppText } from "../components/AppText";
+import { Button } from "../components/Button";
+import { Card } from "../components/Card";
+import { Chip } from "../components/Chip";
+import { Screen } from "../components/Screen";
+import { Stepper } from "../components/Stepper";
+import { useApp } from "../context/AppContext";
+import { FEED_APPS } from "../utils/catalog";
+import { cn } from "../utils/cn";
+import { formatMinutes } from "../utils/date";
+import { haptics } from "../utils/haptics";
+import {
+  BASELINE_RANGE,
+  DEFAULT_SETTINGS,
+  LIMIT_RANGE,
+  SESSION_RANGE,
+  clampToRange,
+} from "../utils/persistedState";
+import { useThemeColors } from "../utils/theme";
+import type { FeedApp, IconName } from "../utils/types";
+
+const STEPS = 3;
+
+const PROMISES: readonly { icon: IconName; title: string; text: string }[] = [
+  {
+    icon: "hand-left-outline",
+    title: "SOS-пауза на 15 секунд",
+    text: "Дыхание и заземление, пока импульс не ослабнет.",
+  },
+  {
+    icon: "swap-horizontal-outline",
+    title: "Микро-замены",
+    text: "1–3 минуты движения, задачи или факта вместо ленты.",
+  },
+  {
+    icon: "stats-chart-outline",
+    title: "Честная статистика",
+    text: "Сколько времени вы вернули себе — в книгах, сне и прогулках.",
+  },
+];
+
+export function OnboardingScreen() {
+  const { colors } = useThemeColors();
+  const { completeOnboarding } = useApp();
+  const [step, setStep] = useState(0);
+  const [baseline, setBaseline] = useState(DEFAULT_SETTINGS.baselineMinutes);
+  const [mainApp, setMainApp] = useState<FeedApp>(DEFAULT_SETTINGS.mainApp);
+  const [limit, setLimit] = useState(DEFAULT_SETTINGS.dailyLimitMinutes);
+  const [session, setSession] = useState(DEFAULT_SETTINGS.sessionMinutes);
+
+  const next = () => {
+    haptics.selection();
+    if (step === 1) {
+      // Suggest a limit of roughly a third of today's habit as the first goal.
+      setLimit(
+        clampToRange(Math.min(DEFAULT_SETTINGS.dailyLimitMinutes, baseline / 3), LIMIT_RANGE),
+      );
+    }
+    setStep((value) => Math.min(STEPS - 1, value + 1));
+  };
+
+  const finish = () => {
+    haptics.success();
+    completeOnboarding({
+      baselineMinutes: baseline,
+      mainApp,
+      dailyLimitMinutes: limit,
+      sessionMinutes: session,
+    });
+  };
+
+  return (
+    <Screen contentClassName="gap-6">
+      <View
+        className="flex-row justify-center gap-2 pt-2"
+        accessible
+        accessibilityLabel={`Шаг ${step + 1} из ${STEPS}`}
+      >
+        {Array.from({ length: STEPS }, (_, index) => (
+          <View
+            key={index}
+            className={cn(
+              "h-1.5 rounded-full",
+              index === step
+                ? "w-8 bg-brand-600 dark:bg-brand-400"
+                : "w-4 bg-slate-200 dark:bg-ink-700",
+            )}
+          />
+        ))}
+      </View>
+
+      {step === 0 ? (
+        <>
+          <View className="items-center gap-4 pt-6">
+            <View className="h-24 w-24 items-center justify-center rounded-[32px] bg-brand-600 dark:bg-brand-500">
+              <Ionicons name="hand-left" size={46} color={colors.onPrimary} />
+            </View>
+            <AppText variant="title" className="text-center text-4xl" accessibilityRole="header">
+              StopScroll
+            </AppText>
+            <AppText tone="muted" className="text-center text-lg leading-7">
+              Когнитивный анти-скроллинг: перехватываем импульс до того, как лента затянет.
+            </AppText>
+          </View>
+          <View className="gap-3">
+            {PROMISES.map((item) => (
+              <Card key={item.title} className="flex-row items-center gap-4">
+                <View className="h-12 w-12 items-center justify-center rounded-2xl bg-brand-100 dark:bg-brand-900/60">
+                  <Ionicons name={item.icon} size={22} color={colors.primary} />
+                </View>
+                <View className="flex-1 gap-0.5">
+                  <AppText variant="label" className="text-base">
+                    {item.title}
+                  </AppText>
+                  <AppText variant="caption" tone="muted">
+                    {item.text}
+                  </AppText>
+                </View>
+              </Card>
+            ))}
+          </View>
+          <Button label="Начать" size="lg" icon="arrow-forward" onPress={next} />
+        </>
+      ) : null}
+
+      {step === 1 ? (
+        <>
+          <View className="gap-2 pt-4">
+            <AppText variant="overline" tone="primary">
+              Честная точка отсчёта
+            </AppText>
+            <AppText variant="title" accessibilityRole="header">
+              Сколько времени в день сейчас уходит на ленту?
+            </AppText>
+            <AppText tone="muted">
+              Примерно — по ощущениям или по «Экранному времени». Это ваш исходный уровень для
+              сравнения.
+            </AppText>
+          </View>
+          <Card className="gap-4">
+            <AppText variant="display" className="text-center text-5xl">
+              {formatMinutes(baseline)}
+            </AppText>
+            <Slider
+              value={baseline}
+              minimumValue={BASELINE_RANGE.min}
+              maximumValue={480}
+              step={BASELINE_RANGE.step}
+              onValueChange={setBaseline}
+              minimumTrackTintColor={colors.primary}
+              maximumTrackTintColor={colors.ringTrack}
+              thumbTintColor={colors.primaryStrong}
+              accessibilityLabel="Минут в ленте в день сейчас"
+              style={{ height: 40 }}
+            />
+          </Card>
+          <View className="gap-3">
+            <AppText variant="label">Где залипаете чаще всего?</AppText>
+            <View className="flex-row flex-wrap gap-2">
+              {FEED_APPS.map((item) => (
+                <Chip
+                  key={item.id}
+                  label={item.label}
+                  icon={item.icon}
+                  selected={mainApp === item.id}
+                  onPress={() => setMainApp(item.id)}
+                />
+              ))}
+            </View>
+          </View>
+          <Button label="Дальше" size="lg" icon="arrow-forward" onPress={next} />
+        </>
+      ) : null}
+
+      {step === 2 ? (
+        <>
+          <View className="gap-2 pt-4">
+            <AppText variant="overline" tone="primary">
+              Реалистичная цель
+            </AppText>
+            <AppText variant="title" accessibilityRole="header">
+              Сколько ленты в день — нормально для вас?
+            </AppText>
+            <AppText tone="muted">
+              Не нужно бросать всё сразу. Каждый день в пределах лимита продлевает серию.
+            </AppText>
+          </View>
+          <Card className="gap-5">
+            <Stepper
+              label="Дневной лимит"
+              value={limit}
+              min={LIMIT_RANGE.min}
+              max={LIMIT_RANGE.max}
+              step={LIMIT_RANGE.step}
+              format={formatMinutes}
+              onChange={setLimit}
+            />
+            <Stepper
+              label="Одна «сессия» в ленте"
+              hint="Столько минут засчитаем за каждую победу над импульсом"
+              value={session}
+              min={SESSION_RANGE.min}
+              max={SESSION_RANGE.max}
+              step={SESSION_RANGE.step}
+              format={formatMinutes}
+              onChange={setSession}
+            />
+          </Card>
+          <AppText variant="caption" tone="muted" className="text-center">
+            Цель — минус {formatMinutes(Math.max(0, baseline - limit))} в день. Это{" "}
+            {formatMinutes(Math.max(0, baseline - limit) * 7)} в неделю, которые вернутся к вам.
+          </AppText>
+          <View className="gap-2">
+            <Button label="Готово" size="lg" icon="checkmark-circle" onPress={finish} />
+            <Button label="Назад" variant="ghost" onPress={() => setStep(1)} />
+          </View>
+        </>
+      ) : null}
+    </Screen>
+  );
+}

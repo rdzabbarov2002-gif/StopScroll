@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "StopScroll",
+    "slug": "stop-scroll",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.stopscroll.mobile"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#EEF2FF",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "app.stopscroll.mobile",
+      "permissions": ["com.android.vending.BILLING"]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "single"
+    },
+    "scheme": "stopscroll",
+    "backgroundColor": "#F5F7FA"
+  }
+}
