@@ -29,6 +29,8 @@ export type RootStackParamList = {
   Replacement: { id: string; trigger?: TriggerId };
   Paywall: { feature?: ProFeature } | undefined;
   Settings: undefined;
+  /** In-app privacy policy, used when no hosted policy URL is configured. */
+  Privacy: undefined;
 };
 
 export type RootStackScreenProps<T extends keyof RootStackParamList> = NativeStackScreenProps<

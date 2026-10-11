@@ -34,7 +34,7 @@ export function HomeScreen({ navigation }: RootTabScreenProps<"Home">) {
   const app = useApp();
   const { isPro } = usePro();
 
-  const saved = summarizeWins(app.wins, app.todayKey);
+  const saved = summarizeWins(app.wins, app.winArchive, app.todayKey);
   const streak = getCurrentStreak(app.scrollLog, app.settings.dailyLimitMinutes, app.todayKey);
   const todayScroll = app.scrollLog[app.todayKey];
   const limit = app.settings.dailyLimitMinutes;

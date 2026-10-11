@@ -12,6 +12,7 @@ import Purchases, { type CustomerInfo, type PurchasesPackage } from "react-nativ
 import {
   configurePurchases,
   describePurchaseError,
+  getTrialEligibility,
   hasProEntitlement,
   isPurchaseCancelled,
   toPlanViews,
@@ -90,7 +91,8 @@ export function ProProvider({ children }: { children: ReactNode }) {
     try {
       const offerings = await Purchases.getOfferings();
       const packages = offerings.current?.availablePackages ?? [];
-      setPlans(toPlanViews(packages));
+      const isTrialEligible = await getTrialEligibility(packages);
+      setPlans(toPlanViews(packages, isTrialEligible));
       if (packages.length === 0) {
         setPlansError("Тарифы пока не опубликованы. Загляните чуть позже.");
       }

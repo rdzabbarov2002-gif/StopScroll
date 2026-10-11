@@ -7,6 +7,7 @@ import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { Chip } from "../components/Chip";
 import { IconButton } from "../components/IconButton";
+import { LegalLinks } from "../components/LegalLinks";
 import { Screen } from "../components/Screen";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { SectionTitle } from "../components/SectionTitle";
@@ -212,6 +213,7 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
           />
         )}
       </Card>
+      <LegalLinks className="pt-2" />
     </Screen>
   );
 }

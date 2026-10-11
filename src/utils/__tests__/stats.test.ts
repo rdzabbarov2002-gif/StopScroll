@@ -147,14 +147,16 @@ describe("saved time", () => {
   it("summarizes today, the last 7 days and all time", () => {
     const summary = summarizeWins(
       [win("a", TODAY), win("b", TODAY, 20), win("c", day(-6)), win("d", day(-7))],
+      { count: 10, minutes: 150, replacementCount: 3 },
       TODAY,
     );
     expect(summary).toEqual({
       todayMinutes: 35,
       todayWins: 2,
       weekMinutes: 50,
-      totalMinutes: 65,
-      totalWins: 4,
+      // Archived (evicted) wins still count towards the all-time totals.
+      totalMinutes: 215,
+      totalWins: 14,
     });
     expect(dayKey(at(TODAY))).toBe(TODAY);
   });

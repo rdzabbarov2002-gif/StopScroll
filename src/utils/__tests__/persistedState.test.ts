@@ -63,6 +63,7 @@ describe("sanitizePersistedState", () => {
         },
         { id: "c2", title: "   ", description: "", minutes: 1, category: "body", createdAt: NOW },
       ],
+      winArchive: { count: 12.4, minutes: -3, replacementCount: "many" },
       lastExerciseId: "yoga",
       themePreference: "neon",
     });
@@ -90,6 +91,7 @@ describe("sanitizePersistedState", () => {
         createdAt: NOW,
       },
     ]);
+    expect(state.winArchive).toEqual({ count: 12, minutes: 0, replacementCount: 0 });
     expect(state.lastExerciseId).toBe("breath-ground");
     expect(state.themePreference).toBe("system");
   });

@@ -25,7 +25,9 @@ export function SlipForm({ initialTrigger }: SlipFormProps) {
   const { colors } = useThemeColors();
   const { logSlip, settings } = useApp();
   const [trigger, setTrigger] = useState<TriggerId | null>(initialTrigger ?? null);
-  const [app, setApp] = useState<FeedApp>(settings.mainApp);
+  // null = follow the "main feed" setting until the user picks an app here.
+  const [pickedApp, setApp] = useState<FeedApp | null>(null);
+  const app = pickedApp ?? settings.mainApp;
   const [minutes, setMinutes] = useState<number>(15);
   const [note, setNote] = useState("");
   const [saved, setSaved] = useState(false);
@@ -35,6 +37,7 @@ export function SlipForm({ initialTrigger }: SlipFormProps) {
     logSlip({ trigger, app, minutesLost: minutes, note });
     haptics.success();
     setTrigger(null);
+    setApp(null);
     setNote("");
     setSaved(true);
   };

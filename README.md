@@ -42,7 +42,8 @@ npm test           # Jest: редьюсер, хранилище, статист�
 | **Статистика** | Ввод времени в ленте (слайдер, ±5 мин, пресеты; сегодня/вчера), шкала сравнения «до StopScroll / вчера / сегодня» с процентами, график динамики с линией лимита (7 дней, 30 — Pro), тепловая карта дней под контролем и серия (6 недель, 16 — Pro), конвертер спасённого времени в книги, часы сна, прогулки (+ тренировки, уроки языка, разговоры — Pro). |
 | **Дневник** | Быстрая запись срыва: причина, приложение, сколько ушло, заметка. Сводка паттернов (когда и почему, доля «устояли»). Pro: графики срывов по часам и дням недели, разбивка «устояли / сорвались» по триггерам. |
 | **Paywall** | Сравнение Free / Pro, тарифы из текущего offering RevenueCat, пробный период, экономия годового тарифа, восстановление покупок. |
-| **Настройки** | Статус Pro, цели (лимит, длина сессии, исходный уровень), главная лента, тема, сброс прогресса. |
+| **Настройки** | Статус Pro, восстановление покупок, цели (лимит, длина сессии, исходный уровень), главная лента, тема, сброс прогресса, ссылки на условия и политику. |
+| **Конфиденциальность** | Встроенная политика: данные хранятся локально, покупки проверяет RevenueCat по анонимному ID, нет рекламы и трекинга. |
 
 ## Как считается «спасённое время»
 
@@ -66,10 +67,17 @@ npm test           # Jest: редьюсер, хранилище, статист�
 | `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY` | dev/store-сборка Android (`goog_…`) |
 | `EXPO_PUBLIC_REVENUECAT_TEST_API_KEY` | Expo Go и веб — RevenueCat Test Store (`test_…`) |
 | `EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID` | идентификатор entitlement, по умолчанию `pro` |
+| `EXPO_PUBLIC_TERMS_URL` | «Условия использования» на Paywall и в Настройках; пусто — стандартное EULA Apple |
+| `EXPO_PUBLIC_PRIVACY_URL` | «Политика конфиденциальности»; пусто — встроенный экран политики |
 
-Без ключей приложение полностью работает в бесплатном режиме, а Paywall сообщает, что покупки не
-подключены. В dev-сборке (`__DEV__`) в Настройках есть переключатель **«Тестовый Pro»**, чтобы
+Без ключей приложение полностью работает в бесплатном режиме, а Paywall сообщает, что покупки
+недоступны. В dev-сборке (`__DEV__`) в Настройках есть переключатель **«Тестовый Pro»**, чтобы
 проверять платные функции без магазина.
+
+На iOS пометка «N дней бесплатно» показывается только тем, кому магазин действительно даст пробный
+период (`checkTrialOrIntroductoryPriceEligibility`). Для Android подключён config-плагин
+`plugins/withSingleTopActivity.js` (`launchMode="singleTop"`): с режимом Expo по умолчанию
+возврат в приложение во время оплаты (например, после 3-D Secure) отменял бы покупку.
 
 Реальные покупки App Store / Google Play требуют нативной сборки (в Expo Go SDK работает в режиме
 браузера с Test Store):
@@ -95,11 +103,12 @@ npx eas-cli@latest build --profile production --platform ios
 
 ```text
 App.tsx                   # провайдеры (App, Pro), тема, NavigationContainer
-app.json · eas.json       # конфигурация Expo и EAS Build
-.env.example              # ключи RevenueCat
+app.json · eas.json       # конфигурация Expo (сплэш, плагины) и EAS Build
+plugins/                  # config-плагин singleTop для Android (RevenueCat)
+.env.example              # ключи RevenueCat и ссылки на правовые документы
 src/
   navigation/             # RootNavigator (stack + модальные экраны), RootTabs, типы маршрутов
-  screens/                # Home, Intercept, Replacements, Replacement, Stats, Journal, Paywall, Settings, Onboarding
+  screens/                # Home, Intercept, Replacements, Replacement, Stats, Journal, Paywall, Settings, Privacy, Onboarding
   components/             # UI-кит (Card, Button, Chip, BottomSheet…), SOSButton, TriggerCard…
     charts/ColumnChart    # SVG-столбцы: линия лимита, выделение, нажатие на столбец
     stats/ · journal/     # карточки статистики и дневника
@@ -111,7 +120,9 @@ src/
 ## Состояние и хранение
 
 `AppContext` — единый источник данных. Состояние загружается из AsyncStorage при старте
-(ключ `@stopscroll/state/v1`) и сохраняется после каждого изменения. Загруженные данные проходят
+(ключ `@stopscroll/state/v1`) и сохраняется после каждого изменения. Если хранилище не удалось
+прочитать (после повторной попытки), сохранение в этой сессии отключается, чтобы пустое состояние
+не затёрло настоящую историю. Загруженные данные проходят
 валидацию (`src/utils/persistedState.ts`): битые поля заменяются значениями по умолчанию, а
 нечитаемый JSON сохраняется в резервный ключ `@stopscroll/state/v1:corrupt`.
 
@@ -119,7 +130,8 @@ src/
 |---|---|
 | `settings` | дневной лимит, длина сессии, исходный уровень, главная лента |
 | `scrollLog` | минуты в ленте по дням (`YYYY-MM-DD → минуты`) |
-| `wins` | победы: `{ timestamp, minutesSaved, source: "sos" \| "replacement", trigger?, replacementId? }` |
+| `wins` | последние 2000 побед: `{ timestamp, minutesSaved, source: "sos" \| "replacement", trigger?, replacementId? }` |
+| `winArchive` | итоги побед, вытесненных из списка (количество, минуты, замены) — «всего» никогда не уменьшается |
 | `slips` | срывы: `{ timestamp, trigger, app, minutesLost, note }` |
 | `customReplacements` | свои замены (Pro) |
 | `lastExerciseId`, `themePreference`, `onboarded` | последнее упражнение SOS, тема, онбординг |
@@ -128,5 +140,6 @@ src/
 
 - Замените идентификаторы `app.stopscroll.mobile` в `app.json` на свои.
 - Иконки в `assets/` — простой фирменный знак «пауза»; при желании замените на финальный дизайн.
-- Добавьте ссылки на условия использования и политику конфиденциальности на Paywall — этого требуют
-  App Store и Google Play для подписок.
+- Укажите `EXPO_PUBLIC_PRIVACY_URL` (страница политики нужна и в App Store Connect / Google Play
+  Console) или проверьте текст встроенного экрана `src/screens/PrivacyScreen.tsx`.
+- Сплэш-экран настроен через `expo-splash-screen` (светлый и тёмный фон).

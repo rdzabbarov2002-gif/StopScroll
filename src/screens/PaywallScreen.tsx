@@ -1,11 +1,13 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, View } from "react-native";
+import { PACKAGE_TYPE } from "react-native-purchases";
 
 import { AppText } from "../components/AppText";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { IconButton } from "../components/IconButton";
+import { LegalLinks } from "../components/LegalLinks";
 import { Screen } from "../components/Screen";
 import { usePro } from "../context/ProContext";
 import type { RootStackScreenProps } from "../navigation/types";
@@ -150,10 +152,15 @@ export function PaywallScreen({ navigation, route }: RootStackScreenProps<"Paywa
         />
       ) : null}
 
-      <AppText variant="caption" tone="subtle" className="text-center text-xs leading-4">
-        Подписка продлевается автоматически, пока вы её не отмените. Отменить можно в любой момент в
-        настройках App Store или Google Play — не позднее чем за 24 часа до конца периода.
-      </AppText>
+      {!pro.isPro && selected && selected.pkg.packageType !== PACKAGE_TYPE.LIFETIME ? (
+        <AppText variant="caption" tone="subtle" className="text-center text-xs leading-4">
+          Подписка «{selected.title}» за {selected.price} продлевается автоматически, пока вы её не
+          отмените. Отменить можно в любой момент в настройках App Store или Google Play — не
+          позднее чем за 24 часа до конца периода.
+        </AppText>
+      ) : null}
+
+      <LegalLinks />
     </Screen>
   );
 }
@@ -282,10 +289,13 @@ function UnavailableNotice() {
   const pro = usePro();
   return (
     <Card tone="muted" className="gap-3">
-      <AppText variant="label">Покупки не подключены в этой сборке</AppText>
+      <AppText variant="label">
+        {__DEV__ ? "Покупки не подключены в этой сборке" : "Покупки временно недоступны"}
+      </AppText>
       <AppText variant="caption" tone="muted">
-        Укажите ключи RevenueCat в файле .env (см. .env.example) и пересоберите приложение — тарифы
-        появятся здесь автоматически.
+        {__DEV__
+          ? "Укажите ключи RevenueCat в .env.local (см. .env.example) и перезапустите сборку — тарифы появятся здесь автоматически."
+          : "Не удалось связаться с магазином. Попробуйте позже — все бесплатные функции продолжают работать."}
       </AppText>
       {__DEV__ ? (
         <Button

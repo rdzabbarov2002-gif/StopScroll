@@ -42,10 +42,14 @@ export function ComparisonCard() {
 
       <View className="flex-row flex-wrap gap-2">
         {comparison.deltaPercent !== null ? (
-          <DeltaBadge percent={comparison.deltaPercent} suffix="к вчера" />
+          <DeltaBadge percent={comparison.deltaPercent} suffix="к вчера" sameText="как вчера" />
         ) : null}
         {comparison.baselinePercent !== null ? (
-          <DeltaBadge percent={comparison.baselinePercent} suffix="к исходному уровню" />
+          <DeltaBadge
+            percent={comparison.baselinePercent}
+            suffix="к исходному уровню"
+            sameText="на исходном уровне"
+          />
         ) : null}
       </View>
 
@@ -113,11 +117,20 @@ function ScaleRow({
   );
 }
 
-function DeltaBadge({ percent, suffix }: { percent: number; suffix: string }) {
+function DeltaBadge({
+  percent,
+  suffix,
+  sameText,
+}: {
+  percent: number;
+  suffix: string;
+  /** Shown when the change rounds to 0%. */
+  sameText: string;
+}) {
   const { colors } = useThemeColors();
   const better = percent < 0;
   const same = percent === 0;
-  const text = same ? `как вчера` : `${better ? "−" : "+"}${Math.abs(percent)}% ${suffix}`;
+  const text = same ? sameText : `${better ? "−" : "+"}${Math.abs(percent)}% ${suffix}`;
   return (
     <View
       className={cn(

@@ -1,7 +1,7 @@
 import { EQUIVALENTS, type Equivalent } from "./catalog";
 import { addDays, dayKey, formatDecimal, pluralize, weekdayIndex } from "./date";
 import { MAX_SCROLL_DAYS } from "./persistedState";
-import type { WinEntry } from "./types";
+import type { WinArchive, WinEntry } from "./types";
 
 export type ScrollLog = Readonly<Record<string, number>>;
 
@@ -176,14 +176,18 @@ export interface SavedSummary {
   totalWins: number;
 }
 
-export function summarizeWins(wins: readonly WinEntry[], todayKey: string): SavedSummary {
+export function summarizeWins(
+  wins: readonly WinEntry[],
+  archive: WinArchive,
+  todayKey: string,
+): SavedSummary {
   const weekStart = addDays(todayKey, -6);
   const summary: SavedSummary = {
     todayMinutes: 0,
     todayWins: 0,
     weekMinutes: 0,
-    totalMinutes: 0,
-    totalWins: wins.length,
+    totalMinutes: archive.minutes,
+    totalWins: wins.length + archive.count,
   };
   for (const win of wins) {
     const key = dayKey(win.timestamp);

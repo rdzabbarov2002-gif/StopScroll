@@ -44,8 +44,8 @@ export function ScrollLogger() {
         value={day}
         onChange={setDay}
       />
-      {/* Remount per day so the draft starts from what is stored for that day. */}
-      <LoggerBody key={key} dayKey={key} logged={logged} />
+      {/* Remount per day and stored value, so the draft always starts from what is saved. */}
+      <LoggerBody key={`${key}:${logged ?? "none"}`} dayKey={key} logged={logged} />
     </Card>
   );
 }

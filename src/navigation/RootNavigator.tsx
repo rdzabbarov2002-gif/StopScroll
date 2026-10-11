@@ -4,6 +4,7 @@ import { useApp } from "../context/AppContext";
 import { InterceptScreen } from "../screens/InterceptScreen";
 import { OnboardingScreen } from "../screens/OnboardingScreen";
 import { PaywallScreen } from "../screens/PaywallScreen";
+import { PrivacyScreen } from "../screens/PrivacyScreen";
 import { ReplacementScreen } from "../screens/ReplacementScreen";
 import { SettingsScreen } from "../screens/SettingsScreen";
 import { RootTabs } from "./RootTabs";
@@ -34,6 +35,11 @@ export function RootNavigator() {
             name="Paywall"
             component={PaywallScreen}
             options={{ presentation: "fullScreenModal", animation: "slide_from_bottom" }}
+          />
+          <Stack.Screen
+            name="Privacy"
+            component={PrivacyScreen}
+            options={{ animation: "slide_from_right" }}
           />
           <Stack.Screen
             name="Settings"

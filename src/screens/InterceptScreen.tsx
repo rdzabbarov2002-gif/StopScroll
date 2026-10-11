@@ -1,5 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useEffect, useRef, useState } from "react";
+import { useFocusEffect, useIsFocused } from "@react-navigation/native";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Animated, Easing, Platform, Pressable, ScrollView, View } from "react-native";
 
 import { AppText } from "../components/AppText";
@@ -44,11 +45,29 @@ export function InterceptScreen({ navigation, route }: RootStackScreenProps<"Int
   // Bumped to restart the pause from zero.
   const [run, setRun] = useState(0);
   const [win, setWin] = useState<WinEntry | null>(null);
+  // The pause only counts while this screen is on top (not under the Paywall).
+  const isFocused = useIsFocused();
+  // A Pro exercise the user tapped before buying; it starts once they come back with Pro.
+  const pendingExercise = useRef<ExerciseId | null>(null);
+  const { setLastExercise } = app;
+
+  useFocusEffect(
+    useCallback(() => {
+      const pending = pendingExercise.current;
+      pendingExercise.current = null;
+      if (!pending || !isPro) return;
+      setExerciseId(pending);
+      setLastExercise(pending);
+      setStage("pause");
+      setRun((value) => value + 1);
+    }, [isPro, setLastExercise]),
+  );
 
   const close = () => navigation.goBack();
 
   const chooseExercise = (exercise: Exercise) => {
     if (exercise.premium && !isPro) {
+      pendingExercise.current = exercise.id;
       navigation.navigate("Paywall", { feature: "exercises" });
       return;
     }
@@ -208,6 +227,7 @@ export function InterceptScreen({ navigation, route }: RootStackScreenProps<"Int
 
       <PausePhase
         key={`${exerciseId}-${run}`}
+        active={isFocused}
         exercise={exercise}
         onDone={() => setStage("decide")}
       />
@@ -273,7 +293,16 @@ function locate<T extends { seconds: number }>(items: readonly T[], seconds: num
   return { index: items.length - 1, remaining: 0 };
 }
 
-function PausePhase({ exercise, onDone }: { exercise: Exercise; onDone: () => void }) {
+function PausePhase({
+  exercise,
+  active,
+  onDone,
+}: {
+  exercise: Exercise;
+  /** False while another screen covers this one: the clock and the circle freeze. */
+  active: boolean;
+  onDone: () => void;
+}) {
   const { colors, isDark } = useThemeColors();
   const [elapsedMs, setElapsedMs] = useState(0);
   const [scale] = useState(() => new Animated.Value(MIN_SCALE));
@@ -282,14 +311,20 @@ function PausePhase({ exercise, onDone }: { exercise: Exercise; onDone: () => vo
     onDoneRef.current = onDone;
   });
 
-  // Wall-clock based, so a slow JS frame never stretches the pause.
+  // Wall-clock deltas, so a slow JS frame never stretches the pause; time only
+  // accumulates while the screen is active.
+  const elapsedRef = useRef(0);
   useEffect(() => {
-    const start = Date.now();
+    if (!active) return;
+    let last = Date.now();
     const interval = setInterval(() => {
-      setElapsedMs(Math.min(TOTAL_MS, Date.now() - start));
+      const now = Date.now();
+      elapsedRef.current = Math.min(TOTAL_MS, elapsedRef.current + (now - last));
+      last = now;
+      setElapsedMs(elapsedRef.current);
     }, TICK_MS);
     return () => clearInterval(interval);
-  }, []);
+  }, [active]);
 
   const finished = elapsedMs >= TOTAL_MS;
   useEffect(() => {
@@ -312,6 +347,10 @@ function PausePhase({ exercise, onDone }: { exercise: Exercise; onDone: () => vo
 
   // Each breathing phase animates the circle towards its target size.
   useEffect(() => {
+    if (!active) {
+      scale.stopAnimation();
+      return;
+    }
     const target = exercise.breath[phaseKey % exercise.breath.length]!;
     haptics.light();
     const animation = Animated.timing(scale, {
@@ -322,7 +361,7 @@ function PausePhase({ exercise, onDone }: { exercise: Exercise; onDone: () => vo
     });
     animation.start();
     return () => animation.stop();
-  }, [phaseKey, exercise, scale]);
+  }, [phaseKey, exercise, scale, active]);
 
   const secondsLeft = Math.ceil((TOTAL_MS - elapsedMs) / 1000);
 

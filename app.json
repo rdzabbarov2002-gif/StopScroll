@@ -19,7 +19,9 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "app.stopscroll.mobile",
-      "permissions": ["com.android.vending.BILLING"]
+      "permissions": [
+        "com.android.vending.BILLING"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -27,6 +29,22 @@
       "output": "single"
     },
     "scheme": "stopscroll",
-    "backgroundColor": "#F5F7FA"
+    "backgroundColor": "#F5F7FA",
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "backgroundColor": "#F5F7FA",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#0B1120"
+          }
+        }
+      ],
+      "./plugins/withSingleTopActivity"
+    ]
   }
 }

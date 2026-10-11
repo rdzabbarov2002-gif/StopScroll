@@ -82,7 +82,10 @@ export function ReplacementScreen({ navigation, route }: RootStackScreenProps<"R
         <AppText variant="title" accessibilityRole="header">
           {item.title}
         </AppText>
-        {item.description ? <AppText tone="muted">{item.description}</AppText> : null}
+        {/* A custom replacement's description already is its single step. */}
+        {item.description && !item.custom ? (
+          <AppText tone="muted">{item.description}</AppText>
+        ) : null}
       </View>
 
       {locked ? (
@@ -128,7 +131,7 @@ export function ReplacementScreen({ navigation, route }: RootStackScreenProps<"R
 
       {!locked ? (
         <Button
-          label={`Готово — засчитать победу · +${formatMinutes(app.settings.sessionMinutes)}`}
+          label={`Засчитать победу · +${formatMinutes(app.settings.sessionMinutes)}`}
           icon="trophy-outline"
           variant="success"
           size="lg"

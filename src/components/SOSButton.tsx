@@ -28,11 +28,16 @@ export function SOSButton({ onPress }: { onPress: () => void }) {
   }, [pulse]);
 
   const ring = (delay: number) => {
-    const progress = pulse.interpolate({
-      inputRange: [0, delay, 1],
-      outputRange: [0, 0, 1 - delay],
-      extrapolate: "clamp",
-    });
+    // Repeated input stops ([0, 0, 1]) produce NaN with the native driver, so the first ring
+    // uses the pulse value directly.
+    const progress =
+      delay === 0
+        ? pulse
+        : pulse.interpolate({
+            inputRange: [0, delay, 1],
+            outputRange: [0, 0, 1 - delay],
+            extrapolate: "clamp",
+          });
     return {
       position: "absolute" as const,
       width: SIZE,

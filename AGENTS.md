@@ -46,5 +46,7 @@ Docs: https://docs.expo.dev/eas/index.md
 ## Rules
 
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
-- Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
+- Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a native build: `npx expo run:ios|android` locally, or `eas build --profile preview` (eas.json has `preview` and `production`; add `expo-dev-client` and a `development` profile if you need a dev client).
+- Real App Store / Google Play purchases need a native build; in Expo Go and on the web RevenueCat runs in browser mode with a Test Store key.
+- `plugins/withSingleTopActivity.js` sets the Android main activity to `singleTop`, as RevenueCat requires — keep it in `app.json` plugins.
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md

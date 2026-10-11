@@ -1,5 +1,6 @@
 import { NativeModules, Platform } from "react-native";
 import Purchases, {
+  INTRO_ELIGIBILITY_STATUS,
   LOG_LEVEL,
   PACKAGE_TYPE,
   PURCHASES_ERROR_CODE,
@@ -107,7 +108,30 @@ export interface PlanView {
 }
 
 /** Store packages → display models, longest commitment first. */
-export function toPlanViews(packages: readonly PurchasesPackage[]): PlanView[] {
+/**
+ * Who may see "N дней бесплатно". Google Play only returns intro offers the user is eligible for,
+ * but App Store products always carry their intro price, so on iOS eligibility is checked
+ * explicitly. Unknown or failed checks hide the trial rather than promise one.
+ */
+export async function getTrialEligibility(
+  packages: readonly PurchasesPackage[],
+): Promise<(productId: string) => boolean> {
+  if (Platform.OS !== "ios" || !hasNativeStore || packages.length === 0) return () => true;
+  try {
+    const result = await Purchases.checkTrialOrIntroductoryPriceEligibility(
+      packages.map((pkg) => pkg.product.identifier),
+    );
+    return (productId) =>
+      result[productId]?.status === INTRO_ELIGIBILITY_STATUS.INTRO_ELIGIBILITY_STATUS_ELIGIBLE;
+  } catch {
+    return () => false;
+  }
+}
+
+export function toPlanViews(
+  packages: readonly PurchasesPackage[],
+  isTrialEligible: (productId: string) => boolean = () => true,
+): PlanView[] {
   const monthly = packages.find((item) => item.packageType === PACKAGE_TYPE.MONTHLY);
   const order = [
     PACKAGE_TYPE.ANNUAL,
@@ -130,7 +154,7 @@ export function toPlanViews(packages: readonly PurchasesPackage[]): PlanView[] {
       const intro = product.introPrice;
       const forms = intro ? PERIOD_FORMS[intro.periodUnit] : undefined;
       const trial =
-        intro && intro.price === 0 && forms
+        intro && intro.price === 0 && forms && isTrialEligible(product.identifier)
           ? `${intro.periodNumberOfUnits} ${pluralize(intro.periodNumberOfUnits, forms)} бесплатно`
           : null;
 

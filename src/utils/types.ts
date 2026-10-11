@@ -86,6 +86,13 @@ export interface Settings {
   mainApp: FeedApp;
 }
 
+/** Wins pushed out of the capped `wins` list, kept as totals so all-time numbers never shrink. */
+export interface WinArchive {
+  count: number;
+  minutes: number;
+  replacementCount: number;
+}
+
 /** Everything that is written to AsyncStorage. */
 export interface PersistedState {
   version: 1;
@@ -94,6 +101,7 @@ export interface PersistedState {
   /** Minutes of feed scrolling per local day, keyed by "YYYY-MM-DD". */
   scrollLog: Record<string, number>;
   wins: WinEntry[];
+  winArchive: WinArchive;
   slips: SlipEntry[];
   customReplacements: CustomReplacement[];
   lastExerciseId: ExerciseId;

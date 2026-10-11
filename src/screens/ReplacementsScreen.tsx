@@ -39,8 +39,9 @@ export function ReplacementsScreen({ navigation, route }: RootTabScreenProps<"Re
   const [filter, setFilter] = useState<Filter>(route.params?.category ?? "all");
   const [sheetVisible, setSheetVisible] = useState(false);
 
-  const saved = summarizeWins(app.wins, app.todayKey);
-  const replacementWins = app.wins.filter((win) => win.source === "replacement").length;
+  const saved = summarizeWins(app.wins, app.winArchive, app.todayKey);
+  const replacementWins =
+    app.wins.filter((win) => win.source === "replacement").length + app.winArchive.replacementCount;
 
   const items: Replacement[] =
     filter === "mine"

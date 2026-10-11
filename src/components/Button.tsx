@@ -19,7 +19,8 @@ const CONTAINER: Record<Variant, string> = {
 const LABEL: Record<Variant, string> = {
   primary: "text-white",
   success: "text-white",
-  warning: "text-ink-950",
+  // AppText adds a light dark-mode color; amber stays light in both themes, so pin dark ink.
+  warning: "text-ink-950 dark:text-ink-950",
   secondary: "text-slate-800 dark:text-slate-100",
   ghost: "text-slate-600 dark:text-slate-300",
 };
@@ -77,9 +78,15 @@ export function Button({
       {loading ? (
         <ActivityIndicator color={iconColor} />
       ) : (
-        <View className="flex-row items-center gap-2">
+        <View className="shrink flex-row items-center gap-2">
           {icon ? <Ionicons name={icon} size={size === "lg" ? 20 : 18} color={iconColor} /> : null}
-          <AppText variant="label" className={cn(size === "lg" && "text-base", LABEL[variant])}>
+          <AppText
+            variant="label"
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
+            className={cn("shrink text-center", size === "lg" && "text-base", LABEL[variant])}
+          >
             {label}
           </AppText>
         </View>

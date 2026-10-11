@@ -69,17 +69,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     sessionMinutes.current = state.settings.sessionMinutes;
   }, [state.settings.sessionMinutes]);
 
-  // Load the saved state once on startup.
+  // Stays false when the saved state could not be read, so a blank session never
+  // overwrites the user's real history; the next launch reads it again.
+  const canPersist = useRef(false);
+
+  // Load the saved state once on startup (one retry for transient storage errors).
   useEffect(() => {
     let cancelled = false;
     loadPersistedState()
-      .catch((error: unknown) => {
-        console.warn("StopScroll: could not read saved state", error);
-        return createInitialState();
-      })
-      .then((loaded) => {
-        if (!cancelled) dispatch({ type: "hydrate", state: loaded, today: dayKey() });
-      });
+      .catch(() => loadPersistedState())
+      .then(
+        (loaded) => {
+          if (cancelled) return;
+          canPersist.current = true;
+          dispatch({ type: "hydrate", state: loaded, today: dayKey() });
+        },
+        (error: unknown) => {
+          console.warn("StopScroll: could not read saved state, saving is paused", error);
+          if (!cancelled)
+            dispatch({ type: "hydrate", state: createInitialState(), today: dayKey() });
+        },
+      );
     return () => {
       cancelled = true;
     };
@@ -87,7 +97,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Persist every change after hydration. Writes are chained so they land in order.
   useEffect(() => {
-    if (!state.hydrated) return;
+    if (!state.hydrated || !canPersist.current) return;
     const snapshot = toPersistedState(state);
     saveQueue.current = saveQueue.current
       .then(() => savePersistedState(snapshot))
@@ -192,6 +202,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       settings: state.settings,
       scrollLog: state.scrollLog,
       wins: state.wins,
+      winArchive: state.winArchive,
       slips: state.slips,
       customReplacements: state.customReplacements,
       lastExerciseId: state.lastExerciseId,

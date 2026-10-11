@@ -14,9 +14,9 @@ import { ProgressBar } from "../ProgressBar";
 /** Saved minutes → books, sleep, walks… */
 export function EquivalentsCard() {
   const { colors } = useThemeColors();
-  const { wins, todayKey, settings } = useApp();
+  const { wins, winArchive, todayKey, settings } = useApp();
   const { isPro } = usePro();
-  const summary = summarizeWins(wins, todayKey);
+  const summary = summarizeWins(wins, winArchive, todayKey);
   const items = computeEquivalents(summary.totalMinutes);
   const visible = items.filter((item) => isPro || !item.equivalent.premium);
   const hidden = items.length - visible.length;

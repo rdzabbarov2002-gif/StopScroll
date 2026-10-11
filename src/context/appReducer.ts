@@ -2,6 +2,7 @@ import {
   MAX_CUSTOM_REPLACEMENTS,
   MAX_SLIPS,
   MAX_WINS,
+  archiveWins,
   clampScrollMinutes,
   createInitialState,
   trimScrollLog,
@@ -69,8 +70,15 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, scrollLog: rest };
     }
 
-    case "recordWin":
-      return { ...state, wins: [action.entry, ...state.wins].slice(0, MAX_WINS) };
+    case "recordWin": {
+      const wins = [action.entry, ...state.wins];
+      return {
+        ...state,
+        wins: wins.slice(0, MAX_WINS),
+        // The oldest win leaves the list but keeps counting towards the all-time totals.
+        winArchive: archiveWins(state.winArchive, wins.slice(MAX_WINS)),
+      };
+    }
 
     case "undoWin":
       return { ...state, wins: state.wins.filter((entry) => entry.id !== action.id) };
@@ -106,6 +114,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         ...state,
         scrollLog: fresh.scrollLog,
         wins: fresh.wins,
+        winArchive: fresh.winArchive,
         slips: fresh.slips,
         customReplacements: fresh.customReplacements,
       };
@@ -123,6 +132,7 @@ export function toPersistedState(state: AppState): PersistedState {
     settings: state.settings,
     scrollLog: state.scrollLog,
     wins: state.wins,
+    winArchive: state.winArchive,
     slips: state.slips,
     customReplacements: state.customReplacements,
     lastExerciseId: state.lastExerciseId,

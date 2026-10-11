@@ -18,7 +18,6 @@ import {
   getCurrentStreak,
   getHeatmap,
   type DayStatus,
-  type HeatCell,
 } from "../../utils/stats";
 import { useThemeColors, type ChartColors } from "../../utils/theme";
 import { AppText } from "../AppText";
@@ -58,11 +57,15 @@ export function HeatmapCard() {
   const { scrollLog, todayKey, settings } = useApp();
   const { isPro } = usePro();
   const [width, setWidth] = useState(0);
-  const [selected, setSelected] = useState<HeatCell | null>(null);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   const limit = settings.dailyLimitMinutes;
   const weeks = isPro ? PRO_HEATMAP_WEEKS : FREE_HEATMAP_WEEKS;
   const grid = getHeatmap(scrollLog, limit, todayKey, weeks);
+  // Derived on every render so the caption follows new logs and limit changes.
+  const selected = selectedKey
+    ? (grid.flat().find((cell) => cell.key === selectedKey) ?? null)
+    : null;
   const streak = getCurrentStreak(scrollLog, limit, todayKey);
   const best = getBestStreak(scrollLog, limit);
   const month = countControlledDays(scrollLog, limit, todayKey, 30);
@@ -109,7 +112,7 @@ export function HeatmapCard() {
                   <Pressable
                     key={day.key}
                     disabled={day.status === "future"}
-                    onPress={() => setSelected(day)}
+                    onPress={() => setSelectedKey(day.key)}
                     accessibilityRole="button"
                     accessibilityLabel={`${formatDayShort(day.key)}: ${
                       day.minutes === null
@@ -121,7 +124,7 @@ export function HeatmapCard() {
                       height: cell,
                       borderRadius: 4,
                       backgroundColor: cellColor(day.status, chart),
-                      borderWidth: day.isToday || selected?.key === day.key ? 2 : 0,
+                      borderWidth: day.isToday || selectedKey === day.key ? 2 : 0,
                       borderColor: colors.text,
                     }}
                   />

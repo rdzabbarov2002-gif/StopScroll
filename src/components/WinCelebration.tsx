@@ -20,8 +20,8 @@ interface WinCelebrationProps {
 /** "+15 мин спасено" — shown after an SOS pause or a replacement is counted as a win. */
 export function WinCelebration({ win, onDone, onUndo }: WinCelebrationProps) {
   const { colors } = useThemeColors();
-  const { wins, todayKey } = useApp();
-  const summary = summarizeWins(wins, todayKey);
+  const { wins, winArchive, todayKey } = useApp();
+  const summary = summarizeWins(wins, winArchive, todayKey);
   const sleep = computeEquivalents(summary.totalMinutes).find(
     (item) => item.equivalent.id === "sleep",
   );

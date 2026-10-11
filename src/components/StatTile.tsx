@@ -26,7 +26,13 @@ export function StatTile({ icon, value, unit, label, tone = "neutral" }: StatTil
     >
       <Ionicons name={icon} size={18} color={iconColor} />
       <View className="flex-row items-baseline gap-1">
-        <AppText variant="heading" className="text-xl" numberOfLines={1}>
+        <AppText
+          variant="heading"
+          className="shrink text-xl"
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.6}
+        >
           {value}
         </AppText>
         {unit ? (

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@jest/globals";
 
-import { MAX_CUSTOM_REPLACEMENTS, createInitialState } from "../../utils/persistedState";
+import { MAX_CUSTOM_REPLACEMENTS, MAX_WINS, createInitialState } from "../../utils/persistedState";
 import type { CustomReplacement, WinEntry } from "../../utils/types";
 import { appReducer, toPersistedState, type AppState } from "../appReducer";
 
@@ -34,6 +34,25 @@ describe("appReducer", () => {
     const state = appReducer(makeState(), { type: "recordWin", entry: win });
     expect(state.wins).toEqual([win]);
     expect(appReducer(state, { type: "undoWin", id: "w1" }).wins).toEqual([]);
+  });
+
+  it("archives wins pushed past the cap, so totals survive record + undo", () => {
+    const old = (i: number): WinEntry => ({
+      id: `old-${i}`,
+      timestamp: NOW - (i + 1) * 60_000,
+      minutesSaved: 15,
+      source: i === MAX_WINS - 1 ? "replacement" : "sos",
+    });
+    const full = makeState({ wins: Array.from({ length: MAX_WINS }, (_, i) => old(i)) });
+    const recorded = appReducer(full, { type: "recordWin", entry: win });
+    expect(recorded.wins).toHaveLength(MAX_WINS);
+    expect(recorded.wins[0]).toBe(win);
+    expect(recorded.winArchive).toEqual({ count: 1, minutes: 15, replacementCount: 1 });
+
+    const undone = appReducer(recorded, { type: "undoWin", id: win.id });
+    const total = (state: AppState) =>
+      state.wins.reduce((sum, item) => sum + item.minutesSaved, 0) + state.winArchive.minutes;
+    expect(total(undone)).toBe(total(full));
   });
 
   it("caps the number of custom replacements", () => {

@@ -10,13 +10,15 @@ import type {
   SlipEntry,
   ThemePreference,
   TriggerId,
+  WinArchive,
   WinEntry,
 } from "./types";
 
 /** Upper bounds keep the single JSON blob small and fast to (de)serialize. */
 export const MAX_WINS = 2000;
 export const MAX_SLIPS = 1000;
-export const MAX_SCROLL_DAYS = 400;
+/** Ten years of daily entries is still only ~80 KB; trimming earlier would shrink the best streak. */
+export const MAX_SCROLL_DAYS = 3660;
 export const MAX_CUSTOM_REPLACEMENTS = 30;
 export const MAX_NOTE_LENGTH = 200;
 export const MAX_TITLE_LENGTH = 60;
@@ -44,6 +46,7 @@ export function createInitialState(): PersistedState {
     settings: { ...DEFAULT_SETTINGS },
     scrollLog: {},
     wins: [],
+    winArchive: { count: 0, minutes: 0, replacementCount: 0 },
     slips: [],
     customReplacements: [],
     lastExerciseId: "breath-ground",
@@ -66,6 +69,19 @@ export function trimScrollLog(log: Record<string, number>): Record<string, numbe
   if (keys.length <= MAX_SCROLL_DAYS) return log;
   const kept = keys.sort().slice(-MAX_SCROLL_DAYS);
   return Object.fromEntries(kept.map((key) => [key, log[key]!]));
+}
+
+/** Folds wins that fall off the capped list into the running totals. */
+export function archiveWins(archive: WinArchive, evicted: readonly WinEntry[]): WinArchive {
+  if (evicted.length === 0) return archive;
+  return evicted.reduce(
+    (total, win) => ({
+      count: total.count + 1,
+      minutes: total.minutes + win.minutesSaved,
+      replacementCount: total.replacementCount + (win.source === "replacement" ? 1 : 0),
+    }),
+    archive,
+  );
 }
 
 const TRIGGER_IDS = new Set<string>(TRIGGERS.map((trigger) => trigger.id));
@@ -102,6 +118,17 @@ function sanitizeSettings(value: unknown): Settings {
       typeof raw.mainApp === "string" && APP_IDS.has(raw.mainApp)
         ? (raw.mainApp as FeedApp)
         : DEFAULT_SETTINGS.mainApp,
+  };
+}
+
+const wholeCount = (value: unknown) => (isFiniteNumber(value) ? Math.max(0, Math.round(value)) : 0);
+
+function sanitizeWinArchive(value: unknown): WinArchive {
+  const raw = isRecord(value) ? value : {};
+  return {
+    count: wholeCount(raw.count),
+    minutes: wholeCount(raw.minutes),
+    replacementCount: wholeCount(raw.replacementCount),
   };
 }
 
@@ -196,6 +223,7 @@ export function sanitizePersistedState(raw: unknown): PersistedState {
     settings: sanitizeSettings(raw.settings),
     scrollLog: sanitizeScrollLog(raw.scrollLog),
     wins: sanitizeList(raw.wins, sanitizeWin, (item) => item.timestamp, MAX_WINS),
+    winArchive: sanitizeWinArchive(raw.winArchive),
     slips: sanitizeList(raw.slips, sanitizeSlip, (item) => item.timestamp, MAX_SLIPS),
     customReplacements: sanitizeList(
       raw.customReplacements,
