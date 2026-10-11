@@ -29,14 +29,10 @@ export function PrivacyScreen({ navigation }: RootStackScreenProps<"Privacy">) {
   return (
     <Screen>
       <View className="flex-row items-center gap-3">
-        <IconButton
-          icon="chevron-back"
-          onPress={() => navigation.goBack()}
-          accessibilityLabel="Назад"
-        />
         <AppText variant="title" className="flex-1 text-2xl" accessibilityRole="header">
           Конфиденциальность
         </AppText>
+        <IconButton icon="close" onPress={() => navigation.goBack()} accessibilityLabel="Закрыть" />
       </View>
       {SECTIONS.map((section) => (
         <Card key={section.title} className="gap-2">

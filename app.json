@@ -19,6 +19,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "app.stopscroll.mobile",
+      "allowBackup": false,
       "permissions": [
         "com.android.vending.BILLING"
       ]

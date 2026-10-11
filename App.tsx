@@ -2,6 +2,7 @@ import "./global.css";
 
 import { DarkTheme, DefaultTheme, NavigationContainer, type Theme } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
+import * as SystemUI from "expo-system-ui";
 import { colorScheme } from "nativewind";
 import { useEffect, useMemo } from "react";
 import { ActivityIndicator, Appearance, Platform, View } from "react-native";
@@ -50,6 +51,11 @@ function AppShell() {
       },
     };
   }, [isDark, colors]);
+
+  // The native window shows through modal sheets and transitions; keep it on the theme's color.
+  useEffect(() => {
+    SystemUI.setBackgroundColorAsync(colors.background).catch(() => undefined);
+  }, [colors.background]);
 
   return (
     <>

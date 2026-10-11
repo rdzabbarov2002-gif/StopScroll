@@ -39,7 +39,8 @@ export function RootNavigator() {
           <Stack.Screen
             name="Privacy"
             component={PrivacyScreen}
-            options={{ animation: "slide_from_right" }}
+            // Opened from the full-screen Paywall too: a full-screen modal avoids an iOS page sheet.
+            options={{ presentation: "fullScreenModal", animation: "slide_from_bottom" }}
           />
           <Stack.Screen
             name="Settings"

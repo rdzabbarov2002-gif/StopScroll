@@ -8,6 +8,7 @@ import { AppText } from "./AppText";
 /** "Условия использования · Политика конфиденциальности" — required beside subscription offers. */
 export function LegalLinks({ className }: { className?: string }) {
   const navigation = useNavigation();
+  const termsUrl = TERMS_URL;
 
   const openPrivacy = () => {
     if (PRIVACY_URL) {
@@ -19,13 +20,17 @@ export function LegalLinks({ className }: { className?: string }) {
 
   return (
     <View className={cn("flex-row flex-wrap items-center justify-center gap-x-2", className)}>
-      <LinkText
-        label="Условия использования"
-        onPress={() => Linking.openURL(TERMS_URL).catch(() => undefined)}
-      />
-      <AppText variant="caption" tone="subtle" className="text-xs">
-        ·
-      </AppText>
+      {termsUrl ? (
+        <>
+          <LinkText
+            label="Условия использования"
+            onPress={() => Linking.openURL(termsUrl).catch(() => undefined)}
+          />
+          <AppText variant="caption" tone="subtle" className="text-xs">
+            ·
+          </AppText>
+        </>
+      ) : null}
       <LinkText label="Политика конфиденциальности" onPress={openPrivacy} />
     </View>
   );
