@@ -14,8 +14,8 @@ interface EmptyStateProps {
 export function EmptyState({ icon, title, text }: EmptyStateProps) {
   const { colors } = useThemeColors();
   return (
-    <View className="items-center gap-2 rounded-3xl border border-dashed border-slate-300 px-6 py-8 dark:border-ink-700">
-      <View className="mb-1 h-12 w-12 items-center justify-center rounded-full bg-brand-50 dark:bg-brand-950/50">
+    <View className="items-center gap-2 rounded-card bg-card px-6 py-8 dark:bg-ink-900">
+      <View className="mb-1 h-12 w-12 items-center justify-center rounded-full bg-brand-50 dark:bg-brand-900">
         <Ionicons name={icon} size={22} color={colors.primary} />
       </View>
       <AppText variant="label" className="text-base">

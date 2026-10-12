@@ -12,6 +12,7 @@ import type { FeedApp, TriggerId } from "../../utils/types";
 import { AppText } from "../AppText";
 import { Button } from "../Button";
 import { Card } from "../Card";
+import { CardLabel } from "../CardLabel";
 import { Chip } from "../Chip";
 
 const MINUTE_OPTIONS = [5, 15, 30, 60, 120] as const;
@@ -47,7 +48,10 @@ export function SlipForm({ initialTrigger }: SlipFormProps) {
   return (
     <Card className="gap-5">
       <View className="gap-3">
-        <AppText variant="label">Что запустило срыв?</AppText>
+        <View className="gap-2">
+          <CardLabel icon="add-circle" label="Записать срыв" color={colors.warningStrong} />
+          <AppText variant="statement">Что потянуло в ленту?</AppText>
+        </View>
         <View className="flex-row flex-wrap gap-2">
           {TRIGGERS.map((item) => (
             <Chip
@@ -66,7 +70,9 @@ export function SlipForm({ initialTrigger }: SlipFormProps) {
       </View>
 
       <View className="gap-3">
-        <AppText variant="label">Где</AppText>
+        <AppText variant="overline" tone="subtle">
+          Где
+        </AppText>
         <View className="flex-row flex-wrap gap-2">
           {FEED_APPS.map((item) => (
             <Chip
@@ -85,7 +91,9 @@ export function SlipForm({ initialTrigger }: SlipFormProps) {
       </View>
 
       <View className="gap-3">
-        <AppText variant="label">Сколько ушло</AppText>
+        <AppText variant="overline" tone="subtle">
+          Сколько ушло
+        </AppText>
         <View className="flex-row flex-wrap gap-2">
           {MINUTE_OPTIONS.map((value) => (
             <Chip
@@ -104,7 +112,9 @@ export function SlipForm({ initialTrigger }: SlipFormProps) {
 
       <View className="gap-2">
         <View className="flex-row items-center justify-between">
-          <AppText variant="label">Заметка</AppText>
+          <AppText variant="overline" tone="subtle">
+            Заметка
+          </AppText>
           <AppText variant="caption" tone="subtle">
             {note.length}/{MAX_NOTE_LENGTH}
           </AppText>
@@ -119,7 +129,7 @@ export function SlipForm({ initialTrigger }: SlipFormProps) {
           placeholderTextColor={colors.textSubtle}
           multiline
           maxLength={MAX_NOTE_LENGTH}
-          className="min-h-[72px] rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-base text-slate-900 dark:border-ink-700 dark:bg-ink-850 dark:text-slate-100"
+          className="min-h-[72px] rounded-2xl bg-white px-4 py-3 text-[16px] text-black dark:bg-ink-800 dark:text-white"
           style={{ textAlignVertical: "top" }}
           accessibilityLabel="Заметка, необязательно"
         />
@@ -127,7 +137,7 @@ export function SlipForm({ initialTrigger }: SlipFormProps) {
 
       {saved ? (
         <View
-          className="flex-row items-center gap-3 rounded-2xl bg-brand-50 p-3.5 dark:bg-brand-950/50"
+          className="flex-row items-center gap-3 rounded-2xl bg-white p-3.5 dark:bg-ink-800"
           accessibilityLiveRegion="polite"
         >
           <Ionicons name="checkmark-circle" size={20} color={colors.primary} />

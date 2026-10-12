@@ -1,18 +1,17 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useState } from "react";
-import { Switch, View } from "react-native";
+import { Pressable, Switch, View } from "react-native";
 
+import { AppIconMark } from "../components/AppIconMark";
 import { AppText } from "../components/AppText";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { Separator } from "../components/CardLabel";
 import { Chip } from "../components/Chip";
-import { IconButton } from "../components/IconButton";
 import { LegalLinks } from "../components/LegalLinks";
 import { Screen } from "../components/Screen";
-import { SegmentedControl } from "../components/SegmentedControl";
-import { SectionTitle } from "../components/SectionTitle";
 import { Stepper } from "../components/Stepper";
-import { THEME_META } from "../components/ThemeToggle";
+import { ThemePicker } from "../components/ThemePicker";
 import { useApp } from "../context/AppContext";
 import { usePro } from "../context/ProContext";
 import type { RootStackScreenProps } from "../navigation/types";
@@ -21,9 +20,6 @@ import { formatMinutes } from "../utils/date";
 import { haptics } from "../utils/haptics";
 import { BASELINE_RANGE, LIMIT_RANGE, SESSION_RANGE } from "../utils/persistedState";
 import { useThemeColors } from "../utils/theme";
-import type { ThemePreference } from "../utils/types";
-
-const THEMES: readonly ThemePreference[] = ["system", "light", "dark"];
 
 export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">) {
   const { colors } = useThemeColors();
@@ -48,57 +44,71 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
 
   return (
     <Screen>
-      <View className="flex-row items-center gap-3">
-        <IconButton
-          icon="chevron-back"
-          onPress={() => navigation.goBack()}
-          accessibilityLabel="Назад"
-        />
-        <AppText variant="title" accessibilityRole="header">
-          Настройки
+      <Pressable
+        onPress={() => navigation.goBack()}
+        accessibilityRole="button"
+        accessibilityLabel="Назад"
+        hitSlop={8}
+        className="h-9 flex-row items-center gap-0.5 self-start active:opacity-60"
+      >
+        <Ionicons name="chevron-back" size={24} color={colors.primary} />
+        <AppText variant="body" tone="primary">
+          Сегодня
         </AppText>
-      </View>
+      </Pressable>
+      <AppText variant="title" accessibilityRole="header" className="px-1 pb-1">
+        Настройки
+      </AppText>
 
-      <Card tone={pro.isPro ? "primary" : "default"} className="gap-4">
-        <View className="flex-row items-center gap-3">
-          <View className="h-12 w-12 items-center justify-center rounded-2xl bg-brand-600 dark:bg-brand-500">
-            <Ionicons name="shield-checkmark" size={24} color={colors.onPrimary} />
-          </View>
-          <View className="flex-1">
-            <AppText variant="heading">
-              {pro.isPro ? "StopScroll Pro активен" : "Бесплатная версия"}
-            </AppText>
-            <AppText variant="caption" tone="muted">
-              {pro.isPro
-                ? "Все упражнения, замены и глубокая аналитика открыты."
-                : "Откройте все упражнения, свои замены и глубокую аналитику."}
-            </AppText>
-          </View>
+      <Pressable
+        onPress={() => navigation.navigate("Paywall")}
+        accessibilityRole="button"
+        accessibilityLabel={pro.isPro ? "StopScroll Pro активен" : "Открыть StopScroll Pro"}
+        className="flex-row items-center gap-3.5 rounded-card bg-card p-4 active:opacity-80 dark:bg-ink-900"
+      >
+        <AppIconMark size={52} />
+        <View className="flex-1 gap-0.5">
+          <AppText variant="heading">
+            {pro.isPro ? "StopScroll Pro активен" : "StopScroll Pro"}
+          </AppText>
+          <AppText variant="caption" tone="subtle" className="text-[14px] leading-[19px]">
+            {pro.isPro
+              ? "Все упражнения, замены и глубокая аналитика открыты."
+              : "Все упражнения, свои замены и глубокая аналитика"}
+          </AppText>
         </View>
-        {!pro.isPro ? (
-          <Button
-            label="Открыть Pro"
-            icon="sparkles"
-            onPress={() => navigation.navigate("Paywall")}
-          />
-        ) : null}
-        {pro.status === "ready" ? (
+        <Ionicons name="chevron-forward" size={18} color={colors.chevron} />
+      </Pressable>
+      {pro.status === "ready" ? (
+        <View className="gap-1.5">
           <Button
             label="Восстановить покупки"
             variant="secondary"
             loading={restoring}
             onPress={restore}
           />
-        ) : null}
-        {restoreMessage ? (
-          <AppText variant="caption" tone="muted" accessibilityLiveRegion="polite">
-            {restoreMessage}
-          </AppText>
-        ) : null}
-      </Card>
+          {restoreMessage ? (
+            <AppText
+              variant="caption"
+              tone="muted"
+              className="px-1 text-center"
+              accessibilityLiveRegion="polite"
+            >
+              {restoreMessage}
+            </AppText>
+          ) : null}
+        </View>
+      ) : null}
 
-      <SectionTitle title="Цели" />
-      <Card className="gap-5">
+      <AppText variant="overline" tone="subtle" className="px-1 pt-3" accessibilityRole="header">
+        Оформление
+      </AppText>
+      <ThemePicker />
+
+      <AppText variant="overline" tone="subtle" className="px-1 pt-3" accessibilityRole="header">
+        Цели
+      </AppText>
+      <Card className="gap-4">
         <Stepper
           label="Дневной лимит ленты"
           hint="День в пределах лимита продолжает серию"
@@ -109,6 +119,7 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
           format={formatMinutes}
           onChange={(value) => app.updateSettings({ dailyLimitMinutes: value })}
         />
+        <Separator />
         <Stepper
           label="Одна сессия в ленте"
           hint="Столько минут засчитываем за каждую победу"
@@ -119,6 +130,7 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
           format={formatMinutes}
           onChange={(value) => app.updateSettings({ sessionMinutes: value })}
         />
+        <Separator />
         <Stepper
           label="Исходный уровень"
           hint="Сколько уходило в день до StopScroll"
@@ -131,8 +143,10 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
         />
       </Card>
 
-      <SectionTitle title="Главная лента" />
-      <View className="flex-row flex-wrap gap-2">
+      <AppText variant="overline" tone="subtle" className="px-1 pt-3" accessibilityRole="header">
+        Главная лента
+      </AppText>
+      <Card className="flex-row flex-wrap gap-2">
         {FEED_APPS.map((item) => (
           <Chip
             key={item.id}
@@ -145,21 +159,13 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
             }}
           />
         ))}
-      </View>
-
-      <SectionTitle title="Оформление" />
-      <SegmentedControl
-        options={THEMES.map((value) => ({
-          value,
-          label: THEME_META[value].label.charAt(0).toUpperCase() + THEME_META[value].label.slice(1),
-        }))}
-        value={app.themePreference}
-        onChange={app.setThemePreference}
-      />
+      </Card>
 
       {__DEV__ ? (
         <>
-          <SectionTitle title="Разработка" />
+          <AppText variant="overline" tone="subtle" className="px-1 pt-3">
+            Разработка
+          </AppText>
           <Card className="flex-row items-center gap-3">
             <View className="flex-1">
               <AppText variant="label" className="text-base">
@@ -172,14 +178,16 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
             <Switch
               value={pro.devPro}
               onValueChange={pro.setDevPro}
-              trackColor={{ true: colors.primary, false: colors.ringTrack }}
+              trackColor={{ true: colors.successBright, false: colors.ringTrack }}
               accessibilityLabel="Тестовый Pro"
             />
           </Card>
         </>
       ) : null}
 
-      <SectionTitle title="Данные" />
+      <AppText variant="overline" tone="subtle" className="px-1 pt-3" accessibilityRole="header">
+        Данные
+      </AppText>
       <Card className="gap-3">
         <AppText variant="caption" tone="muted">
           Все записи хранятся только на этом устройстве. Сброс удалит историю времени, побед, срывов

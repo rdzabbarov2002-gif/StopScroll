@@ -14,8 +14,10 @@ import {
 } from "../../utils/date";
 import { FREE_TREND_DAYS, PRO_TREND_DAYS } from "../../utils/pro";
 import { averageMinutes, getTrend } from "../../utils/stats";
+import { useThemeColors } from "../../utils/theme";
 import { AppText } from "../AppText";
 import { Card } from "../Card";
+import { CardLabel, durationParts } from "../CardLabel";
 import { ColumnChart, type ColumnDatum } from "../charts/ColumnChart";
 import { SegmentedControl } from "../SegmentedControl";
 
@@ -25,6 +27,7 @@ type Range = "short" | "long";
 
 export function TrendCard() {
   const navigation = useNavigation();
+  const { colors, chart } = useThemeColors();
   const { scrollLog, todayKey, settings } = useApp();
   const { isPro } = usePro();
   const [range, setRange] = useState<Range>("short");
@@ -56,14 +59,7 @@ export function TrendCard() {
 
   return (
     <Card className="gap-4">
-      <View className="flex-row items-start justify-between gap-3">
-        <View className="flex-1 gap-0.5">
-          <AppText variant="heading">Динамика</AppText>
-          <AppText variant="caption" tone="muted">
-            {average === null ? "Пока нет записей" : `В среднем ${formatMinutes(average)} в день`}
-          </AppText>
-        </View>
-      </View>
+      <CardLabel icon="phone-portrait" label="Время в ленте" color={colors.primary} />
 
       <SegmentedControl
         options={[
@@ -80,22 +76,57 @@ export function TrendCard() {
         }}
       />
 
-      <View className="flex-row items-baseline justify-between">
-        <AppText variant="caption" tone="muted">
-          {describe(selected.key)}
-        </AppText>
-        <AppText variant="label" className="text-base">
-          {selected.minutes === null ? "нет записи" : formatMinutes(selected.minutes)}
-        </AppText>
+      <View className="flex-row items-end justify-between gap-3">
+        <View className="shrink">
+          <AppText variant="overline" tone="subtle">
+            В среднем
+          </AppText>
+          {average === null ? (
+            <AppText variant="statement" tone="muted">
+              Пока нет записей
+            </AppText>
+          ) : (
+            <View className="flex-row flex-wrap items-baseline gap-x-1">
+              {durationParts(average).map((part) => (
+                <View key={part.unit} className="flex-row items-baseline gap-1">
+                  <AppText rounded className="text-[34px] font-bold leading-[40px]">
+                    {part.value}
+                  </AppText>
+                  <AppText variant="heading" tone="subtle">
+                    {part.unit}
+                  </AppText>
+                </View>
+              ))}
+              <AppText variant="heading" tone="subtle">
+                в день
+              </AppText>
+            </View>
+          )}
+        </View>
+        <View className="items-end">
+          <AppText variant="caption" tone="subtle" className="text-[13px]">
+            {describe(selected.key)}
+          </AppText>
+          <AppText variant="label" tone="primary">
+            {selected.minutes === null ? "нет записи" : formatMinutes(selected.minutes)}
+          </AppText>
+        </View>
       </View>
 
       <ColumnChart
         data={data}
         highlightKey={selected.key}
         onSelect={setSelectedKey}
-        reference={{ value: limit, label: `Дневной лимит · ${formatMinutes(limit)}` }}
+        reference={{ value: limit, label: `лимит ${formatMinutes(limit)}` }}
         formatTick={formatMinutesCompact}
         niceSteps={MINUTE_STEPS}
+        colorFor={(datum, highlighted) =>
+          datum.value !== null && datum.value > limit
+            ? chart.slip
+            : highlighted
+              ? chart.series
+              : chart.seriesMuted
+        }
       />
     </Card>
   );

@@ -3,9 +3,11 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, View } from "react-native";
 import { PACKAGE_TYPE } from "react-native-purchases";
 
+import { AppIconMark } from "../components/AppIconMark";
 import { AppText } from "../components/AppText";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { Separator } from "../components/CardLabel";
 import { IconButton } from "../components/IconButton";
 import { LegalLinks } from "../components/LegalLinks";
 import { Screen } from "../components/Screen";
@@ -67,24 +69,29 @@ export function PaywallScreen({ navigation, route }: RootStackScreenProps<"Paywa
         <IconButton icon="close" onPress={close} accessibilityLabel="Закрыть" />
       </View>
 
-      <View className="items-center gap-3 px-2">
-        <View className="h-20 w-20 items-center justify-center rounded-[28px] bg-brand-600 dark:bg-brand-500">
-          <Ionicons name="shield-checkmark" size={40} color={colors.onPrimary} />
+      <View className="items-center gap-1.5 px-2 pb-2">
+        <View
+          className="mb-2"
+          style={{
+            shadowColor: colors.primary,
+            shadowOpacity: 0.3,
+            shadowRadius: 14,
+            shadowOffset: { width: 0, height: 8 },
+          }}
+        >
+          <AppIconMark size={76} />
         </View>
-        <AppText variant="overline" tone="primary">
-          StopScroll Pro
-        </AppText>
         <AppText
-          variant="title"
-          className="text-center text-[28px] leading-9"
+          className="text-center text-[28px] font-bold leading-[34px] tracking-tight"
           accessibilityRole="header"
         >
-          {pro.isPro ? "Pro уже с вами" : headline.title}
+          {pro.isPro ? "Pro уже с вами" : "StopScroll Pro"}
         </AppText>
-        <AppText tone="muted" className="text-center">
-          {pro.isPro
-            ? "Все упражнения, замены и аналитика открыты. Спасибо, что поддерживаете приложение!"
-            : headline.text}
+        <AppText variant="heading" className="text-center">
+          {pro.isPro ? "Спасибо, что поддерживаете приложение!" : headline.title}
+        </AppText>
+        <AppText variant="caption" tone="muted" className="text-center">
+          {pro.isPro ? "Все упражнения, замены и аналитика открыты." : headline.text}
         </AppText>
       </View>
 
@@ -107,19 +114,21 @@ export function PaywallScreen({ navigation, route }: RootStackScreenProps<"Paywa
         </Card>
       ) : (
         <View className="gap-3">
-          {pro.plans.map((plan) => (
-            <PlanOption
-              key={plan.id}
-              plan={plan}
-              selected={plan.id === selected?.id}
-              onPress={() => {
-                haptics.selection();
-                setSelectedId(plan.id);
-              }}
-            />
-          ))}
+          <View className="flex-row flex-wrap gap-2.5 pt-2">
+            {pro.plans.map((plan) => (
+              <PlanOption
+                key={plan.id}
+                plan={plan}
+                selected={plan.id === selected?.id}
+                onPress={() => {
+                  haptics.selection();
+                  setSelectedId(plan.id);
+                }}
+              />
+            ))}
+          </View>
           <Button
-            label={selected?.trial ? `Начать: ${selected.trial}` : "Оформить Pro"}
+            label={selected?.trial ? `Попробовать ${selected.trial}` : "Оформить Pro"}
             size="lg"
             icon="sparkles"
             loading={busy === "purchase"}
@@ -167,62 +176,67 @@ export function PaywallScreen({ navigation, route }: RootStackScreenProps<"Paywa
 
 function ComparisonTable() {
   return (
-    <Card className="gap-1 p-0">
-      <View className="flex-row items-center px-4 pb-2 pt-4">
-        <AppText variant="overline" tone="muted" className="flex-1">
-          Возможности
-        </AppText>
-        <AppText variant="overline" tone="muted" className="w-14 text-center">
+    <Card className="p-0">
+      <View className="flex-row items-center px-4 pb-2 pt-3.5">
+        <View className="flex-1" />
+        <AppText variant="label" tone="subtle" className="w-16 text-center text-[13px]">
           Free
         </AppText>
-        <AppText variant="overline" tone="primary" className="w-14 text-center">
+        <AppText variant="label" tone="primary" className="w-24 text-center text-[13px]">
           Pro
         </AppText>
       </View>
-      {PLAN_ROWS.map((row, index) => (
-        <PlanRowView key={row.label} row={row} last={index === PLAN_ROWS.length - 1} />
+      {PLAN_ROWS.map((row) => (
+        <PlanRowView key={row.label} row={row} />
       ))}
     </Card>
   );
 }
 
-function PlanRowView({ row, last }: { row: PlanRow; last: boolean }) {
-  const { colors } = useThemeColors();
+function PlanRowView({ row }: { row: PlanRow }) {
   const describe = (value: string | boolean) =>
     value === true ? "есть" : value === false ? "нет" : value;
   return (
     <View
-      className={cn(
-        "flex-row items-center gap-3 px-4 py-3",
-        !last && "border-b border-slate-100 dark:border-ink-800",
-      )}
       accessible
       accessibilityLabel={`${row.label}: бесплатно — ${describe(row.free)}, Pro — ${describe(row.pro)}`}
     >
-      <Ionicons name={row.icon} size={18} color={colors.textMuted} />
-      <AppText variant="caption" className="flex-1">
-        {row.label}
-      </AppText>
-      <Cell value={row.free} />
-      <Cell value={row.pro} highlight />
+      <Separator className="ml-4" />
+      <View className="min-h-[46px] flex-row items-center px-4 py-2">
+        <AppText variant="body" className="flex-1 text-[16px]" numberOfLines={2}>
+          {row.label}
+        </AppText>
+        <Cell value={row.free} width="w-16" />
+        <Cell value={row.pro} width="w-24" highlight />
+      </View>
     </View>
   );
 }
 
-function Cell({ value, highlight = false }: { value: string | boolean; highlight?: boolean }) {
+function Cell({
+  value,
+  width,
+  highlight = false,
+}: {
+  value: string | boolean;
+  width: string;
+  highlight?: boolean;
+}) {
   const { colors } = useThemeColors();
   return (
-    <View className="w-14 items-center">
+    <View className={cn("items-center", width)}>
       {value === true ? (
-        <Ionicons
-          name="checkmark-circle"
-          size={20}
-          color={highlight ? colors.primary : colors.textMuted}
-        />
+        <Ionicons name="checkmark" size={22} color={colors.primary} />
       ) : value === false ? (
-        <Ionicons name="remove" size={18} color={colors.textSubtle} />
+        <View className="h-0.5 w-3 rounded-full" style={{ backgroundColor: colors.ringTrack }} />
       ) : (
-        <AppText variant="label" tone={highlight ? "primary" : "muted"}>
+        <AppText
+          variant="label"
+          tone={highlight ? "default" : "subtle"}
+          className="text-center text-[14px]"
+          numberOfLines={1}
+          adjustsFontSizeToFit
+        >
           {value}
         </AppText>
       )}
@@ -246,41 +260,48 @@ function PlanOption({
       accessibilityRole="radio"
       accessibilityState={{ selected }}
       accessibilityLabel={`${plan.title}, ${plan.price}${plan.caption ? `, ${plan.caption}` : ""}${plan.trial ? `, ${plan.trial}` : ""}`}
-      className={cn(
-        "flex-row items-center gap-4 rounded-3xl border-2 bg-white p-4 active:opacity-90 dark:bg-ink-900",
-        selected
-          ? "border-brand-600 dark:border-brand-400"
-          : "border-slate-200 dark:border-ink-800",
-      )}
+      className="min-w-[45%] flex-1 gap-1.5 rounded-[20px] bg-card p-3.5 active:opacity-90 dark:bg-ink-900"
+      style={{
+        borderWidth: selected ? 2.5 : 0.5,
+        borderColor: selected ? colors.primary : colors.separator,
+      }}
     >
-      <Ionicons
-        name={selected ? "radio-button-on" : "radio-button-off"}
-        size={22}
-        color={selected ? colors.primary : colors.textSubtle}
-      />
-      <View className="flex-1 gap-0.5">
-        <View className="flex-row flex-wrap items-center gap-2">
-          <AppText variant="label" className="text-base">
-            {plan.title}
+      {plan.savings ? (
+        <View className="absolute -top-2.5 right-3 rounded-full bg-brand-600 px-2 py-0.5 dark:bg-brand-500">
+          <AppText variant="label" className="text-[12px] text-white dark:text-white">
+            −{plan.savings}%
           </AppText>
-          {plan.savings ? (
-            <View className="rounded-full bg-emerald-100 px-2 py-0.5 dark:bg-emerald-950/60">
-              <AppText
-                variant="caption"
-                className="text-xs font-semibold text-emerald-700 dark:text-emerald-300"
-              >
-                −{plan.savings}%
-              </AppText>
-            </View>
-          ) : null}
         </View>
-        {plan.trial || plan.caption ? (
-          <AppText variant="caption" tone="muted">
-            {[plan.trial, plan.caption].filter(Boolean).join(" · ")}
-          </AppText>
-        ) : null}
+      ) : null}
+      <View className="flex-row items-center justify-between gap-2">
+        <AppText variant="heading" className="text-[15px]">
+          {plan.title}
+        </AppText>
+        {selected ? (
+          <Ionicons name="checkmark-circle" size={22} color={colors.primary} />
+        ) : (
+          <View
+            className="h-5 w-5 rounded-full"
+            style={{ borderWidth: 1.5, borderColor: colors.ringTrack }}
+          />
+        )}
       </View>
-      <AppText variant="heading">{plan.price}</AppText>
+      <AppText
+        rounded
+        className="text-[24px] font-bold leading-[30px]"
+        numberOfLines={1}
+        adjustsFontSizeToFit
+      >
+        {plan.price}
+      </AppText>
+      <AppText variant="caption" tone="subtle" className="text-[13px] leading-[17px]">
+        {[plan.trial, plan.caption].filter(Boolean).join(" · ") ||
+          (plan.pkg.packageType === PACKAGE_TYPE.MONTHLY
+            ? "в месяц"
+            : plan.pkg.packageType === PACKAGE_TYPE.WEEKLY
+              ? "в неделю"
+              : "")}
+      </AppText>
     </Pressable>
   );
 }

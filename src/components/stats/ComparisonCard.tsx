@@ -3,14 +3,16 @@ import { View } from "react-native";
 
 import { useApp } from "../../context/AppContext";
 import { cn } from "../../utils/cn";
-import { formatMinutes } from "../../utils/date";
+import { formatMinutes, formatMinutesInline } from "../../utils/date";
 import { compareScroll } from "../../utils/stats";
 import { useThemeColors } from "../../utils/theme";
 import { AppText } from "../AppText";
 import { Card } from "../Card";
+import { CardLabel } from "../CardLabel";
 
 /** "Вчера — 3 ч, сегодня — 30 мин": a before/after scale against yesterday and the baseline. */
 export function ComparisonCard() {
+  const { colors } = useThemeColors();
   const { scrollLog, todayKey, settings } = useApp();
   const comparison = compareScroll(scrollLog, todayKey, settings.baselineMinutes);
   const { today, yesterday, baseline } = comparison;
@@ -24,20 +26,16 @@ export function ComparisonCard() {
 
   const headline =
     today !== null && yesterday !== null
-      ? `Вчера — ${formatMinutes(yesterday)}, сегодня — ${formatMinutes(today)}`
+      ? `Вчера — ${formatMinutesInline(yesterday)}, сегодня — ${formatMinutesInline(today)}`
       : today !== null
-        ? `Сегодня — ${formatMinutes(today)}`
+        ? `Сегодня — ${formatMinutesInline(today)}`
         : "Отметьте время за сегодня";
 
   return (
-    <Card className="gap-5">
-      <View className="gap-1">
-        <AppText variant="overline" tone="muted">
-          Сравнение
-        </AppText>
-        <AppText variant="heading" className="text-xl leading-7">
-          {headline}
-        </AppText>
+    <Card className="gap-4">
+      <View className="gap-2">
+        <CardLabel icon="analytics" label="Сравнение" color={colors.indigo} />
+        <AppText variant="statement">{headline}</AppText>
       </View>
 
       <View className="flex-row flex-wrap gap-2">
@@ -106,9 +104,8 @@ function ScaleRow({
             style={{
               height: 12,
               width: `${Math.max(1.5, (value / max) * 100)}%`,
-              backgroundColor: emphasis ? chart.series : chart.seriesMuted,
-              borderTopRightRadius: 4,
-              borderBottomRightRadius: 4,
+              backgroundColor: emphasis ? chart.series : chart.comparison,
+              borderRadius: 6,
             }}
           />
         )}
@@ -136,10 +133,10 @@ function DeltaBadge({
       className={cn(
         "flex-row items-center gap-1.5 rounded-full px-3 py-1.5",
         same
-          ? "bg-slate-100 dark:bg-ink-800"
+          ? "bg-white dark:bg-ink-800"
           : better
-            ? "bg-emerald-100 dark:bg-emerald-950/50"
-            : "bg-amber-100 dark:bg-amber-950/50",
+            ? "bg-emerald-100 dark:bg-emerald-950"
+            : "bg-amber-100 dark:bg-amber-950",
       )}
     >
       <Ionicons
@@ -154,8 +151,8 @@ function DeltaBadge({
           same
             ? "text-slate-600 dark:text-slate-300"
             : better
-              ? "text-emerald-700 dark:text-emerald-300"
-              : "text-amber-700 dark:text-amber-300",
+              ? "text-emerald-700 dark:text-emerald-400"
+              : "text-amber-700 dark:text-amber-400",
         )}
       >
         {text}

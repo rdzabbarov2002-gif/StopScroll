@@ -10,9 +10,8 @@ import { SlipForm } from "../components/journal/SlipForm";
 import { SlipHistoryItem } from "../components/journal/SlipHistoryItem";
 import { LockedCard } from "../components/LockedCard";
 import { ProBadge } from "../components/ProBadge";
+import { ListGroup } from "../components/ListGroup";
 import { Screen } from "../components/Screen";
-import { ScreenHeader } from "../components/ScreenHeader";
-import { SectionTitle } from "../components/SectionTitle";
 import { useApp } from "../context/AppContext";
 import { usePro } from "../context/ProContext";
 import type { RootTabScreenProps } from "../navigation/types";
@@ -34,11 +33,14 @@ export function JournalScreen({ route }: RootTabScreenProps<"Journal">) {
 
   return (
     <Screen>
-      <ScreenHeader
-        eyebrow="Дневник триггеров"
-        title="Что случилось?"
-        subtitle="Запишите срыв за 10 секунд — без самокритики. Через пару записей станут видны паттерны."
-      />
+      <View className="gap-1 px-1 pb-1 pt-3">
+        <AppText variant="title" accessibilityRole="header">
+          Дневник
+        </AppText>
+        <AppText variant="caption" tone="muted">
+          Запишите срыв за 10 секунд — без самокритики. Через пару записей станут видны паттерны.
+        </AppText>
+      </View>
 
       {/* Remount on every hand-over from the SOS screen, so the form starts pre-filled. */}
       <SlipForm key={String(route.params?.handoffAt ?? 0)} initialTrigger={prefill} />
@@ -46,8 +48,10 @@ export function JournalScreen({ route }: RootTabScreenProps<"Journal">) {
       <PatternsCard patterns={patterns} />
 
       <View className="gap-3">
-        <View className="flex-row items-center gap-2">
-          <SectionTitle title="Глубокая аналитика" />
+        <View className="flex-row items-center gap-2 px-1 pt-2">
+          <AppText variant="overline" tone="subtle" accessibilityRole="header">
+            Глубокая аналитика
+          </AppText>
           {!isPro ? <ProBadge /> : null}
         </View>
         {isPro ? (
@@ -61,17 +65,6 @@ export function JournalScreen({ route }: RootTabScreenProps<"Journal">) {
         )}
       </View>
 
-      <SectionTitle
-        title="История срывов"
-        right={
-          slips.length > 0 ? (
-            <AppText variant="caption" tone="muted">
-              {slips.length} {pluralize(slips.length, ENTRY_FORMS)}
-            </AppText>
-          ) : null
-        }
-      />
-
       {slips.length === 0 ? (
         <EmptyState
           icon="journal-outline"
@@ -80,9 +73,18 @@ export function JournalScreen({ route }: RootTabScreenProps<"Journal">) {
         />
       ) : (
         <View className="gap-3">
-          {visible.map((entry) => (
-            <SlipHistoryItem key={entry.id} entry={entry} now={now} onDelete={deleteSlip} />
-          ))}
+          <ListGroup
+            header="История срывов"
+            headerRight={
+              <AppText variant="caption" tone="subtle" className="text-[13px]">
+                {slips.length} {pluralize(slips.length, ENTRY_FORMS)}
+              </AppText>
+            }
+          >
+            {visible.map((entry) => (
+              <SlipHistoryItem key={entry.id} entry={entry} now={now} onDelete={deleteSlip} />
+            ))}
+          </ListGroup>
           {slips.length > visibleCount ? (
             <Button
               label="Показать ещё"

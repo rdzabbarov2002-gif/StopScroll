@@ -12,6 +12,7 @@ import { useThemeColors } from "../../utils/theme";
 import { AppText } from "../AppText";
 import { Button } from "../Button";
 import { Card } from "../Card";
+import { CardLabel } from "../CardLabel";
 import { SegmentedControl } from "../SegmentedControl";
 
 const SLIDER_MAX = 480;
@@ -21,20 +22,20 @@ type Day = "today" | "yesterday";
 
 /** Daily scroll-time input: slider, fine ±5 min steps and quick presets. */
 export function ScrollLogger() {
+  const { colors } = useThemeColors();
   const { todayKey, scrollLog } = useApp();
   const [day, setDay] = useState<Day>("today");
   const key = day === "today" ? todayKey : addDays(todayKey, -1);
   const logged = scrollLog[key];
 
   return (
-    <Card className="gap-5">
-      <View className="flex-row items-center justify-between gap-3">
-        <View className="flex-1">
-          <AppText variant="heading">Время в ленте</AppText>
-          <AppText variant="caption" tone="muted">
-            Reels, TikTok, Shorts — всё вместе
-          </AppText>
-        </View>
+    <Card className="gap-4">
+      <View className="gap-1">
+        <CardLabel icon="create" label="Отметить время" color={colors.primary} />
+        <AppText variant="statement">Сколько ушло на ленту?</AppText>
+        <AppText variant="caption" tone="muted">
+          Reels, TikTok, Shorts — всё вместе
+        </AppText>
       </View>
       <SegmentedControl
         options={[
@@ -65,13 +66,17 @@ function LoggerBody({ dayKey, logged }: { dayKey: string; logged: number | undef
   return (
     <View className="gap-4">
       <View className="items-center gap-2">
-        <AppText variant="display" className="text-5xl" accessibilityLiveRegion="polite">
+        <AppText
+          rounded
+          className="text-[48px] font-bold leading-[56px] tracking-tight"
+          accessibilityLiveRegion="polite"
+        >
           {formatMinutes(value)}
         </AppText>
         <View
           className={cn(
             "flex-row items-center gap-1.5 rounded-full px-3 py-1",
-            over ? "bg-amber-100 dark:bg-amber-950/50" : "bg-emerald-100 dark:bg-emerald-950/50",
+            over ? "bg-amber-100 dark:bg-amber-950" : "bg-emerald-100 dark:bg-emerald-950",
           )}
         >
           <Ionicons
@@ -84,8 +89,8 @@ function LoggerBody({ dayKey, logged }: { dayKey: string; logged: number | undef
             className={cn(
               "font-semibold",
               over
-                ? "text-amber-700 dark:text-amber-300"
-                : "text-emerald-700 dark:text-emerald-300",
+                ? "text-amber-700 dark:text-amber-400"
+                : "text-emerald-700 dark:text-emerald-400",
             )}
           >
             {over
@@ -126,13 +131,14 @@ function LoggerBody({ dayKey, logged }: { dayKey: string; logged: number | undef
             accessibilityRole="button"
             accessibilityLabel={`Установить ${formatMinutes(preset)}`}
             className={cn(
-              "h-9 flex-1 items-center justify-center rounded-xl border active:opacity-70",
-              value === preset
-                ? "border-brand-600 bg-brand-50 dark:border-brand-400 dark:bg-brand-950/50"
-                : "border-slate-200 dark:border-ink-700",
+              "h-9 flex-1 items-center justify-center rounded-full active:opacity-70",
+              value === preset ? "bg-brand-600 dark:bg-brand-500" : "bg-white dark:bg-ink-800",
             )}
           >
-            <AppText variant="label" className="text-[13px]">
+            <AppText
+              variant="label"
+              className={cn("text-[13px]", value === preset && "text-white dark:text-white")}
+            >
               {formatMinutes(preset)}
             </AppText>
           </Pressable>
@@ -174,9 +180,9 @@ function RoundButton({
       accessibilityRole="button"
       accessibilityLabel={label}
       hitSlop={6}
-      className="h-10 w-10 items-center justify-center rounded-full bg-slate-100 active:opacity-70 dark:bg-ink-800"
+      className="h-10 w-10 items-center justify-center rounded-full bg-white active:opacity-70 dark:bg-ink-800"
     >
-      <Ionicons name={icon} size={20} color={colors.text} />
+      <Ionicons name={icon} size={20} color={colors.primary} />
     </Pressable>
   );
 }

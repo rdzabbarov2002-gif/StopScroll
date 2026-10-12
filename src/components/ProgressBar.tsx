@@ -27,7 +27,7 @@ export function ProgressBar({ progress, tone = "primary", className }: ProgressB
 
   return (
     <View
-      className={cn("h-2.5 overflow-hidden rounded-full bg-slate-100 dark:bg-ink-800", className)}
+      className={cn("h-2 overflow-hidden rounded-full bg-[#E5E5EA] dark:bg-ink-700", className)}
       accessibilityRole="progressbar"
       accessibilityValue={{ min: 0, max: 100, now: Math.round(clamped * 100) }}
     >

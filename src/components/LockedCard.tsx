@@ -21,9 +21,9 @@ export function LockedCard({ title, text, feature }: LockedCardProps) {
       onPress={() => navigation.navigate("Paywall", { feature })}
       accessibilityRole="button"
       accessibilityLabel={`${title}. Доступно в StopScroll Pro`}
-      className="flex-row items-center gap-4 rounded-3xl border border-dashed border-brand-300 bg-brand-50/60 p-5 active:opacity-80 dark:border-brand-800 dark:bg-brand-950/30"
+      className="flex-row items-center gap-4 rounded-card bg-card p-[18px] active:opacity-80 dark:bg-ink-900"
     >
-      <View className="h-11 w-11 items-center justify-center rounded-2xl bg-brand-100 dark:bg-brand-900/60">
+      <View className="h-11 w-11 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-900">
         <Ionicons name="lock-closed" size={20} color={colors.primary} />
       </View>
       <View className="flex-1 gap-0.5">
@@ -34,7 +34,7 @@ export function LockedCard({ title, text, feature }: LockedCardProps) {
           {text}
         </AppText>
       </View>
-      <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+      <Ionicons name="chevron-forward" size={18} color={colors.chevron} />
     </Pressable>
   );
 }

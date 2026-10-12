@@ -1,79 +1,105 @@
 import { useColorScheme } from "nativewind";
+import { Platform } from "react-native";
 
 /**
  * Colors for places that can't take a className (icons, navigation, SVG, placeholders).
- * Values mirror the Tailwind classes used across the components.
+ * Values mirror the Tailwind classes used across the components: an Apple-style system
+ * with a white (or black) page, soft grey cards and the iOS system colors.
  */
 export const palette = {
   light: {
-    background: "#F5F7FA", // canvas
-    surface: "#FFFFFF",
-    surfaceMuted: "#F1F5F9", // slate-100
-    border: "#E2E8F0", // slate-200
-    text: "#0F172A", // slate-900
-    textMuted: "#64748B", // slate-500
-    textSubtle: "#94A3B8", // slate-400
-    primary: "#6366F1", // brand-500 (rings, bars, icons)
-    primaryStrong: "#4F46E5", // brand-600 (filled buttons, active tab)
-    primarySoft: "#E0E7FF", // brand-100
-    success: "#10B981", // emerald-500 (saved time)
-    warning: "#F59E0B", // amber-500
-    warningStrong: "#D97706", // amber-600
-    danger: "#F43F5E", // rose-500
-    ringTrack: "#E2E8F0",
+    background: "#FFFFFF", // canvas
+    surface: "#F4F4F7", // card
+    surfaceMuted: "#FFFFFF", // a fill nested inside a card
+    border: "#E5E5EA", // slate-200
+    separator: "rgba(60, 60, 67, 0.18)",
+    text: "#000000",
+    textMuted: "#6C6C70",
+    textSubtle: "#8E8E93",
+    chevron: "#B9B9BE",
+    primary: "#007AFF", // brand-600
+    primaryStrong: "#007AFF",
+    primarySoft: "#EAF3FF", // brand-50
+    success: "#248A3D", // emerald-600 (text-safe green)
+    successBright: "#34C759",
+    warning: "#FF9500",
+    warningStrong: "#F25C05", // amber-600
+    danger: "#FF3B30",
+    indigo: "#5856D6",
+    ringTrack: "#E5E5EA",
     onPrimary: "#FFFFFF",
-    onWarning: "#0B1120",
+    onWarning: "#FFFFFF",
+    tabBar: "rgba(255, 255, 255, 0.94)",
+    tabActive: "rgba(0, 0, 0, 0.06)",
   },
   dark: {
-    background: "#0B1120", // ink-950
-    surface: "#111827", // ink-900
-    surfaceMuted: "#1B2438", // ink-800
-    border: "#1B2438", // ink-800
-    text: "#F1F5F9", // slate-100
-    textMuted: "#94A3B8", // slate-400
-    textSubtle: "#64748B", // slate-500
-    primary: "#818CF8", // brand-400
-    primaryStrong: "#6366F1", // brand-500
-    primarySoft: "#312E81", // brand-900
-    success: "#34D399", // emerald-400
-    warning: "#FBBF24", // amber-400
-    warningStrong: "#F59E0B", // amber-500
-    danger: "#FB7185", // rose-400
-    ringTrack: "#1B2438",
+    background: "#000000", // ink-950
+    surface: "#1C1C1E", // ink-900
+    surfaceMuted: "#2C2C2E", // ink-850
+    border: "#2C2C2E",
+    separator: "rgba(84, 84, 88, 0.6)",
+    text: "#FFFFFF",
+    textMuted: "#AEAEB2",
+    textSubtle: "#98989F",
+    chevron: "#5A5A5F",
+    primary: "#0A84FF", // brand-500
+    primaryStrong: "#0A84FF",
+    primarySoft: "#0B2A4A", // brand-900
+    success: "#30D158",
+    successBright: "#30D158",
+    warning: "#FF9F0A",
+    warningStrong: "#FF7A1A",
+    danger: "#FF453A",
+    indigo: "#5E5CE6",
+    ringTrack: "#2C2C2E",
     onPrimary: "#FFFFFF",
-    onWarning: "#0B1120",
+    onWarning: "#FFFFFF",
+    tabBar: "rgba(37, 37, 40, 0.94)",
+    tabActive: "rgba(255, 255, 255, 0.12)",
   },
 } as const;
 
 /**
- * Chart colors. The two series pair (resisted ↔ slip) was checked with a CVD validator
- * against the card surfaces of both themes; red/green failed, indigo/orange passes.
+ * Chart colors. The two series pair (resisted ↔ slip, within ↔ over the limit) is
+ * blue ↔ orange, which stays distinct for the common color-vision deficiencies.
  */
 export const chartPalette = {
   light: {
-    series: "#5B5BD6", // main series, emphasized mark
-    seriesMid: "#9496E6", // middle step of the same ramp (heatmap "within limit")
-    seriesMuted: "#C9CAF3", // the same series, de-emphasized
-    slip: "#EB6834",
-    grid: "#E2E8F0",
-    axis: "#94A3B8",
-    empty: "#EEF1F5",
-    limit: "#D97706",
+    series: "#007AFF", // main series, emphasized mark
+    seriesMid: "#7DB8FF", // middle step of the same ramp (heatmap "within limit")
+    seriesMuted: "#C9DFFF", // the same series, de-emphasized
+    slip: "#F25C05",
+    grid: "#E5E5EA",
+    axis: "#8E8E93",
+    empty: "#E9E9EE",
+    limit: "#F25C05",
+    comparison: "#D1D1D6", // the grey "yesterday / average" line
   },
   dark: {
-    series: "#7C7FF0",
-    seriesMid: "#4E50A8",
-    seriesMuted: "#34366E",
-    slip: "#D95926",
-    grid: "#1B2438",
-    axis: "#64748B",
-    empty: "#1B2438",
-    limit: "#F59E0B",
+    series: "#0A84FF",
+    seriesMid: "#2F6DB5",
+    seriesMuted: "#1B3A5E",
+    slip: "#FF7A1A",
+    grid: "#2C2C2E",
+    axis: "#98989F",
+    empty: "#2C2C2E",
+    limit: "#FF7A1A",
+    comparison: "#48484A",
   },
 } as const;
 
 export type ThemeColors = { [K in keyof (typeof palette)["light"]]: string };
 export type ChartColors = { [K in keyof (typeof chartPalette)["light"]]: string };
+
+/**
+ * Rounded numerals, like the big numbers in Apple's Health and Fitness apps.
+ * iOS resolves "ui-rounded" to SF Pro Rounded; elsewhere the system font is used.
+ */
+export const ROUNDED_FONT = Platform.select({
+  ios: "ui-rounded",
+  web: "StopScrollRounded, ui-rounded, system-ui, sans-serif",
+  default: undefined,
+});
 
 export function useThemeColors(): { isDark: boolean; colors: ThemeColors; chart: ChartColors } {
   const { colorScheme } = useColorScheme();

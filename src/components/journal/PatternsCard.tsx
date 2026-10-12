@@ -1,4 +1,3 @@
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { View } from "react-native";
 
 import { MIN_SLIPS_FOR_PATTERNS, type Patterns } from "../../utils/analytics";
@@ -7,6 +6,7 @@ import { ENTRY_FORMS, formatMinutes, pluralize } from "../../utils/date";
 import { useThemeColors } from "../../utils/theme";
 import { AppText } from "../AppText";
 import { Card } from "../Card";
+import { CardLabel } from "../CardLabel";
 import { ProgressBar } from "../ProgressBar";
 
 /** Free summary of the trigger diary. */
@@ -17,17 +17,10 @@ export function PatternsCard({ patterns }: { patterns: Patterns }) {
   return (
     <Card className="gap-5">
       <View className="gap-2">
-        <View className="flex-row items-center gap-2">
-          <Ionicons name="analytics-outline" size={18} color={colors.primary} />
-          <AppText variant="overline" tone="primary">
-            Ваши паттерны
-          </AppText>
-        </View>
+        <CardLabel icon="moon" label="Закономерности" color={colors.indigo} />
         {patterns.summary ? (
           <>
-            <AppText variant="heading" className="leading-7">
-              {patterns.summary}
-            </AppText>
+            <AppText variant="statement">{patterns.summary}</AppText>
             {patterns.advice ? (
               <AppText variant="caption" tone="muted">
                 {patterns.advice}
@@ -69,8 +62,13 @@ export function PatternsCard({ patterns }: { patterns: Patterns }) {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <View className="flex-1 gap-0.5 rounded-2xl bg-slate-50 px-3 py-2.5 dark:bg-ink-850">
-      <AppText variant="heading" numberOfLines={1}>
+    <View className="flex-1 gap-0.5 rounded-2xl bg-white px-3 py-2.5 dark:bg-ink-800">
+      <AppText
+        rounded
+        className={value.length > 6 ? "text-[16px] font-bold" : "text-[20px] font-bold"}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+      >
         {value}
       </AppText>
       <AppText variant="caption" tone="muted" className="text-xs leading-4" numberOfLines={2}>

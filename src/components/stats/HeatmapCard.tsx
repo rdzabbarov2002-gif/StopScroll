@@ -22,6 +22,7 @@ import {
 import { useThemeColors, type ChartColors } from "../../utils/theme";
 import { AppText } from "../AppText";
 import { Card } from "../Card";
+import { CardLabel } from "../CardLabel";
 
 const GAP = 4;
 const LABEL_GUTTER = 24;
@@ -78,9 +79,9 @@ export function HeatmapCard() {
   const onLayout = (event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width);
 
   return (
-    <Card className="gap-5">
-      <View className="gap-0.5">
-        <AppText variant="heading">Дни под контролем</AppText>
+    <Card className="gap-4">
+      <View className="gap-1">
+        <CardLabel icon="calendar" label="Дни под контролем" color={colors.warningStrong} />
         <AppText variant="caption" tone="muted">
           День засчитывается, если в ленте не больше {formatMinutes(limit)}.
         </AppText>
@@ -169,9 +170,11 @@ export function HeatmapCard() {
 
 function Metric({ value, unit, label }: { value: string; unit?: string; label: string }) {
   return (
-    <View className="flex-1 gap-0.5 rounded-2xl bg-slate-50 px-3 py-2.5 dark:bg-ink-850">
+    <View className="flex-1 gap-0.5 rounded-2xl bg-white px-3 py-2.5 dark:bg-ink-800">
       <View className="flex-row items-baseline gap-1">
-        <AppText variant="heading">{value}</AppText>
+        <AppText rounded className="text-[22px] font-bold">
+          {value}
+        </AppText>
         {unit ? (
           <AppText variant="caption" tone="muted" className="text-xs" numberOfLines={1}>
             {unit}

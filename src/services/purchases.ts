@@ -97,7 +97,7 @@ export interface PlanView {
   id: string;
   title: string;
   price: string;
-  /** "≈ 99 ₽ в месяц" for long plans, "разовая покупка" for lifetime. */
+  /** "≈ $3.33 в месяц" for long plans, "разовая покупка" for lifetime. */
   caption: string | null;
   /** "7 дней бесплатно" when the store offers a free trial. */
   trial: string | null;

@@ -27,7 +27,7 @@ export function Stepper({ label, hint, value, min, max, step, format, onChange }
 
   return (
     <View
-      className="flex-row items-center gap-3"
+      className="gap-1"
       accessible
       accessibilityRole="adjustable"
       accessibilityLabel={label}
@@ -37,22 +37,22 @@ export function Stepper({ label, hint, value, min, max, step, format, onChange }
         change(event.nativeEvent.actionName === "increment" ? step : -step)
       }
     >
-      <View className="flex-1 gap-0.5">
-        <AppText variant="label" className="text-base">
+      <View className="flex-row items-center justify-between gap-3">
+        <AppText variant="heading" className="flex-1 text-[16px]">
           {label}
         </AppText>
-        {hint ? (
-          <AppText variant="caption" tone="muted">
-            {hint}
-          </AppText>
-        ) : null}
-      </View>
-      <View className="flex-row items-center gap-2">
-        <StepButton icon="remove" disabled={value <= min} onPress={() => change(-step)} />
-        <AppText variant="label" className="min-w-[72px] text-center text-base">
+        <AppText rounded variant="heading" tone="primary" className="text-[17px]">
           {format(value)}
         </AppText>
-        <StepButton icon="add" disabled={value >= max} onPress={() => change(step)} />
+      </View>
+      <View className="flex-row items-center justify-between gap-3">
+        <AppText variant="caption" tone="subtle" className="flex-1 text-[13px] leading-[18px]">
+          {hint ?? ""}
+        </AppText>
+        <View className="flex-row items-center gap-2">
+          <StepButton icon="remove" disabled={value <= min} onPress={() => change(-step)} />
+          <StepButton icon="add" disabled={value >= max} onPress={() => change(step)} />
+        </View>
       </View>
     </View>
   );
@@ -76,11 +76,11 @@ function StepButton({
       importantForAccessibility="no"
       accessibilityElementsHidden
       className={cn(
-        "h-9 w-9 items-center justify-center rounded-full bg-slate-100 active:opacity-70 dark:bg-ink-800",
+        "h-9 w-9 items-center justify-center rounded-full bg-white active:opacity-70 dark:bg-ink-800",
         disabled && "opacity-40",
       )}
     >
-      <Ionicons name={icon} size={18} color={colors.text} />
+      <Ionicons name={icon} size={18} color={colors.primary} />
     </Pressable>
   );
 }

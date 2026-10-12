@@ -11,9 +11,10 @@ interface ChipProps {
   selected: boolean;
   onPress: () => void;
   icon?: IconName;
+  className?: string;
 }
 
-export function Chip({ label, selected, onPress, icon }: ChipProps) {
+export function Chip({ label, selected, onPress, icon, className }: ChipProps) {
   const { colors } = useThemeColors();
   return (
     <Pressable
@@ -22,10 +23,11 @@ export function Chip({ label, selected, onPress, icon }: ChipProps) {
       accessibilityLabel={label}
       accessibilityState={{ selected }}
       className={cn(
-        "flex-row items-center gap-1.5 rounded-full border px-4 py-2.5 active:opacity-80",
+        "h-[38px] flex-row items-center gap-1.5 rounded-full px-4 active:opacity-80",
         selected
-          ? "border-brand-600 bg-brand-600 dark:border-brand-500 dark:bg-brand-500"
-          : "border-slate-200 bg-white dark:border-ink-700 dark:bg-ink-900",
+          ? "bg-brand-600 dark:bg-brand-500"
+          : "border border-slate-200 bg-white dark:border-transparent dark:bg-ink-850",
+        className,
       )}
     >
       {icon ? (
@@ -33,7 +35,7 @@ export function Chip({ label, selected, onPress, icon }: ChipProps) {
       ) : null}
       <AppText
         variant="label"
-        className={selected ? "text-white" : "text-slate-700 dark:text-slate-200"}
+        className={selected ? "text-white dark:text-white" : "text-slate-900 dark:text-white"}
       >
         {label}
       </AppText>

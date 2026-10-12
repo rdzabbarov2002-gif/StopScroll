@@ -7,6 +7,7 @@ import { formatMinutes, formatRelativeDay } from "../../utils/date";
 import { useThemeColors } from "../../utils/theme";
 import type { SlipEntry } from "../../utils/types";
 import { AppText } from "../AppText";
+import { RowIcon } from "../ListGroup";
 
 interface SlipHistoryItemProps {
   entry: SlipEntry;
@@ -14,6 +15,7 @@ interface SlipHistoryItemProps {
   onDelete: (id: string) => void;
 }
 
+/** One row of the slip history, meant to sit inside a ListGroup. */
 export function SlipHistoryItem({ entry, now, onDelete }: SlipHistoryItemProps) {
   const { colors } = useThemeColors();
   const [confirming, setConfirming] = useState(false);
@@ -21,21 +23,19 @@ export function SlipHistoryItem({ entry, now, onDelete }: SlipHistoryItemProps) 
   const app = getFeedApp(entry.app);
 
   return (
-    <View className="gap-3 rounded-3xl border border-slate-200/70 bg-white p-4 dark:border-ink-800 dark:bg-ink-900">
+    <View className="gap-2 px-4 py-2.5">
       <View className="flex-row items-center gap-3">
-        <View className="h-11 w-11 items-center justify-center rounded-2xl bg-orange-100 dark:bg-orange-950/40">
-          <Ionicons name={trigger.icon} size={20} color={colors.text} />
-        </View>
+        <RowIcon icon={trigger.icon} color={colors.warningStrong} />
         <View className="flex-1 gap-0.5">
-          <AppText variant="label" className="text-base">
+          <AppText variant="heading" className="text-[16px]">
             {trigger.label}
           </AppText>
-          <AppText variant="caption" tone="muted">
+          <AppText variant="caption" tone="subtle" className="text-[13px]">
             {formatRelativeDay(entry.timestamp, now)} · {app.label}
           </AppText>
         </View>
-        <AppText variant="label" tone="muted">
-          −{formatMinutes(entry.minutesLost)}
+        <AppText variant="label" tone="subtle">
+          {formatMinutes(entry.minutesLost)}
         </AppText>
         <Pressable
           onPress={() => setConfirming((value) => !value)}
@@ -49,13 +49,13 @@ export function SlipHistoryItem({ entry, now, onDelete }: SlipHistoryItemProps) 
       </View>
 
       {entry.note ? (
-        <AppText variant="caption" className="text-slate-700 dark:text-slate-300">
+        <AppText variant="caption" tone="muted" className="pl-[42px]">
           {entry.note}
         </AppText>
       ) : null}
 
       {confirming ? (
-        <View className="flex-row items-center justify-end gap-2">
+        <View className="flex-row items-center justify-end gap-2 pl-[42px]">
           <AppText variant="caption" tone="muted" className="flex-1">
             Удалить эту запись?
           </AppText>
@@ -64,16 +64,16 @@ export function SlipHistoryItem({ entry, now, onDelete }: SlipHistoryItemProps) 
             accessibilityRole="button"
             className="rounded-full px-3 py-1.5 active:opacity-70"
           >
-            <AppText variant="label" tone="muted">
+            <AppText variant="label" tone="primary">
               Отмена
             </AppText>
           </Pressable>
           <Pressable
             onPress={() => onDelete(entry.id)}
             accessibilityRole="button"
-            className="rounded-full bg-rose-50 px-3 py-1.5 active:opacity-70 dark:bg-rose-950/40"
+            className="rounded-full bg-rose-50 px-3 py-1.5 active:opacity-70 dark:bg-rose-950"
           >
-            <AppText variant="label" className="text-rose-600 dark:text-rose-400">
+            <AppText variant="label" className="text-rose-500 dark:text-rose-400">
               Удалить
             </AppText>
           </Pressable>

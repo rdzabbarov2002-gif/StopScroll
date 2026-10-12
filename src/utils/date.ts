@@ -138,6 +138,11 @@ export function formatMinutes(totalMinutes: number): string {
   return `${hours} ч ${rest} мин`;
 }
 
+/** formatMinutes with non-breaking spaces, for use inside sentences ("2 ч 30 мин" never wraps). */
+export function formatMinutesInline(totalMinutes: number): string {
+  return formatMinutes(totalMinutes).replace(/ /g, "\u00A0");
+}
+
 /** Compact form for chart labels: "45м", "2ч", "2ч30". */
 export function formatMinutesCompact(totalMinutes: number): string {
   const minutes = Math.max(0, Math.round(totalMinutes));

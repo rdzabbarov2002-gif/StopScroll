@@ -20,6 +20,7 @@ interface SegmentedControlProps<T extends string> {
   className?: string;
 }
 
+/** The iOS segmented control: a grey track with a raised white (or grey) thumb. */
 export function SegmentedControl<T extends string>({
   options,
   value,
@@ -29,7 +30,7 @@ export function SegmentedControl<T extends string>({
   const { colors } = useThemeColors();
   return (
     <View
-      className={cn("flex-row rounded-2xl bg-slate-100 p-1 dark:bg-ink-850", className)}
+      className={cn("flex-row rounded-[10px] bg-[#E8E8ED] p-0.5 dark:bg-ink-800", className)}
       accessibilityRole="tablist"
     >
       {options.map((option) => {
@@ -45,14 +46,18 @@ export function SegmentedControl<T extends string>({
             accessibilityState={{ selected }}
             accessibilityLabel={option.locked ? `${option.label}, доступно в Pro` : option.label}
             className={cn(
-              "h-9 flex-1 flex-row items-center justify-center gap-1 rounded-xl",
-              selected && "bg-white shadow-sm shadow-slate-300 dark:bg-ink-700 dark:shadow-none",
+              "h-8 flex-1 flex-row items-center justify-center gap-1 rounded-lg",
+              selected && "bg-white shadow-sm shadow-black/10 dark:bg-ink-600 dark:shadow-none",
             )}
           >
             {option.locked ? (
               <Ionicons name="lock-closed" size={11} color={colors.textMuted} />
             ) : null}
-            <AppText variant="label" tone={selected ? "default" : "muted"} className="text-[13px]">
+            <AppText
+              variant="label"
+              numberOfLines={1}
+              className={cn("text-[14px]", selected ? "" : "text-slate-700 dark:text-[#EBEBF5]")}
+            >
               {option.label}
             </AppText>
           </Pressable>

@@ -1,8 +1,7 @@
 import { View } from "react-native";
 
+import { AppText } from "../components/AppText";
 import { Screen } from "../components/Screen";
-import { ScreenHeader } from "../components/ScreenHeader";
-import { SectionTitle } from "../components/SectionTitle";
 import { ComparisonCard } from "../components/stats/ComparisonCard";
 import { EquivalentsCard } from "../components/stats/EquivalentsCard";
 import { HeatmapCard } from "../components/stats/HeatmapCard";
@@ -12,19 +11,16 @@ import { TrendCard } from "../components/stats/TrendCard";
 export function StatsScreen() {
   return (
     <Screen>
-      <ScreenHeader
-        eyebrow="Статистика"
-        title="Ваша динамика"
-        subtitle="Отмечайте время в ленте каждый день — и смотрите, как оно тает."
-      />
+      <View className="px-1 pb-1 pt-3">
+        <AppText variant="title" accessibilityRole="header">
+          Статистика
+        </AppText>
+      </View>
+      <TrendCard />
       <ScrollLogger />
       <ComparisonCard />
-      <TrendCard />
       <HeatmapCard />
-      <View className="gap-3">
-        <SectionTitle title="Конвертер спасённого времени" />
-        <EquivalentsCard />
-      </View>
+      <EquivalentsCard />
     </Screen>
   );
 }

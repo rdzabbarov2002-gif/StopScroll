@@ -10,14 +10,18 @@ interface IconButtonProps {
   onPress: () => void;
   accessibilityLabel: string;
   size?: number;
+  /** "accent" tints the icon and the fill with the accent color (e.g. the profile button). */
+  tone?: "neutral" | "accent";
   className?: string;
 }
 
+/** A round soft-filled icon button, like the close and profile buttons in iOS apps. */
 export function IconButton({
   icon,
   onPress,
   accessibilityLabel,
-  size = 20,
+  size = 18,
+  tone = "neutral",
   className,
 }: IconButtonProps) {
   const { colors } = useThemeColors();
@@ -28,11 +32,16 @@ export function IconButton({
       accessibilityLabel={accessibilityLabel}
       hitSlop={8}
       className={cn(
-        "h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white active:opacity-70 dark:border-ink-800 dark:bg-ink-900",
+        "h-9 w-9 items-center justify-center rounded-full active:opacity-70",
+        tone === "accent" ? "bg-brand-50 dark:bg-brand-900" : "bg-card dark:bg-ink-850",
         className,
       )}
     >
-      <Ionicons name={icon} size={size} color={colors.text} />
+      <Ionicons
+        name={icon}
+        size={size}
+        color={tone === "accent" ? colors.primary : colors.textMuted}
+      />
     </Pressable>
   );
 }

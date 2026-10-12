@@ -20,23 +20,22 @@ export interface PlanRow {
 }
 
 export const PLAN_ROWS: readonly PlanRow[] = [
-  { icon: "flash-outline", label: "SOS-пауза на 15 секунд", free: true, pro: true },
+  { icon: "pause-outline", label: "SOS-пауза", free: true, pro: true },
   {
     icon: "leaf-outline",
-    label: "Упражнения для паузы",
+    label: "Упражнения паузы",
     free: String(freeExercises),
     pro: String(EXERCISES.length),
   },
   {
     icon: "swap-horizontal-outline",
-    label: "Микро-замены",
+    label: "Замены",
     free: String(freeReplacements),
-    pro: String(REPLACEMENTS.length),
+    pro: `${REPLACEMENTS.length} + свои`,
   },
-  { icon: "create-outline", label: "Свои замены и привычки", free: false, pro: true },
   {
     icon: "stats-chart-outline",
-    label: "Динамика скроллинга",
+    label: "Динамика",
     free: `${FREE_TREND_DAYS} дн.`,
     pro: `${PRO_TREND_DAYS} дн.`,
   },
@@ -48,11 +47,11 @@ export const PLAN_ROWS: readonly PlanRow[] = [
   },
   {
     icon: "hourglass-outline",
-    label: "Эквиваленты времени",
+    label: "Конвертер времени",
     free: String(freeEquivalents),
     pro: String(EQUIVALENTS.length),
   },
-  { icon: "analytics-outline", label: "Паттерны по часам и дням", free: false, pro: true },
+  { icon: "analytics-outline", label: "Закономерности", free: false, pro: true },
 ];
 
 export const PAYWALL_HEADLINES: Record<ProFeature | "default", { title: string; text: string }> = {

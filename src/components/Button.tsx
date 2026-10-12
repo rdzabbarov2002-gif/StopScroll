@@ -10,19 +10,20 @@ type Variant = "primary" | "success" | "warning" | "secondary" | "ghost";
 
 const CONTAINER: Record<Variant, string> = {
   primary: "bg-brand-600 dark:bg-brand-500",
-  success: "bg-emerald-600 dark:bg-emerald-500",
-  warning: "bg-amber-400",
-  secondary: "bg-white border border-slate-200 dark:bg-ink-850 dark:border-ink-700",
+  success: "bg-emerald-500 dark:bg-emerald-400",
+  // Destructive.
+  warning: "bg-rose-500 dark:bg-rose-400",
+  // iOS "grey" button: a soft fill with an accent label.
+  secondary: "bg-card dark:bg-ink-850",
   ghost: "bg-transparent",
 };
 
 const LABEL: Record<Variant, string> = {
-  primary: "text-white",
-  success: "text-white",
-  // AppText adds a light dark-mode color; amber stays light in both themes, so pin dark ink.
-  warning: "text-ink-950 dark:text-ink-950",
-  secondary: "text-slate-800 dark:text-slate-100",
-  ghost: "text-slate-600 dark:text-slate-300",
+  primary: "text-white dark:text-white",
+  success: "text-white dark:text-white",
+  warning: "text-white dark:text-white",
+  secondary: "text-brand-600 dark:text-brand-500",
+  ghost: "text-slate-500 dark:text-[#AEAEB2]",
 };
 
 interface ButtonProps {
@@ -50,13 +51,7 @@ export function Button({
 }: ButtonProps) {
   const { colors } = useThemeColors();
   const iconColor =
-    variant === "primary" || variant === "success"
-      ? colors.onPrimary
-      : variant === "warning"
-        ? colors.onWarning
-        : variant === "secondary"
-          ? colors.text
-          : colors.textMuted;
+    variant === "secondary" ? colors.primary : variant === "ghost" ? colors.textMuted : "#FFFFFF";
   const inactive = disabled || loading;
 
   return (
@@ -68,10 +63,10 @@ export function Button({
       accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled: inactive, busy: loading }}
       className={cn(
-        "flex-row items-center justify-center gap-2 rounded-2xl px-5 active:opacity-80",
-        size === "lg" ? "h-14" : "h-12",
+        "flex-row items-center justify-center gap-2 rounded-full px-5 active:opacity-80",
+        size === "lg" ? "h-[54px]" : "h-[46px]",
         CONTAINER[variant],
-        inactive && "opacity-50",
+        inactive && "opacity-40",
         className,
       )}
     >
@@ -85,7 +80,11 @@ export function Button({
             numberOfLines={1}
             adjustsFontSizeToFit
             minimumFontScale={0.8}
-            className={cn("shrink text-center", size === "lg" && "text-base", LABEL[variant])}
+            className={cn(
+              "shrink text-center",
+              size === "lg" ? "text-[17px]" : "text-[16px]",
+              LABEL[variant],
+            )}
           >
             {label}
           </AppText>

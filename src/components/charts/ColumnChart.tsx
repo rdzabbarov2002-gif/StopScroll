@@ -28,12 +28,14 @@ interface ColumnChartProps {
   niceSteps?: readonly number[];
   plotHeight?: number;
   showYAxis?: boolean;
+  /** Overrides a column's color, e.g. orange for days over the limit. */
+  colorFor?: (datum: ColumnDatum, highlighted: boolean) => string | undefined;
 }
 
 const AXIS_BAND = 20;
 const Y_GUTTER = 36;
-const MAX_BAR = 24;
-const RADIUS = 4;
+const MAX_BAR = 26;
+const RADIUS = 6;
 
 const DEFAULT_STEPS = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 30, 40, 50, 60, 80, 100, 150, 200];
 
@@ -68,6 +70,7 @@ export function ColumnChart({
   niceSteps = DEFAULT_STEPS,
   plotHeight = 140,
   showYAxis = true,
+  colorFor,
 }: ColumnChartProps) {
   const { colors, chart } = useThemeColors();
   const [width, setWidth] = useState(0);
@@ -108,8 +111,8 @@ export function ColumnChart({
                       key={`tick-${tick}`}
                       x={gutter - 6}
                       y={y(tick) + 3.5}
-                      fontSize={10}
-                      fill={colors.textMuted}
+                      fontSize={11}
+                      fill={colors.textSubtle}
                       textAnchor="end"
                     >
                       {formatTick(tick)}
@@ -131,7 +134,9 @@ export function ColumnChart({
                     />
                   );
                 }
-                const fill = item.key === highlightKey ? chart.series : chart.seriesMuted;
+                const highlighted = item.key === highlightKey;
+                const fill =
+                  colorFor?.(item, highlighted) ?? (highlighted ? chart.series : chart.seriesMuted);
                 const barTop = Math.min(base - 2, y(item.value));
                 return (
                   <Path key={item.key} d={columnPath(x, barWidth, barTop, base)} fill={fill} />
@@ -147,6 +152,7 @@ export function ColumnChart({
                     y2={y(reference.value)}
                     stroke={chart.limit}
                     strokeWidth={1.5}
+                    strokeDasharray="4 4"
                   />
                 </>
               ) : null}
@@ -156,8 +162,8 @@ export function ColumnChart({
                   <SvgText
                     key={`label-${item.key}`}
                     x={gutter + index * slot + slot / 2}
-                    y={base + 14}
-                    fontSize={10}
+                    y={base + 15}
+                    fontSize={11}
                     fill={item.key === highlightKey ? colors.text : colors.textMuted}
                     fontWeight={item.key === highlightKey ? "bold" : "normal"}
                     textAnchor="middle"
@@ -198,7 +204,11 @@ export function ColumnChart({
         // Keyed legend instead of an in-plot label, so it never collides with a tall column.
         <View className="flex-row items-center gap-2 self-end">
           <View style={{ width: 14, height: 2, borderRadius: 1, backgroundColor: chart.limit }} />
-          <AppText variant="caption" tone="muted" className="text-xs">
+          <AppText
+            variant="caption"
+            className="text-[12px] font-semibold"
+            style={{ color: chart.limit }}
+          >
             {reference.label}
           </AppText>
         </View>

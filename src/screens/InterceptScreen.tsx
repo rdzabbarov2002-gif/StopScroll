@@ -2,12 +2,13 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Animated, Easing, Platform, Pressable, ScrollView, View } from "react-native";
+import Svg, { Circle } from "react-native-svg";
 
 import { AppText } from "../components/AppText";
 import { Button } from "../components/Button";
+import { Card } from "../components/Card";
 import { Chip } from "../components/Chip";
 import { IconButton } from "../components/IconButton";
-import { ProgressBar } from "../components/ProgressBar";
 import { ReplacementCard } from "../components/ReplacementCard";
 import { Screen } from "../components/Screen";
 import { WinCelebration } from "../components/WinCelebration";
@@ -23,7 +24,7 @@ import {
   type Exercise,
 } from "../utils/catalog";
 import { cn } from "../utils/cn";
-import { formatMinutes } from "../utils/date";
+import { formatMinutes, pluralize } from "../utils/date";
 import { haptics } from "../utils/haptics";
 import { isLocked, suggestReplacements } from "../utils/replacements";
 import { useThemeColors } from "../utils/theme";
@@ -31,10 +32,13 @@ import type { ExerciseId, TriggerId, WinEntry } from "../utils/types";
 
 type Stage = "pause" | "decide" | "won";
 
+const SECOND_FORMS = ["секунда", "секунды", "секунд"] as const;
+
 const TOTAL_MS = INTERCEPT_SECONDS * 1000;
 const TICK_MS = 200;
 
 export function InterceptScreen({ navigation, route }: RootStackScreenProps<"Intercept">) {
+  const themeColors = useThemeColors();
   const app = useApp();
   const { isPro } = usePro();
   const [trigger, setTrigger] = useState<TriggerId | undefined>(route.params?.trigger);
@@ -97,14 +101,14 @@ export function InterceptScreen({ navigation, route }: RootStackScreenProps<"Int
     const suggestions = suggestReplacements(trigger, isPro);
     return (
       <Screen>
-        <View className="flex-row items-center justify-between">
-          <AppText variant="overline" tone="primary">
+        <View className="flex-row items-center justify-between px-1">
+          <AppText variant="overline" tone="subtle">
             Пауза пройдена
           </AppText>
           <IconButton icon="close" onPress={close} accessibilityLabel="Закрыть" />
         </View>
 
-        <View className="gap-2">
+        <View className="gap-2 px-1">
           <AppText variant="title" accessibilityRole="header">
             Импульс ослаб?
           </AppText>
@@ -113,8 +117,8 @@ export function InterceptScreen({ navigation, route }: RootStackScreenProps<"Int
           </AppText>
         </View>
 
-        <View className="gap-3">
-          <AppText variant="label">Что запустило импульс?</AppText>
+        <Card className="gap-3">
+          <AppText variant="heading">Что запустило импульс?</AppText>
           <View className="flex-row flex-wrap gap-2">
             {TRIGGERS.map((item) => (
               <Chip
@@ -129,10 +133,10 @@ export function InterceptScreen({ navigation, route }: RootStackScreenProps<"Int
               />
             ))}
           </View>
-        </View>
+        </Card>
 
         <View className="gap-3">
-          <AppText variant="label">
+          <AppText variant="overline" tone="subtle" className="px-1 pt-2">
             {trigger
               ? `Замены, когда ${getTrigger(trigger).label.toLowerCase()}`
               : "Замените ленту на 1–3 минуты"}
@@ -190,29 +194,42 @@ export function InterceptScreen({ navigation, route }: RootStackScreenProps<"Int
   }
 
   const exercise = getExercise(exerciseId);
+  const { colors } = themeColors;
 
   return (
     <Screen>
-      <View className="flex-row items-start justify-between gap-4">
-        <View className="flex-1 gap-1">
-          <AppText variant="overline" tone="primary">
-            {trigger ? `SOS · ${getTrigger(trigger).label}` : "SOS-пауза"}
-          </AppText>
-          <AppText variant="heading" className="text-2xl" accessibilityRole="header">
-            15 секунд тишины
-          </AppText>
-          <AppText variant="caption" tone="muted">
-            Импульс похож на волну. Дайте ей пройти — телефон подождёт.
-          </AppText>
+      <View className="h-10 flex-row items-center justify-between">
+        <View className="flex-1 items-start">
+          {trigger ? (
+            <View className="h-9 flex-row items-center gap-1.5 rounded-full bg-card px-3.5 dark:bg-ink-900">
+              <Ionicons name={getTrigger(trigger).icon} size={15} color={colors.indigo} />
+              <AppText variant="label">{getTrigger(trigger).label}</AppText>
+            </View>
+          ) : null}
         </View>
-        <IconButton icon="close" onPress={close} accessibilityLabel="Закрыть паузу" />
+        <AppText variant="heading">Пауза</AppText>
+        <View className="flex-1 items-end">
+          <IconButton icon="close" onPress={close} accessibilityLabel="Закрыть паузу" />
+        </View>
+      </View>
+
+      <View className="items-center gap-1 px-2 pt-2">
+        <AppText
+          className="text-center text-[28px] font-bold leading-[34px] tracking-tight"
+          accessibilityRole="header"
+        >
+          15 секунд тишины
+        </AppText>
+        <AppText variant="caption" tone="muted" className="text-center">
+          Импульс похож на волну. Дайте ей пройти — телефон подождёт.
+        </AppText>
       </View>
 
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 8 }}
-        className="-mx-5 grow-0 px-5"
+        contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}
+        className="-mx-4 grow-0"
       >
         {EXERCISES.map((item) => (
           <ExerciseChip
@@ -254,10 +271,8 @@ function ExerciseChip({
       accessibilityState={{ selected }}
       accessibilityLabel={`${exercise.title}${locked ? ", доступно в Pro" : ""}`}
       className={cn(
-        "flex-row items-center gap-2 rounded-full border px-4 py-2.5 active:opacity-80",
-        selected
-          ? "border-brand-600 bg-brand-600 dark:border-brand-500 dark:bg-brand-500"
-          : "border-slate-200 bg-white dark:border-ink-700 dark:bg-ink-900",
+        "h-9 flex-row items-center gap-1.5 rounded-full px-3.5 active:opacity-80",
+        selected ? "bg-brand-600 dark:bg-brand-500" : "bg-card dark:bg-ink-900",
       )}
     >
       <Ionicons
@@ -267,7 +282,7 @@ function ExerciseChip({
       />
       <AppText
         variant="label"
-        className={selected ? "text-white" : "text-slate-700 dark:text-slate-200"}
+        className={cn("text-[14px]", selected ? "text-white dark:text-white" : "")}
       >
         {exercise.title}
       </AppText>
@@ -279,7 +294,8 @@ function ExerciseChip({
 // The pause itself
 // ---------------------------------------------------------------------------
 
-const CIRCLE = 240;
+const CIRCLE = 300;
+const RING_STROKE = 6;
 const MIN_SCALE = 0.6;
 const useNativeDriver = Platform.OS !== "web";
 
@@ -365,8 +381,12 @@ function PausePhase({
 
   const secondsLeft = Math.ceil((TOTAL_MS - elapsedMs) / 1000);
 
+  const ringRadius = CIRCLE / 2 - RING_STROKE;
+  const circumference = 2 * Math.PI * ringRadius;
+  const remaining = Math.max(0, 1 - elapsedMs / TOTAL_MS);
+
   return (
-    <View className="items-center gap-6">
+    <View className="items-center gap-5">
       <View
         style={{ width: CIRCLE, height: CIRCLE }}
         className="items-center justify-center"
@@ -374,54 +394,85 @@ function PausePhase({
         accessibilityLiveRegion="polite"
         accessibilityLabel={`${phase.label}. Осталось ${secondsLeft} секунд`}
       >
-        <View
-          className="absolute rounded-full bg-brand-50 dark:bg-brand-950/40"
-          style={{ width: CIRCLE, height: CIRCLE }}
-        />
+        {[0.86, 0.72, 0.58].map((size, index) => (
+          <View
+            key={size}
+            className="absolute rounded-full"
+            style={{
+              width: CIRCLE * size,
+              height: CIRCLE * size,
+              backgroundColor: colors.primary,
+              opacity: isDark ? [0.1, 0.14, 0.2][index] : [0.07, 0.1, 0.15][index],
+            }}
+          />
+        ))}
         <Animated.View
           style={{
             position: "absolute",
-            width: CIRCLE,
-            height: CIRCLE,
-            borderRadius: CIRCLE / 2,
-            backgroundColor: isDark ? "rgba(129, 140, 248, 0.22)" : "rgba(99, 102, 241, 0.16)",
-            transform: [{ scale }],
-          }}
-        />
-        <Animated.View
-          style={{
-            position: "absolute",
-            width: CIRCLE * 0.74,
-            height: CIRCLE * 0.74,
+            width: CIRCLE * 0.86,
+            height: CIRCLE * 0.86,
             borderRadius: CIRCLE,
-            backgroundColor: colors.primaryStrong,
+            backgroundColor: colors.primary,
+            opacity: isDark ? 0.18 : 0.12,
             transform: [{ scale }],
           }}
         />
+        <Svg width={CIRCLE} height={CIRCLE} style={{ position: "absolute" }}>
+          <Circle
+            cx={CIRCLE / 2}
+            cy={CIRCLE / 2}
+            r={ringRadius}
+            stroke={colors.ringTrack}
+            strokeWidth={RING_STROKE}
+            fill="none"
+          />
+          <Circle
+            cx={CIRCLE / 2}
+            cy={CIRCLE / 2}
+            r={ringRadius}
+            stroke={colors.primary}
+            strokeWidth={RING_STROKE}
+            strokeLinecap="round"
+            fill="none"
+            strokeDasharray={`${circumference * remaining} ${circumference}`}
+            transform={`rotate(-90 ${CIRCLE / 2} ${CIRCLE / 2})`}
+          />
+        </Svg>
         <View className="items-center">
-          <AppText variant="heading" className="text-xl text-white">
+          <AppText variant="heading" tone="primary">
             {phase.label}
           </AppText>
-          <AppText variant="display" className="text-6xl leading-[68px] text-white">
+          <AppText rounded className="text-[84px] font-bold leading-[92px] tracking-tight">
             {secondsLeft}
+          </AppText>
+          <AppText variant="label" tone="subtle">
+            {pluralize(secondsLeft, SECOND_FORMS)}
           </AppText>
         </View>
       </View>
 
-      <View className="w-full gap-4 rounded-3xl border border-slate-200/70 bg-white p-5 dark:border-ink-800 dark:bg-ink-900">
-        <View className="flex-row items-center justify-between">
-          <AppText variant="overline" tone="muted">
-            Шаг {prompt.index + 1} из {exercise.prompts.length}
+      <Card className="w-full gap-2">
+        <View className="flex-row items-center justify-between gap-3">
+          <AppText variant="label" tone="primary" className="shrink" numberOfLines={1}>
+            {exercise.title} · шаг {prompt.index + 1} из {exercise.prompts.length}
           </AppText>
-          <AppText variant="caption" tone="muted">
-            {exercise.title}
-          </AppText>
+          <View className="flex-row items-center gap-1">
+            {exercise.prompts.map((item, index) => (
+              <View
+                key={item.text}
+                className="h-1.5 rounded-full"
+                style={{
+                  width: index === prompt.index ? 18 : 6,
+                  backgroundColor: index <= prompt.index ? colors.primary : colors.ringTrack,
+                }}
+              />
+            ))}
+          </View>
         </View>
-        <AppText variant="heading" className="min-h-[56px] text-xl leading-7">
+        <AppText variant="statement" className="min-h-[50px]">
           {exercise.prompts[prompt.index]!.text}
         </AppText>
-        <ProgressBar progress={elapsedMs / TOTAL_MS} />
-      </View>
+      </Card>
     </View>
   );
 }

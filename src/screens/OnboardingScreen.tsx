@@ -3,6 +3,7 @@ import Slider from "@react-native-community/slider";
 import { useState } from "react";
 import { View } from "react-native";
 
+import { AppIconMark } from "../components/AppIconMark";
 import { AppText } from "../components/AppText";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
@@ -97,9 +98,7 @@ export function OnboardingScreen() {
       {step === 0 ? (
         <>
           <View className="items-center gap-4 pt-6">
-            <View className="h-24 w-24 items-center justify-center rounded-[32px] bg-brand-600 dark:bg-brand-500">
-              <Ionicons name="hand-left" size={46} color={colors.onPrimary} />
-            </View>
+            <AppIconMark size={96} />
             <AppText variant="title" className="text-center text-4xl" accessibilityRole="header">
               StopScroll
             </AppText>
