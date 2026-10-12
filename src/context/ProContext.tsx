@@ -18,6 +18,10 @@ import {
   toPlanViews,
   type PlanView,
 } from "../services/purchases";
+import { DEMO_MODE } from "../utils/demo";
+
+/** The test Pro switch exists in dev builds and in the web preview, never in store builds. */
+const TEST_PRO_ALLOWED = __DEV__ || DEMO_MODE;
 
 /**
  * loading — the SDK is starting; ready — RevenueCat is configured;
@@ -133,12 +137,12 @@ export function ProProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setDevPro = useCallback((value: boolean) => {
-    if (__DEV__) setDevProState(value);
+    if (TEST_PRO_ALLOWED) setDevProState(value);
   }, []);
 
   const value = useMemo<ProContextValue>(
     () => ({
-      isPro: storePro || (__DEV__ && devPro),
+      isPro: storePro || (TEST_PRO_ALLOWED && devPro),
       status,
       plans,
       plansLoading,

@@ -11,6 +11,7 @@ import { Chip } from "../components/Chip";
 import { Screen } from "../components/Screen";
 import { Stepper } from "../components/Stepper";
 import { useApp } from "../context/AppContext";
+import { DEMO_MODE } from "../utils/demo";
 import { FEED_APPS } from "../utils/catalog";
 import { cn } from "../utils/cn";
 import { formatMinutes } from "../utils/date";
@@ -47,7 +48,7 @@ const PROMISES: readonly { icon: IconName; title: string; text: string }[] = [
 
 export function OnboardingScreen() {
   const { colors } = useThemeColors();
-  const { completeOnboarding } = useApp();
+  const { completeOnboarding, loadDemoData } = useApp();
   const [step, setStep] = useState(0);
   const [baseline, setBaseline] = useState(DEFAULT_SETTINGS.baselineMinutes);
   const [mainApp, setMainApp] = useState<FeedApp>(DEFAULT_SETTINGS.mainApp);
@@ -124,6 +125,13 @@ export function OnboardingScreen() {
             ))}
           </View>
           <Button label="Начать" size="lg" icon="arrow-forward" onPress={next} />
+          {DEMO_MODE ? (
+            <Button
+              label="Посмотреть с примером данных"
+              variant="secondary"
+              onPress={loadDemoData}
+            />
+          ) : null}
         </>
       ) : null}
 

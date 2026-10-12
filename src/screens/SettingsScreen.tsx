@@ -17,6 +17,7 @@ import { usePro } from "../context/ProContext";
 import type { RootStackScreenProps } from "../navigation/types";
 import { FEED_APPS } from "../utils/catalog";
 import { formatMinutes } from "../utils/date";
+import { DEMO_MODE } from "../utils/demo";
 import { haptics } from "../utils/haptics";
 import { BASELINE_RANGE, LIMIT_RANGE, SESSION_RANGE } from "../utils/persistedState";
 import { useThemeColors } from "../utils/theme";
@@ -161,18 +162,37 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
         ))}
       </Card>
 
-      {__DEV__ ? (
+      {__DEV__ || DEMO_MODE ? (
         <>
           <AppText variant="overline" tone="subtle" className="px-1 pt-3">
-            Разработка
+            {DEMO_MODE ? "Демо-версия" : "Разработка"}
           </AppText>
+          {DEMO_MODE ? (
+            <Card className="gap-3">
+              <AppText variant="caption" tone="muted">
+                Это версия для просмотра в браузере: оплата отключена. Заполните приложение примером
+                данных, чтобы увидеть графики, серии и закономерности.
+              </AppText>
+              <Button
+                label="Заполнить примером данных"
+                icon="sparkles"
+                variant="secondary"
+                onPress={() => {
+                  app.loadDemoData();
+                  haptics.success();
+                }}
+              />
+            </Card>
+          ) : null}
           <Card className="flex-row items-center gap-3">
             <View className="flex-1">
               <AppText variant="label" className="text-base">
                 Тестовый Pro
               </AppText>
               <AppText variant="caption" tone="muted">
-                Только в dev-сборке: открывает Pro-функции без покупки.
+                {DEMO_MODE
+                  ? "Открывает Pro-функции без покупки, чтобы их посмотреть."
+                  : "Только в dev-сборке: открывает Pro-функции без покупки."}
               </AppText>
             </View>
             <Switch

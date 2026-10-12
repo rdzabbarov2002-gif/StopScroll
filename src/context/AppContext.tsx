@@ -11,6 +11,7 @@ import {
 import { AppState as RNAppState } from "react-native";
 
 import { dayKey } from "../utils/date";
+import { createDemoState } from "../utils/demo";
 import {
   MAX_DESCRIPTION_LENGTH,
   MAX_NOTE_LENGTH,
@@ -50,6 +51,8 @@ export interface AppContextValue extends Omit<PersistedState, "version"> {
   setLastExercise: (id: ExerciseId) => void;
   setThemePreference: (preference: ThemePreference) => void;
   resetProgress: () => void;
+  /** Web preview only: replaces the history with sample data. */
+  loadDemoData: () => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -194,6 +197,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const resetProgress = useCallback(() => dispatch({ type: "resetProgress" }), []);
 
+  const themePreference = state.themePreference;
+  const loadDemoData = useCallback(() => {
+    const today = dayKey();
+    dispatch({ type: "hydrate", state: createDemoState(today, themePreference), today });
+  }, [themePreference]);
+
   const value = useMemo<AppContextValue>(
     () => ({
       hydrated: state.hydrated,
@@ -220,6 +229,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setLastExercise,
       setThemePreference,
       resetProgress,
+      loadDemoData,
     }),
     [
       state,
@@ -236,6 +246,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setLastExercise,
       setThemePreference,
       resetProgress,
+      loadDemoData,
     ],
   );
 

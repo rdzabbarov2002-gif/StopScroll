@@ -1,3 +1,21 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Web preview on a wide screen: show the app in a phone-sized column. */
+@media (min-width: 640px) {
+  body {
+    background: #e5e5ea;
+  }
+  #root {
+    position: relative;
+    max-width: 430px;
+    margin: 0 auto;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06), 0 20px 60px rgba(0, 0, 0, 0.12);
+  }
+}
+@media (min-width: 640px) and (prefers-color-scheme: dark) {
+  body {
+    background: #1c1c1e;
+  }
+}

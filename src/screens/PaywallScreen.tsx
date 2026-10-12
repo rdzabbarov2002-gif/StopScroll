@@ -15,6 +15,7 @@ import { usePro } from "../context/ProContext";
 import type { RootStackScreenProps } from "../navigation/types";
 import type { PlanView } from "../services/purchases";
 import { cn } from "../utils/cn";
+import { DEMO_MODE } from "../utils/demo";
 import { haptics } from "../utils/haptics";
 import { PAYWALL_HEADLINES, PLAN_ROWS, type PlanRow } from "../utils/pro";
 import { useThemeColors } from "../utils/theme";
@@ -311,14 +312,20 @@ function UnavailableNotice() {
   return (
     <Card tone="muted" className="gap-3">
       <AppText variant="label">
-        {__DEV__ ? "Покупки не подключены в этой сборке" : "Покупки временно недоступны"}
+        {DEMO_MODE
+          ? "Это демо-версия: оплата отключена"
+          : __DEV__
+            ? "Покупки не подключены в этой сборке"
+            : "Покупки временно недоступны"}
       </AppText>
       <AppText variant="caption" tone="muted">
-        {__DEV__
-          ? "Укажите ключи RevenueCat в .env.local (см. .env.example) и перезапустите сборку — тарифы появятся здесь автоматически."
-          : "Не удалось связаться с магазином. Попробуйте позже — все бесплатные функции продолжают работать."}
+        {DEMO_MODE
+          ? "В приложении из App Store и Google Play здесь будут тарифы. Чтобы посмотреть Pro-функции, включите тестовый Pro."
+          : __DEV__
+            ? "Укажите ключи RevenueCat в .env.local (см. .env.example) и перезапустите сборку — тарифы появятся здесь автоматически."
+            : "Не удалось связаться с магазином. Попробуйте позже — все бесплатные функции продолжают работать."}
       </AppText>
-      {__DEV__ ? (
+      {__DEV__ || DEMO_MODE ? (
         <Button
           label={pro.devPro ? "Выключить тестовый Pro" : "Включить Pro для теста"}
           icon="construct-outline"
