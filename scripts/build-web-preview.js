@@ -6,7 +6,7 @@ const { execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
-const root = path.join(__dirname, "..");
+const root = path.resolve(path.dirname(process.argv[1]), "..");
 const appJsonPath = path.join(root, "app.json");
 const baseUrl = process.argv[2] ?? "/StopScroll";
 const original = fs.readFileSync(appJsonPath, "utf8");
