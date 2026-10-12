@@ -610,4 +610,5 @@ export const TIME_OF_DAY_LABELS: Record<TimeOfDay, { label: string; phrase: stri
 
 /** Preset values for the scroll-time logger and onboarding. */
 export const SCROLL_PRESETS = [30, 60, 120, 180] as const;
-export const MAX_SCROLL_MINUTES = 720;
+/** A whole day: the only real upper bound for minutes in the feed. */
+export const MAX_SCROLL_MINUTES = 24 * 60;

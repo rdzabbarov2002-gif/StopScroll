@@ -22,6 +22,8 @@ import {
   LIMIT_RANGE,
   SESSION_RANGE,
   clampToRange,
+  minutesToSlider,
+  sliderToMinutes,
 } from "../utils/persistedState";
 import { useThemeColors } from "../utils/theme";
 import type { FeedApp, IconName } from "../utils/types";
@@ -154,11 +156,12 @@ export function OnboardingScreen() {
               {formatMinutes(baseline)}
             </AppText>
             <Slider
-              value={baseline}
-              minimumValue={BASELINE_RANGE.min}
-              maximumValue={480}
-              step={BASELINE_RANGE.step}
-              onValueChange={setBaseline}
+              value={minutesToSlider(baseline)}
+              minimumValue={0}
+              maximumValue={1}
+              onValueChange={(position) =>
+                setBaseline(clampToRange(sliderToMinutes(position), BASELINE_RANGE))
+              }
               minimumTrackTintColor={colors.primary}
               maximumTrackTintColor={colors.ringTrack}
               thumbTintColor={colors.primaryStrong}

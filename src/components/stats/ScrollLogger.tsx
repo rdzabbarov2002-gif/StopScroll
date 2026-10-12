@@ -8,6 +8,7 @@ import { MAX_SCROLL_MINUTES, SCROLL_PRESETS } from "../../utils/catalog";
 import { cn } from "../../utils/cn";
 import { addDays, formatMinutes } from "../../utils/date";
 import { haptics } from "../../utils/haptics";
+import { minutesToSlider, sliderToMinutes } from "../../utils/persistedState";
 import { useThemeColors } from "../../utils/theme";
 import { AppText } from "../AppText";
 import { Button } from "../Button";
@@ -15,7 +16,6 @@ import { Card } from "../Card";
 import { CardLabel } from "../CardLabel";
 import { SegmentedControl } from "../SegmentedControl";
 
-const SLIDER_MAX = 480;
 const STEP = 5;
 
 type Day = "today" | "yesterday";
@@ -104,11 +104,10 @@ function LoggerBody({ dayKey, logged }: { dayKey: string; logged: number | undef
         <RoundButton icon="remove" label="Минус 5 минут" onPress={() => update(value - STEP)} />
         <View className="flex-1">
           <Slider
-            value={Math.min(value, SLIDER_MAX)}
+            value={minutesToSlider(value)}
             minimumValue={0}
-            maximumValue={SLIDER_MAX}
-            step={STEP}
-            onValueChange={update}
+            maximumValue={1}
+            onValueChange={(position) => update(sliderToMinutes(position, STEP))}
             onSlidingComplete={() => haptics.selection()}
             minimumTrackTintColor={over ? colors.warning : colors.primary}
             maximumTrackTintColor={colors.ringTrack}

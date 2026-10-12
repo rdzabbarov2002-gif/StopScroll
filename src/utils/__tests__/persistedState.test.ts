@@ -6,8 +6,11 @@ import {
   MAX_SCROLL_DAYS,
   createInitialState,
   sanitizePersistedState,
+  minutesToSlider,
+  sliderToMinutes,
   trimScrollLog,
 } from "../persistedState";
+import { MAX_SCROLL_MINUTES } from "../catalog";
 import { addDays } from "../date";
 
 const NOW = new Date(2026, 9, 4, 12, 0).getTime();
@@ -75,7 +78,7 @@ describe("sanitizePersistedState", () => {
       baselineMinutes: DEFAULT_SETTINGS.baselineMinutes,
       mainApp: DEFAULT_SETTINGS.mainApp,
     });
-    expect(state.scrollLog).toEqual({ "2026-10-03": 95, "2026-10-04": 720 });
+    expect(state.scrollLog).toEqual({ "2026-10-03": 95, "2026-10-04": MAX_SCROLL_MINUTES });
     expect(state.wins.map((win) => win.id)).toEqual(["w1", "w3"]);
     expect(state.wins[1]).not.toHaveProperty("trigger");
     expect(state.slips).toHaveLength(1);
@@ -105,5 +108,16 @@ describe("sanitizePersistedState", () => {
     const keys = Object.keys(trimmed).sort();
     expect(keys).toHaveLength(MAX_SCROLL_DAYS);
     expect(keys[0]).toBe(addDays("2025-01-01", 10));
+  });
+});
+
+describe("time slider curve", () => {
+  it("covers the whole day and gives fine steps for short times", () => {
+    expect(sliderToMinutes(0)).toBe(0);
+    expect(sliderToMinutes(1)).toBe(MAX_SCROLL_MINUTES);
+    expect(sliderToMinutes(minutesToSlider(30))).toBe(30);
+    expect(sliderToMinutes(minutesToSlider(600))).toBe(600);
+    // One percent of the track near half an hour is about a minute.
+    expect(sliderToMinutes(minutesToSlider(30) + 0.01) - 30).toBeLessThanOrEqual(5);
   });
 });

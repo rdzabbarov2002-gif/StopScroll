@@ -24,9 +24,24 @@ export const MAX_NOTE_LENGTH = 200;
 export const MAX_TITLE_LENGTH = 60;
 export const MAX_DESCRIPTION_LENGTH = 160;
 
-export const LIMIT_RANGE = { min: 5, max: 240, step: 5 } as const;
-export const SESSION_RANGE = { min: 5, max: 90, step: 5 } as const;
-export const BASELINE_RANGE = { min: 15, max: MAX_SCROLL_MINUTES, step: 15 } as const;
+// Only natural bounds: from zero (a session is at least 5 minutes, or a win would be worth
+// nothing) up to a whole day.
+export const LIMIT_RANGE = { min: 0, max: MAX_SCROLL_MINUTES, step: 5 } as const;
+export const SESSION_RANGE = { min: 5, max: MAX_SCROLL_MINUTES, step: 5 } as const;
+export const BASELINE_RANGE = { min: 0, max: MAX_SCROLL_MINUTES, step: 5 } as const;
+
+/**
+ * Slider position (0…1) → minutes on a quadratic curve: short times get fine steps, while the
+ * whole day is still reachable at the end of the track.
+ */
+export function sliderToMinutes(position: number, step = 5): number {
+  const clamped = Math.min(1, Math.max(0, position));
+  return Math.round((MAX_SCROLL_MINUTES * clamped * clamped) / step) * step;
+}
+
+export function minutesToSlider(minutes: number): number {
+  return Math.sqrt(Math.min(MAX_SCROLL_MINUTES, Math.max(0, minutes)) / MAX_SCROLL_MINUTES);
+}
 
 export const DEFAULT_SETTINGS: Settings = {
   dailyLimitMinutes: 60,
