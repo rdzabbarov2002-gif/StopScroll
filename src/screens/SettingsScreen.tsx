@@ -1,21 +1,24 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useState } from "react";
-import { Pressable, Switch, View } from "react-native";
+import { Platform, Pressable, Switch, View } from "react-native";
 
 import { AppIconMark } from "../components/AppIconMark";
 import { AppText } from "../components/AppText";
+import { BackButton } from "../components/BackButton";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { Separator } from "../components/CardLabel";
 import { Chip } from "../components/Chip";
 import { LegalLinks } from "../components/LegalLinks";
+import { ListGroup, ListRow } from "../components/ListGroup";
 import { Screen } from "../components/Screen";
 import { Stepper } from "../components/Stepper";
 import { ThemePicker } from "../components/ThemePicker";
 import { useApp } from "../context/AppContext";
 import { usePro } from "../context/ProContext";
 import type { RootStackScreenProps } from "../navigation/types";
-import { FEED_APPS } from "../utils/catalog";
+import { FEED_APPS, GATE_APPS } from "../utils/catalog";
+import { enableReportReminder } from "../services/reportReminder";
 import { formatMinutes } from "../utils/date";
 import { DEMO_MODE } from "../utils/demo";
 import { haptics } from "../utils/haptics";
@@ -29,6 +32,26 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
   const [confirmReset, setConfirmReset] = useState(false);
   const [restoreMessage, setRestoreMessage] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
+  const [reminderMessage, setReminderMessage] = useState<string | null>(null);
+
+  const toggleReminder = async (on: boolean) => {
+    haptics.selection();
+    setReminderMessage(null);
+    if (!on) {
+      app.updateSettings({ reportReminder: false });
+      return;
+    }
+    const allowed = await enableReportReminder().catch(() => false);
+    if (allowed) {
+      app.updateSettings({ reportReminder: true });
+    } else {
+      setReminderMessage(
+        Platform.OS === "web"
+          ? "Уведомления работают в приложении на iPhone и Android."
+          : "Разрешите уведомления для StopScroll в настройках телефона, чтобы получать отчёт.",
+      );
+    }
+  };
 
   const restore = async () => {
     setRestoring(true);
@@ -45,18 +68,7 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
 
   return (
     <Screen>
-      <Pressable
-        onPress={() => navigation.goBack()}
-        accessibilityRole="button"
-        accessibilityLabel="Назад"
-        hitSlop={8}
-        className="h-9 flex-row items-center gap-0.5 self-start active:opacity-60"
-      >
-        <Ionicons name="chevron-back" size={24} color={colors.primary} />
-        <AppText variant="body" tone="primary">
-          Сегодня
-        </AppText>
-      </Pressable>
+      <BackButton label="Сегодня" />
       <AppText variant="title" accessibilityRole="header" className="px-1 pb-1">
         Настройки
       </AppText>
@@ -143,6 +155,41 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
           onChange={(value) => app.updateSettings({ baselineMinutes: value })}
         />
       </Card>
+
+      <ListGroup
+        header="Пауза и отчёты"
+        footer={
+          reminderMessage ??
+          "В воскресенье в 19:00 StopScroll соберёт неделю и пришлёт уведомление, что отчёт готов."
+        }
+      >
+        <ListRow
+          icon="hand-left"
+          iconColor={colors.primary}
+          title="Пауза перед лентой"
+          value={
+            app.settings.gateApps.length === GATE_APPS.length
+              ? "Все"
+              : app.settings.gateApps.length > 0
+                ? String(app.settings.gateApps.length)
+                : "Выкл."
+          }
+          onPress={() => navigation.navigate("GateSetup")}
+        />
+        <ListRow
+          icon="calendar"
+          iconColor={colors.indigo}
+          title="Отчёт по воскресеньям"
+          right={
+            <Switch
+              value={app.settings.reportReminder}
+              onValueChange={toggleReminder}
+              trackColor={{ true: colors.successBright, false: colors.ringTrack }}
+              accessibilityLabel="Уведомлять о недельном отчёте"
+            />
+          }
+        />
+      </ListGroup>
 
       <AppText variant="overline" tone="subtle" className="px-1 pt-3" accessibilityRole="header">
         Главная лента

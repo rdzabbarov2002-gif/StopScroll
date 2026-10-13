@@ -8,7 +8,13 @@ const TODAY = "2026-10-11";
 const NOW = new Date(2026, 9, 11, 12, 0).getTime();
 
 function makeState(overrides: Partial<AppState> = {}): AppState {
-  return { ...createInitialState(), hydrated: true, todayKey: TODAY, ...overrides };
+  return {
+    ...createInitialState(),
+    hydrated: true,
+    todayKey: TODAY,
+    unlockQueue: [],
+    ...overrides,
+  };
 }
 
 const win: WinEntry = {
@@ -80,6 +86,9 @@ describe("appReducer", () => {
         sessionMinutes: 20,
         baselineMinutes: 240,
         mainApp: "reels",
+        gateApps: ["tiktok"],
+        gateSeconds: 15,
+        reportReminder: false,
       },
     });
     expect(state.onboarded).toBe(true);
@@ -92,6 +101,9 @@ describe("appReducer", () => {
       sessionMinutes: 20,
       baselineMinutes: 240,
       mainApp: "reels",
+      gateApps: ["tiktok"],
+      gateSeconds: 15,
+      reportReminder: false,
     });
   });
 
@@ -120,5 +132,32 @@ describe("appReducer", () => {
     expect(persisted).not.toHaveProperty("hydrated");
     expect(persisted).not.toHaveProperty("todayKey");
     expect(persisted.wins).toEqual([win]);
+  });
+});
+
+describe("appReducer: pause, achievements and reports", () => {
+  it("logs pause outcomes and keeps the first date of an achievement", () => {
+    let state = appReducer(makeState(), {
+      type: "logIntercept",
+      entry: { id: "i1", timestamp: NOW, app: "tiktok", outcome: "declined" },
+    });
+    expect(state.intercepts).toHaveLength(1);
+    state = appReducer(state, { type: "unlockAchievements", unlocked: { "first-hour": NOW } });
+    const again = appReducer(state, {
+      type: "unlockAchievements",
+      unlocked: { "first-hour": NOW + 1 },
+    });
+    expect(again).toBe(state);
+    expect(again.achievements).toEqual({ "first-hour": NOW });
+  });
+
+  it("only moves the seen report forward and wipes it all on reset", () => {
+    let state = appReducer(makeState(), { type: "markReportSeen", week: "2026-10-05" });
+    expect(appReducer(state, { type: "markReportSeen", week: "2026-09-28" })).toBe(state);
+    state = appReducer(state, { type: "unlockAchievements", unlocked: { "first-hour": NOW } });
+    const reset = appReducer(state, { type: "resetProgress" });
+    expect(reset.lastSeenReport).toBeNull();
+    expect(reset.achievements).toEqual({});
+    expect(toPersistedState(reset).intercepts).toEqual([]);
   });
 });

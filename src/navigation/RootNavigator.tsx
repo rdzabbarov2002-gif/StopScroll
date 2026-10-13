@@ -1,12 +1,16 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import { useApp } from "../context/AppContext";
+import { AchievementsScreen } from "../screens/AchievementsScreen";
+import { GateScreen } from "../screens/GateScreen";
+import { GateSetupScreen } from "../screens/GateSetupScreen";
 import { InterceptScreen } from "../screens/InterceptScreen";
 import { OnboardingScreen } from "../screens/OnboardingScreen";
 import { PaywallScreen } from "../screens/PaywallScreen";
 import { PrivacyScreen } from "../screens/PrivacyScreen";
 import { ReplacementScreen } from "../screens/ReplacementScreen";
 import { SettingsScreen } from "../screens/SettingsScreen";
+import { WeeklyReportScreen } from "../screens/WeeklyReportScreen";
 import { RootTabs } from "./RootTabs";
 import type { RootStackParamList } from "./types";
 
@@ -45,6 +49,27 @@ export function RootNavigator() {
           <Stack.Screen
             name="Settings"
             component={SettingsScreen}
+            options={{ animation: "slide_from_right" }}
+          />
+          <Stack.Screen
+            name="Gate"
+            component={GateScreen}
+            // Like the SOS pause: it opens over the feed app and only closes on a choice.
+            options={{ presentation: "fullScreenModal", animation: "fade", gestureEnabled: false }}
+          />
+          <Stack.Screen
+            name="GateSetup"
+            component={GateSetupScreen}
+            options={{ animation: "slide_from_right" }}
+          />
+          <Stack.Screen
+            name="WeeklyReport"
+            component={WeeklyReportScreen}
+            options={{ animation: "slide_from_right" }}
+          />
+          <Stack.Screen
+            name="Achievements"
+            component={AchievementsScreen}
             options={{ animation: "slide_from_right" }}
           />
         </>

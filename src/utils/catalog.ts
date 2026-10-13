@@ -1,6 +1,7 @@
 import type {
   ExerciseId,
   FeedApp,
+  GateApp,
   IconName,
   Replacement,
   ReplacementCategory,
@@ -110,6 +111,78 @@ export const FEED_APPS: readonly { id: FeedApp; label: string; icon: IconName }[
 export function getFeedApp(id: FeedApp) {
   return FEED_APPS.find((app) => app.id === id) ?? FEED_APPS[FEED_APPS.length - 1]!;
 }
+
+// ---------------------------------------------------------------------------
+// The pause before a feed app
+// ---------------------------------------------------------------------------
+
+export interface GateAppInfo {
+  id: GateApp;
+  /** The app the feed lives in. */
+  appName: string;
+  icon: IconName;
+  /** URL scheme that opens the app on iOS. */
+  scheme: string;
+  /** Universal / app link: opens the app when it is installed, the site otherwise. */
+  webUrl: string;
+  /** Android package names (TikTok ships under two of them). */
+  packages: readonly string[];
+}
+
+export const GATE_APPS: readonly GateAppInfo[] = [
+  {
+    id: "tiktok",
+    appName: "TikTok",
+    icon: "logo-tiktok",
+    scheme: "tiktok://",
+    webUrl: "https://www.tiktok.com/",
+    packages: ["com.zhiliaoapp.musically", "com.ss.android.ugc.trill"],
+  },
+  {
+    id: "reels",
+    appName: "Instagram",
+    icon: "logo-instagram",
+    scheme: "instagram://",
+    webUrl: "https://www.instagram.com/reels/",
+    packages: ["com.instagram.android"],
+  },
+  {
+    id: "shorts",
+    appName: "YouTube",
+    icon: "logo-youtube",
+    scheme: "youtube://",
+    webUrl: "https://www.youtube.com/shorts/",
+    packages: ["com.google.android.youtube"],
+  },
+];
+
+export function getGateApp(id: GateApp): GateAppInfo {
+  return GATE_APPS.find((app) => app.id === id) ?? GATE_APPS[0]!;
+}
+
+export const isGateApp = (value: unknown): value is GateApp =>
+  typeof value === "string" && GATE_APPS.some((app) => app.id === value);
+
+/** After "open anyway" the app opens without a pause for this long. */
+export const GATE_ALLOW_MINUTES = 5;
+
+/** Thoughts shown on the pause before a feed app, one at random. */
+export const GATE_THOUGHTS: readonly string[] = [
+  "Лента не закончится. А этот вечер — да.",
+  "Через несколько секунд желание обычно становится слабее.",
+  "Вы открываете приложение или оно открывает вас?",
+  "Скука — это сигнал, а не приказ.",
+  "Алгоритм знает, что вы посмотрите дальше. Удивите его.",
+  "Самое интересное сегодня случится не в телефоне.",
+  "Импульс длится меньше минуты. Решение — дольше.",
+  "Что вы на самом деле хотите сейчас почувствовать?",
+  "Один отказ — это маленькая победа. Из них складываются дни.",
+  "Отдых — это то, после чего становится легче. Лента так умеет редко.",
+  "Пять минут ленты почти никогда не бывают пятью минутами.",
+  "Вы уже сделали самое трудное — остановились.",
+  "Мозгу нужна пауза, а не новые 200 видео.",
+  "Тишина тоже может быть наградой.",
+];
 
 // ---------------------------------------------------------------------------
 // Micro-replacements

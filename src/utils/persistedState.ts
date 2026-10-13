@@ -1,9 +1,20 @@
-import { CATEGORIES, EXERCISES, FEED_APPS, MAX_SCROLL_MINUTES, TRIGGERS } from "./catalog";
+import {
+  CATEGORIES,
+  EXERCISES,
+  FEED_APPS,
+  GATE_APPS,
+  MAX_SCROLL_MINUTES,
+  TRIGGERS,
+  isGateApp,
+} from "./catalog";
 import { DAY_KEY_PATTERN } from "./date";
 import type {
   CustomReplacement,
   ExerciseId,
   FeedApp,
+  GateApp,
+  GateOutcome,
+  InterceptEntry,
   PersistedState,
   ReplacementCategory,
   Settings,
@@ -17,6 +28,7 @@ import type {
 /** Upper bounds keep the single JSON blob small and fast to (de)serialize. */
 export const MAX_WINS = 2000;
 export const MAX_SLIPS = 1000;
+export const MAX_INTERCEPTS = 2000;
 /** Ten years of daily entries is still only ~80 KB; trimming earlier would shrink the best streak. */
 export const MAX_SCROLL_DAYS = 3660;
 export const MAX_CUSTOM_REPLACEMENTS = 30;
@@ -29,6 +41,8 @@ export const MAX_DESCRIPTION_LENGTH = 160;
 export const LIMIT_RANGE = { min: 0, max: MAX_SCROLL_MINUTES, step: 5 } as const;
 export const SESSION_RANGE = { min: 5, max: MAX_SCROLL_MINUTES, step: 5 } as const;
 export const BASELINE_RANGE = { min: 0, max: MAX_SCROLL_MINUTES, step: 5 } as const;
+/** Seconds of the pause before a feed app opens. */
+export const GATE_SECONDS_RANGE = { min: 5, max: 60, step: 5 } as const;
 
 /**
  * Slider position (0…1) → minutes on a quadratic curve: short times get fine steps, while the
@@ -48,6 +62,9 @@ export const DEFAULT_SETTINGS: Settings = {
   sessionMinutes: 15,
   baselineMinutes: 180,
   mainApp: "tiktok",
+  gateApps: GATE_APPS.map((app) => app.id),
+  gateSeconds: 10,
+  reportReminder: false,
 };
 
 export function createId(): string {
@@ -58,14 +75,17 @@ export function createInitialState(): PersistedState {
   return {
     version: 1,
     onboarded: false,
-    settings: { ...DEFAULT_SETTINGS },
+    settings: { ...DEFAULT_SETTINGS, gateApps: [...DEFAULT_SETTINGS.gateApps] },
     scrollLog: {},
     wins: [],
     winArchive: { count: 0, minutes: 0, replacementCount: 0 },
     slips: [],
+    intercepts: [],
     customReplacements: [],
     lastExerciseId: "breath-ground",
     themePreference: "system",
+    achievements: {},
+    lastSeenReport: null,
   };
 }
 
@@ -104,6 +124,8 @@ const APP_IDS = new Set<string>(FEED_APPS.map((app) => app.id));
 const CATEGORY_IDS = new Set<string>(CATEGORIES.map((category) => category.id));
 const EXERCISE_IDS = new Set<string>(EXERCISES.map((exercise) => exercise.id));
 const THEMES = new Set<string>(["system", "light", "dark"]);
+const GATE_OUTCOMES = new Set<string>(["declined", "sos", "replacement", "opened"]);
+const WIN_SOURCES = new Set<string>(["sos", "replacement", "gate"]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -133,6 +155,13 @@ function sanitizeSettings(value: unknown): Settings {
       typeof raw.mainApp === "string" && APP_IDS.has(raw.mainApp)
         ? (raw.mainApp as FeedApp)
         : DEFAULT_SETTINGS.mainApp,
+    gateApps: Array.isArray(raw.gateApps)
+      ? GATE_APPS.map((app) => app.id).filter((id) => (raw.gateApps as unknown[]).includes(id))
+      : [...DEFAULT_SETTINGS.gateApps],
+    gateSeconds: isFiniteNumber(raw.gateSeconds)
+      ? clampToRange(raw.gateSeconds, GATE_SECONDS_RANGE)
+      : DEFAULT_SETTINGS.gateSeconds,
+    reportReminder: raw.reportReminder === true,
   };
 }
 
@@ -162,13 +191,13 @@ function sanitizeWin(value: unknown): WinEntry | null {
   if (!isRecord(value)) return null;
   const { id, timestamp, minutesSaved, source, trigger, replacementId } = value;
   if (typeof id !== "string" || !isTimestamp(timestamp)) return null;
-  if (source !== "sos" && source !== "replacement") return null;
+  if (typeof source !== "string" || !WIN_SOURCES.has(source)) return null;
   if (!isFiniteNumber(minutesSaved)) return null;
   return {
     id,
     timestamp,
     minutesSaved: Math.min(SESSION_RANGE.max, Math.max(0, Math.round(minutesSaved))),
-    source,
+    source: source as WinEntry["source"],
     ...(isTrigger(trigger) ? { trigger } : {}),
     ...(typeof replacementId === "string" ? { replacementId } : {}),
   };
@@ -186,6 +215,21 @@ function sanitizeSlip(value: unknown): SlipEntry | null {
     minutesLost: isFiniteNumber(minutesLost) ? clampScrollMinutes(minutesLost) : 0,
     note: typeof note === "string" ? note.slice(0, MAX_NOTE_LENGTH) : "",
   };
+}
+
+function sanitizeIntercept(value: unknown): InterceptEntry | null {
+  if (!isRecord(value)) return null;
+  const { id, timestamp, app, outcome } = value;
+  if (typeof id !== "string" || !isTimestamp(timestamp) || !isGateApp(app)) return null;
+  if (typeof outcome !== "string" || !GATE_OUTCOMES.has(outcome)) return null;
+  return { id, timestamp, app: app as GateApp, outcome: outcome as GateOutcome };
+}
+
+function sanitizeAchievements(value: unknown): Record<string, number> {
+  if (!isRecord(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value).filter((entry): entry is [string, number] => isTimestamp(entry[1])),
+  );
 }
 
 function sanitizeCustom(value: unknown): CustomReplacement | null {
@@ -240,6 +284,12 @@ export function sanitizePersistedState(raw: unknown): PersistedState {
     wins: sanitizeList(raw.wins, sanitizeWin, (item) => item.timestamp, MAX_WINS),
     winArchive: sanitizeWinArchive(raw.winArchive),
     slips: sanitizeList(raw.slips, sanitizeSlip, (item) => item.timestamp, MAX_SLIPS),
+    intercepts: sanitizeList(
+      raw.intercepts,
+      sanitizeIntercept,
+      (item) => item.timestamp,
+      MAX_INTERCEPTS,
+    ),
     customReplacements: sanitizeList(
       raw.customReplacements,
       sanitizeCustom,
@@ -254,5 +304,10 @@ export function sanitizePersistedState(raw: unknown): PersistedState {
       typeof raw.themePreference === "string" && THEMES.has(raw.themePreference)
         ? (raw.themePreference as ThemePreference)
         : base.themePreference,
+    achievements: sanitizeAchievements(raw.achievements),
+    lastSeenReport:
+      typeof raw.lastSeenReport === "string" && DAY_KEY_PATTERN.test(raw.lastSeenReport)
+        ? raw.lastSeenReport
+        : null,
   };
 }

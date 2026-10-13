@@ -1,7 +1,11 @@
+import { earnedAchievements } from "./achievements";
 import { addDays, parseDayKey } from "./date";
 import { createInitialState } from "./persistedState";
 import type {
   FeedApp,
+  GateApp,
+  GateOutcome,
+  InterceptEntry,
   PersistedState,
   SlipEntry,
   ThemePreference,
@@ -84,14 +88,49 @@ export function createDemoState(today: string, themePreference: ThemePreference)
     };
   });
 
-  return {
+  // Two weeks of the pause before a feed app: most attempts end without the feed. Every
+  // "declined" is also a win, exactly as the pause screen records it.
+  const gateApps: GateApp[] = ["reels", "tiktok", "shorts"];
+  const outcomes: GateOutcome[] = [
+    "declined",
+    "declined",
+    "sos",
+    "declined",
+    "opened",
+    "replacement",
+  ];
+  const intercepts: InterceptEntry[] = [];
+  for (let daysAgo = 1; daysAgo <= 14; daysAgo += 1) {
+    for (let index = 0; index < (daysAgo % 3) + 1; index += 1) {
+      const outcome = outcomes[(daysAgo + index * 2) % outcomes.length]!;
+      const timestamp = at(daysAgo, [20, 13, 22][index]!, 30 + index);
+      intercepts.push({
+        id: `demo-gate-${daysAgo}-${index}`,
+        timestamp,
+        app: gateApps[(daysAgo + index) % gateApps.length]!,
+        outcome,
+      });
+      if (outcome === "declined") {
+        pastWins.push({
+          id: `demo-gate-win-${daysAgo}-${index}`,
+          timestamp,
+          minutesSaved: 15,
+          source: "gate",
+        });
+      }
+    }
+  }
+
+  const state: PersistedState = {
     ...base,
     onboarded: true,
-    settings: { dailyLimitMinutes: 60, sessionMinutes: 15, baselineMinutes: 180, mainApp: "reels" },
+    settings: { ...base.settings, mainApp: "reels" },
     scrollLog,
     wins: [...todayWins.reverse(), ...pastWins].sort((a, b) => b.timestamp - a.timestamp),
     winArchive: { count: 30, minutes: 450, replacementCount: 15 },
     slips,
+    intercepts: intercepts.sort((a, b) => b.timestamp - a.timestamp),
     themePreference,
   };
+  return { ...state, achievements: earnedAchievements(state, now) };
 }

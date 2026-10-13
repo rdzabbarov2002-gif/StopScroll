@@ -1,5 +1,6 @@
 import {
   MAX_CUSTOM_REPLACEMENTS,
+  MAX_INTERCEPTS,
   MAX_SLIPS,
   MAX_WINS,
   archiveWins,
@@ -10,6 +11,7 @@ import {
 import type {
   CustomReplacement,
   ExerciseId,
+  InterceptEntry,
   PersistedState,
   Settings,
   SlipEntry,
@@ -22,6 +24,8 @@ export interface AppState extends PersistedState {
   hydrated: boolean;
   /** Current local day key; lets screens notice midnight. */
   todayKey: string;
+  /** Achievements earned in this session whose unlock animation hasn't been shown yet. */
+  unlockQueue: string[];
 }
 
 export type AppAction =
@@ -35,6 +39,11 @@ export type AppAction =
   | { type: "undoWin"; id: string }
   | { type: "logSlip"; entry: SlipEntry }
   | { type: "deleteSlip"; id: string }
+  | { type: "logIntercept"; entry: InterceptEntry }
+  | { type: "undoIntercept"; id: string }
+  | { type: "unlockAchievements"; unlocked: Record<string, number> }
+  | { type: "dismissUnlock"; id: string }
+  | { type: "markReportSeen"; week: string }
   | { type: "addCustomReplacement"; entry: CustomReplacement }
   | { type: "deleteCustomReplacement"; id: string }
   | { type: "setLastExercise"; id: ExerciseId }
@@ -44,7 +53,8 @@ export type AppAction =
 export function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case "hydrate":
-      return { ...action.state, hydrated: true, todayKey: action.today };
+      // Achievements in a loaded state were already earned; nothing to celebrate again.
+      return { ...action.state, hydrated: true, todayKey: action.today, unlockQueue: [] };
 
     case "syncDay":
       return state.todayKey === action.today ? state : { ...state, todayKey: action.today };
@@ -89,6 +99,34 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     case "deleteSlip":
       return { ...state, slips: state.slips.filter((entry) => entry.id !== action.id) };
 
+    case "logIntercept":
+      return {
+        ...state,
+        intercepts: [action.entry, ...state.intercepts].slice(0, MAX_INTERCEPTS),
+      };
+
+    case "undoIntercept":
+      return { ...state, intercepts: state.intercepts.filter((entry) => entry.id !== action.id) };
+
+    case "unlockAchievements": {
+      // An earned achievement keeps its first date.
+      const fresh = Object.entries(action.unlocked).filter(([id]) => !(id in state.achievements));
+      if (fresh.length === 0) return state;
+      return {
+        ...state,
+        achievements: { ...state.achievements, ...Object.fromEntries(fresh) },
+        unlockQueue: [...state.unlockQueue, ...fresh.map(([id]) => id)],
+      };
+    }
+
+    case "dismissUnlock":
+      return { ...state, unlockQueue: state.unlockQueue.filter((id) => id !== action.id) };
+
+    case "markReportSeen":
+      return state.lastSeenReport !== null && state.lastSeenReport >= action.week
+        ? state
+        : { ...state, lastSeenReport: action.week };
+
     case "addCustomReplacement":
       if (state.customReplacements.length >= MAX_CUSTOM_REPLACEMENTS) return state;
       return { ...state, customReplacements: [action.entry, ...state.customReplacements] };
@@ -116,7 +154,11 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         wins: fresh.wins,
         winArchive: fresh.winArchive,
         slips: fresh.slips,
+        intercepts: fresh.intercepts,
         customReplacements: fresh.customReplacements,
+        achievements: fresh.achievements,
+        lastSeenReport: fresh.lastSeenReport,
+        unlockQueue: [],
       };
     }
 
@@ -134,8 +176,11 @@ export function toPersistedState(state: AppState): PersistedState {
     wins: state.wins,
     winArchive: state.winArchive,
     slips: state.slips,
+    intercepts: state.intercepts,
     customReplacements: state.customReplacements,
     lastExerciseId: state.lastExerciseId,
     themePreference: state.themePreference,
+    achievements: state.achievements,
+    lastSeenReport: state.lastSeenReport,
   };
 }

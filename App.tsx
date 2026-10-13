@@ -8,9 +8,12 @@ import { useEffect, useMemo } from "react";
 import { ActivityIndicator, Appearance, Platform, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { AchievementCenter } from "./src/components/achievements/AchievementCenter";
 import { AppProvider, useApp } from "./src/context/AppContext";
 import { ProProvider } from "./src/context/ProContext";
+import { linking, navigationRef } from "./src/navigation/linking";
 import { RootNavigator } from "./src/navigation/RootNavigator";
+import { NativeSync } from "./src/services/NativeSync";
 import { useThemeColors } from "./src/utils/theme";
 
 /** Applies the saved theme preference to NativeWind (and therefore to every `dark:` class). */
@@ -33,7 +36,7 @@ function ThemeSync() {
 }
 
 function AppShell() {
-  const { hydrated } = useApp();
+  const { hydrated, onboarded } = useApp();
   const { isDark, colors } = useThemeColors();
 
   const navigationTheme = useMemo<Theme>(() => {
@@ -62,8 +65,20 @@ function AppShell() {
       <ThemeSync />
       <StatusBar style={isDark ? "light" : "dark"} />
       {hydrated ? (
-        <NavigationContainer theme={navigationTheme}>
+        <NavigationContainer
+          ref={navigationRef}
+          theme={navigationTheme}
+          // Deep links (the pause, widgets, the Sunday report) exist only in the native apps;
+          // on the web preview the browser URL stays untouched.
+          linking={Platform.OS === "web" ? undefined : linking}
+        >
           <RootNavigator />
+          {onboarded ? (
+            <>
+              <NativeSync />
+              <AchievementCenter />
+            </>
+          ) : null}
         </NavigationContainer>
       ) : (
         <View

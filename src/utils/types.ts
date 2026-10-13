@@ -15,6 +15,26 @@ export type TriggerId =
 
 export type FeedApp = "tiktok" | "reels" | "shorts" | "other";
 
+/** A feed app the pause can stand in front of ("other" has no app to open). */
+export type GateApp = Exclude<FeedApp, "other">;
+
+/** How an attempt to open a feed app through the pause ended. */
+export type GateOutcome = "declined" | "sos" | "replacement" | "opened";
+
+/**
+ * How the pause reaches the user on this platform: a Shortcuts automation (iOS), an
+ * accessibility service (Android) or only a preview (web).
+ */
+export type GateMode = "shortcuts" | "service" | "preview";
+
+/** One attempt to open a feed app that was stopped by the pause screen. */
+export interface InterceptEntry {
+  id: string;
+  timestamp: number;
+  app: GateApp;
+  outcome: GateOutcome;
+}
+
 export type ReplacementCategory = "body" | "mind" | "facts";
 
 export type ExerciseId = "breath-ground" | "box-breath" | "serial-sevens" | "intent-check";
@@ -55,7 +75,8 @@ export interface WinEntry {
   id: string;
   timestamp: number;
   minutesSaved: number;
-  source: "sos" | "replacement";
+  /** "gate" — the user chose not to open a feed app on the pause screen. */
+  source: "sos" | "replacement" | "gate";
   trigger?: TriggerId;
   replacementId?: string;
 }
@@ -84,6 +105,12 @@ export interface Settings {
   /** Daily scrolling before StopScroll, for the "how it was" comparison. */
   baselineMinutes: number;
   mainApp: FeedApp;
+  /** Feed apps that open through the pause (Shortcuts automation on iOS, a service on Android). */
+  gateApps: GateApp[];
+  /** How long the pause before a feed app lasts. */
+  gateSeconds: number;
+  /** A Sunday notification that the weekly report is ready. */
+  reportReminder: boolean;
 }
 
 /** Wins pushed out of the capped `wins` list, kept as totals so all-time numbers never shrink. */
@@ -103,7 +130,13 @@ export interface PersistedState {
   wins: WinEntry[];
   winArchive: WinArchive;
   slips: SlipEntry[];
+  /** Attempts to open a feed app that went through the pause screen. */
+  intercepts: InterceptEntry[];
   customReplacements: CustomReplacement[];
   lastExerciseId: ExerciseId;
   themePreference: ThemePreference;
+  /** Achievement id → when it was earned. */
+  achievements: Record<string, number>;
+  /** Monday key of the newest weekly report the user has opened. */
+  lastSeenReport: string | null;
 }

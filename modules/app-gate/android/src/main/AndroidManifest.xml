@@ -1,0 +1,24 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- Android 11+ package visibility: the feed apps StopScroll can open after the pause. -->
+  <queries>
+    <package android:name="com.zhiliaoapp.musically" />
+    <package android:name="com.ss.android.ugc.trill" />
+    <package android:name="com.instagram.android" />
+    <package android:name="com.google.android.youtube" />
+  </queries>
+
+  <application>
+    <service
+      android:name="app.stopscroll.gate.GateAccessibilityService"
+      android:exported="false"
+      android:label="@string/stopscroll_gate_service_label"
+      android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+      <intent-filter>
+        <action android:name="android.accessibilityservice.AccessibilityService" />
+      </intent-filter>
+      <meta-data
+        android:name="android.accessibilityservice"
+        android:resource="@xml/stopscroll_gate_service" />
+    </service>
+  </application>
+</manifest>

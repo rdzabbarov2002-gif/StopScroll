@@ -1,4 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useNavigation } from "@react-navigation/native";
 import { useMemo, type ReactNode } from "react";
 import { Pressable, View } from "react-native";
 
@@ -11,6 +12,7 @@ import { IconButton } from "../components/IconButton";
 import { Screen } from "../components/Screen";
 import { useApp } from "../context/AppContext";
 import type { RootTabScreenProps } from "../navigation/types";
+import { ACHIEVEMENTS, achievementTitle, getAchievement } from "../utils/achievements";
 import { MIN_SLIPS_FOR_PATTERNS, computePatterns } from "../utils/analytics";
 import { QUICK_TRIGGER_IDS, REPLACEMENTS, getCategory, getTrigger } from "../utils/catalog";
 import {
@@ -19,6 +21,7 @@ import {
   WIN_FORMS,
   formatLongDate,
   formatMinutes,
+  formatWeekRange,
   formatMinutesCompact,
   formatMinutesInline,
   parseDayKey,
@@ -35,6 +38,7 @@ import {
 } from "../utils/stats";
 import { useThemeColors } from "../utils/theme";
 import { useNow } from "../utils/useNow";
+import { buildWeeklyReport, latestReportWeek, reportWeeks } from "../utils/weeklyReport";
 
 const pad = (value: number) => String(value).padStart(2, "0");
 
@@ -199,6 +203,8 @@ export function HomeScreen({ navigation }: RootTabScreenProps<"Home">) {
         </View>
       </PressableCard>
 
+      <ProgressTiles now={now} />
+
       <PressableCard
         onPress={() => navigation.navigate("Replacement", { id: dailyPick.id })}
         label={`Замена дня: ${dailyPick.title}`}
@@ -222,6 +228,119 @@ export function HomeScreen({ navigation }: RootTabScreenProps<"Home">) {
         </View>
       </PressableCard>
     </Screen>
+  );
+}
+
+/** "Отчёт недели" and "Достижения" side by side. */
+function ProgressTiles({ now }: { now: number }) {
+  const { colors } = useThemeColors();
+  const navigation = useNavigation();
+  const app = useApp();
+  const data = useMemo(
+    () => ({
+      wins: app.wins,
+      slips: app.slips,
+      intercepts: app.intercepts,
+      scrollLog: app.scrollLog,
+      settings: app.settings,
+    }),
+    [app.wins, app.slips, app.intercepts, app.scrollLog, app.settings],
+  );
+  const latest = latestReportWeek(now);
+  const hasReport = useMemo(() => reportWeeks(data, now).includes(latest), [data, now, latest]);
+  const saved = useMemo(
+    () => (hasReport ? buildWeeklyReport(data, latest, now).savedMinutes : 0),
+    [data, latest, now, hasReport],
+  );
+  const isNew = hasReport && (app.lastSeenReport === null || app.lastSeenReport < latest);
+
+  const earned = Object.entries(app.achievements).sort((a, b) => b[1] - a[1]);
+  const lastEarned = earned[0] ? getAchievement(earned[0][0]) : undefined;
+
+  return (
+    <View className="flex-row gap-3">
+      <Tile
+        onPress={() => navigation.navigate("WeeklyReport")}
+        icon="calendar"
+        label="Отчёт"
+        color={colors.primary}
+        title={hasReport ? (isNew ? "Новый отчёт" : formatWeekRange(latest)) : "В воскресенье"}
+        caption={hasReport ? `Спасено ${formatMinutes(saved)}` : "Соберём вашу неделю"}
+        badge={isNew}
+      />
+      <Tile
+        onPress={() => navigation.navigate("Achievements")}
+        icon="trophy"
+        label="Достижения"
+        color={colors.warning}
+        title={`${earned.length} из ${ACHIEVEMENTS.length}`}
+        caption={
+          lastEarned
+            ? achievementTitle(lastEarned, app.settings.mainApp)
+            : "Первое — после первой паузы"
+        }
+      />
+    </View>
+  );
+}
+
+function Tile({
+  onPress,
+  icon,
+  label,
+  color,
+  title,
+  caption,
+  badge = false,
+}: {
+  onPress: () => void;
+  icon: "calendar" | "trophy";
+  label: string;
+  color: string;
+  title: string;
+  caption: string;
+  badge?: boolean;
+}) {
+  const { colors } = useThemeColors();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}: ${title}, ${caption}`}
+      className="flex-1 gap-2 rounded-card bg-card p-4 active:opacity-80 dark:bg-ink-900"
+    >
+      <View className="flex-row items-center justify-between">
+        <View className="shrink flex-row items-center gap-1.5">
+          <Ionicons name={icon} size={17} color={color} />
+          <AppText
+            variant="heading"
+            className="shrink text-[16px]"
+            style={{ color }}
+            numberOfLines={1}
+          >
+            {label}
+          </AppText>
+        </View>
+        {badge ? (
+          <View className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colors.danger }} />
+        ) : (
+          <Ionicons name="chevron-forward" size={16} color={colors.chevron} />
+        )}
+      </View>
+      <View className="gap-0.5">
+        <AppText variant="heading" className="text-[19px] leading-6" numberOfLines={1}>
+          {title}
+        </AppText>
+        <AppText
+          variant="caption"
+          tone="subtle"
+          className="text-[13px] leading-[17px]"
+          numberOfLines={2}
+        >
+          {caption}
+        </AppText>
+      </View>
+    </Pressable>
   );
 }
 

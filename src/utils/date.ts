@@ -44,6 +44,12 @@ const WEEKDAYS = [
   "суббота",
 ];
 
+/** Monday-first full weekday name, matching `weekdayIndex()`: "Пятница". */
+export function weekdayName(index: number): string {
+  const name = WEEKDAYS[(index + 1) % 7]!;
+  return `${name.charAt(0).toUpperCase()}${name.slice(1)}`;
+}
+
 /** Monday-first short weekday names, matching `weekdayIndex()`. */
 export const WEEKDAYS_SHORT = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"] as const;
 
@@ -64,6 +70,9 @@ export function pluralize(count: number, forms: readonly [string, string, string
 export const DAY_FORMS = ["день", "дня", "дней"] as const;
 export const ENTRY_FORMS = ["запись", "записи", "записей"] as const;
 export const WIN_FORMS = ["победа", "победы", "побед"] as const;
+export const TIMES_FORMS = ["раз", "раза", "раз"] as const;
+const HOUR_WORD_FORMS = ["час", "часа", "часов"] as const;
+const MINUTE_WORD_FORMS = ["минуту", "минуты", "минут"] as const;
 
 /** Local calendar day key, e.g. "2026-10-04". */
 export function dayKey(input: Date | number = Date.now()): string {
@@ -108,6 +117,23 @@ export function formatLongDate(timestamp: number = Date.now()): string {
   return `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)}, ${date.getDate()} ${MONTHS_GENITIVE[date.getMonth()]}`;
 }
 
+/** "4 октября", with the year when it isn't the current one. */
+export function formatDate(timestamp: number, now: number = Date.now()): string {
+  const date = new Date(timestamp);
+  const year = date.getFullYear() === new Date(now).getFullYear() ? "" : ` ${date.getFullYear()}`;
+  return `${date.getDate()} ${MONTHS_GENITIVE[date.getMonth()]}${year}`;
+}
+
+/** "5–11 октября" or "29 сентября – 5 октября" for a Monday…Sunday week. */
+export function formatWeekRange(monday: string): string {
+  const start = parseDayKey(monday);
+  const end = parseDayKey(addDays(monday, 6));
+  if (start.getMonth() === end.getMonth()) {
+    return `${start.getDate()}–${end.getDate()} ${MONTHS_GENITIVE[end.getMonth()]}`;
+  }
+  return `${start.getDate()} ${MONTHS_GENITIVE[start.getMonth()]} – ${end.getDate()} ${MONTHS_GENITIVE[end.getMonth()]}`;
+}
+
 /** "4 окт." for a day key. */
 export function formatDayShort(key: string): string {
   const date = parseDayKey(key);
@@ -136,6 +162,18 @@ export function formatMinutes(totalMinutes: number): string {
   if (hours === 0) return `${rest} мин`;
   if (rest === 0) return `${hours} ч`;
   return `${hours} ч ${rest} мин`;
+}
+
+/** "6 часов", "1 час 30 минут", "21 минуту" — for sentences like "вы вернули себе …". */
+export function formatDurationWords(totalMinutes: number): string {
+  const minutes = Math.max(0, Math.round(totalMinutes));
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  const hoursPart = `${hours}\u00A0${pluralize(hours, HOUR_WORD_FORMS)}`;
+  const minutesPart = `${rest}\u00A0${pluralize(rest, MINUTE_WORD_FORMS)}`;
+  if (hours === 0) return minutesPart;
+  if (rest === 0) return hoursPart;
+  return `${hoursPart} ${minutesPart}`;
 }
 
 /** formatMinutes with non-breaking spaces, for use inside sentences ("2 ч 30 мин" never wraps). */

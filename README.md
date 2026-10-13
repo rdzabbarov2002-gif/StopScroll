@@ -8,27 +8,34 @@ RevenueCat.
 Проект собран на архитектуре шаблона [CleanStart](https://github.com/rdzabbarov2002-gif/Clean):
 тот же стек, контекст + чистый редьюсер, валидация сохранённого состояния, NativeWind-компоненты.
 
-**Стек:** Expo SDK 57 (managed) · React Native 0.86 · TypeScript · NativeWind 4 (Tailwind CSS 3) ·
-React Navigation 7 (native stack + bottom tabs) · AsyncStorage · react-native-svg ·
-`@react-native-community/slider` · RevenueCat (`react-native-purchases`).
+**Стек:** Expo SDK 57 (managed, Continuous Native Generation) · React Native 0.86 · TypeScript ·
+NativeWind 4 (Tailwind CSS 3) · React Navigation 7 (native stack + bottom tabs) · AsyncStorage ·
+react-native-svg · `@react-native-community/slider` · RevenueCat (`react-native-purchases`) ·
+`expo-notifications` · виджеты и действие «Команд» iOS через `@bacons/apple-targets` (WidgetKit,
+App Intents) · виджеты Android через `react-native-android-widget` · локальный нативный модуль
+`modules/app-gate` (служба паузы на Android).
 
 ## Запуск
 
 ```bash
 npm install
 cp .env.example .env.local   # ключи RevenueCat (можно пропустить — см. ниже)
-npm start                    # QR-код для Expo Go
-npm run android              # эмулятор Android
-npm run ios                  # симулятор iOS (нужен macOS)
+npm start                    # QR-код для Expo Go (без виджетов, паузы перед лентой и уведомлений)
+npx expo run:android         # нативная сборка Android (нужен Android SDK)
+npx expo run:ios             # нативная сборка iOS (нужен macOS + Xcode 16)
 npm run web                  # быстрый просмотр в браузере
 ```
+
+Виджеты, действие для «Команд», служба паузы на Android и покупки работают только в нативной
+сборке (`npx expo run:*` или `eas build --profile preview`): папки `ios/` и `android/` не хранятся
+в репозитории, их генерирует `npx expo prebuild` из `app.json`, плагинов, `targets/` и `modules/`.
 
 Проверки:
 
 ```bash
 npm run typecheck  # tsc --noEmit
 npm run lint       # ESLint (eslint-config-expo)
-npm test           # Jest: редьюсер, хранилище, статистика, аналитика
+npm test           # Jest: редьюсер, хранилище, статистика, аналитика, отчёт, достижения, виджеты
 ```
 
 ## Дизайн
@@ -58,12 +65,48 @@ Settings → Pages → Build and deployment → Source: **GitHub Actions**. Ло
 | **Статистика** | Ввод времени в ленте (слайдер, ±5 мин, пресеты; сегодня/вчера), шкала сравнения «до StopScroll / вчера / сегодня» с процентами, график динамики с линией лимита (7 дней, 30 — Pro), тепловая карта дней под контролем и серия (6 недель, 16 — Pro), конвертер спасённого времени в книги, часы сна, прогулки (+ тренировки, уроки языка, разговоры — Pro). |
 | **Дневник** | Быстрая запись срыва: причина, приложение, сколько ушло, заметка. Сводка паттернов (когда и почему, доля «устояли»). Pro: графики срывов по часам и дням недели, разбивка «устояли / сорвались» по триггерам. |
 | **Paywall** | Таблица Free / Pro, карточки тарифов из текущего offering RevenueCat (цены — из магазина), пробный период, экономия годового тарифа, восстановление покупок. |
+| **Пауза перед лентой** (модальный) | Открывается вместо TikTok, Instagram или YouTube: крупный таймер (по умолчанию 10 с), дыхательный круг, случайная мысль, «Ваш счёт» из реальных данных (спасено сегодня, серия, остановленные открытия). Сразу доступны «Не открывать» (+N мин), SOS-пауза и подходящая замена; «Всё равно открыть» — только после таймера, затем приложение 5 минут открывается без паузы. |
+| **Настройка паузы** | Какие приложения ставить на паузу, длительность, предпросмотр; пошаговая инструкция для «Команд» (iOS) или включение службы специальных возможностей (Android). |
+| **Отчёт за неделю** | Собирается каждое воскресенье в 19:00 (можно листать прошлые недели): спасённые минуты по дням, «не открыто», срывы, замены, серия и рекорд, доля импульсов без ленты (кольцо), импульсы по времени суток, самый опасный день и час, частая причина срывов, лента по дням с лимитом, сравнение с прошлой неделей и итоговая мотивационная карточка («вы вернули себе 6 часов», «три фильма», «около 180 страниц»…). |
+| **Достижения** | 16 «эмоциональных» достижений: первый вечер без TikTok, первый спасённый час, 20 побед над скукой, 7 вечеров без ночного скролла, 30 отказов подряд, 100 предотвращённых открытий, сутки жизни, воскресный вечер… У каждого — иконка, описание, прогресс и дата; новое открывается анимацией (медаль, лучи, искры). |
 | **Настройки** | Статус Pro, восстановление покупок, выбор темы как в iOS (миниатюры «Светлая» / «Тёмная» и переключатель «Как в системе»), цели (лимит, длина сессии, исходный уровень), главная лента, сброс прогресса, ссылки на условия и политику. |
 | **Конфиденциальность** | Встроенная политика: данные хранятся локально (Android Auto Backup отключён, `allowBackup: false`), покупки проверяет RevenueCat по анонимному ID, нет рекламы и трекинга. |
 
+## Пауза перед лентой: что возможно на каждой платформе
+
+Приложение не может незаметно «перехватить» запуск другого приложения — это ограничение систем,
+а не StopScroll. Поэтому пауза подключается так, как разрешает каждая платформа:
+
+- **iOS.** Публичного API, который сообщал бы приложению о запуске TikTok, нет. Screen Time API
+  (FamilyControls / ManagedSettings) умеет только закрыть приложение системным «щитом»: на нём
+  нельзя показать свой экран с таймером и анимацией, кнопки щита не могут открыть StopScroll,
+  а сам API требует отдельного разрешения Apple (`com.apple.developer.family-controls`).
+  Поэтому используется личная автоматизация «Команд» («Когда открыто TikTok»): действие
+  StopScroll «Нужна пауза перед лентой?» (`targets/intents`, App Intents) отвечает «да» или «нет»,
+  и только при «да» автоматизация открывает `stopscroll://gate?app=tiktok`. Это же действие не
+  даёт паузе зациклиться после «Всё равно открыть». Настраивается один раз на приложение —
+  пошагово в Настройки → Пауза перед лентой.
+- **Android.** Служба специальных возможностей (`modules/app-gate`) получает только название
+  приложения, появившегося на экране, и открывает паузу поверх TikTok, Instagram или YouTube.
+  Пользователь включает её сам в системных настройках. Для Google Play нужна декларация
+  Accessibility API в Play Console и заметное раскрытие (есть на экране настройки паузы и в политике).
+- **Web.** Только предпросмотр паузы.
+
+Перехватить именно вкладку Reels внутри Instagram или Shorts внутри YouTube нельзя ни на одной
+платформе без чтения содержимого экрана, поэтому пауза стоит перед открытием приложения целиком.
+
+## Виджеты
+
+Пять виджетов на iOS (`targets/widget`, SwiftUI/WidgetKit) и Android (`src/widgets`,
+`react-native-android-widget`): «Сегодня» (спасено), «Серия», «Лимит» (сколько осталось),
+«Прогресс дня» (кольцо) и «Полезная замена» (меняется каждые полчаса). На iOS «Сегодня», «Лимит»,
+«Серия» и кольцо есть и для экрана блокировки. Приложение пишет снимок реальных цифр
+(`src/widgets/snapshot.ts`): на iOS — в общий App Group `group.app.stopscroll.mobile`, на
+Android — в AsyncStorage для фоновой задачи виджета. В полночь виджеты сами переходят на новый день.
+
 ## Как считается «спасённое время»
 
-Каждая победа над импульсом (SOS-пауза или выполненная замена) начисляет длину одной «сессии» в ленте
+Каждая победа над импульсом (SOS-пауза, выполненная замена или «Не открывать» на паузе перед лентой) начисляет длину одной «сессии» в ленте
 из настроек (по умолчанию 15 минут). Сумма побед — в конвертере: 1 книга ≈ 5 часов чтения,
 прогулка — 30 минут, тренировка — 45 и т. д. (`src/utils/catalog.ts → EQUIVALENTS`).
 
@@ -119,18 +162,24 @@ npx eas-cli@latest build --profile production --platform ios
 
 ```text
 App.tsx                   # провайдеры (App, Pro), тема, NavigationContainer
-app.json · eas.json       # конфигурация Expo (сплэш, плагины) и EAS Build
+app.json · eas.json       # конфигурация Expo (сплэш, плагины, App Group, виджеты Android) и EAS Build
 plugins/                  # config-плагин singleTop для Android (RevenueCat)
+targets/widget            # виджеты iOS (SwiftUI, WidgetKit) — подключает @bacons/apple-targets
+targets/intents           # действие «Нужна пауза перед лентой?» для «Команд» (App Intents)
+modules/app-gate          # локальный Expo-модуль: служба паузы на Android (Kotlin)
 .env.example              # ключи RevenueCat и ссылки на правовые документы
 src/
   navigation/             # RootNavigator (stack + модальные экраны), RootTabs, типы маршрутов
-  screens/                # Home, Intercept, Replacements, Replacement, Stats, Journal, Paywall, Settings, Privacy, Onboarding
-  components/             # UI-кит (Card, Button, Chip, BottomSheet…), SOSButton, TriggerCard…
-    charts/ColumnChart    # SVG-столбцы: линия лимита, выделение, нажатие на столбец
+  navigation/linking.ts   # ссылки stopscroll:// (пауза, виджеты, уведомление об отчёте)
+  screens/                # Home, Intercept, Gate, GateSetup, WeeklyReport, Achievements, Replacements, Stats, Journal, Paywall, Settings…
+  components/             # UI-кит (Card, Button, ListGroup, BottomSheet, BreathingRing…)
+    charts/ · report/     # SVG-графики: столбцы с лимитом, кольцо, импульсы по времени суток
+    achievements/         # медаль, анимация открытия, наблюдатель за новыми достижениями
     stats/ · journal/     # карточки статистики и дневника
   context/                # AppContext + appReducer (данные), ProContext (RevenueCat)
-  services/purchases.ts   # обёртка над RevenueCat: ключи, ошибки, модели тарифов
-  utils/                  # каталог контента, статистика, аналитика, даты, хранилище, тема
+  services/               # RevenueCat, пауза (appGate.ios/.android), уведомление об отчёте, NativeSync
+  widgets/                # снимок данных для виджетов, виджеты Android и их фоновая задача
+  utils/                  # каталог, статистика, аналитика, недельный отчёт, достижения, даты, тема
 ```
 
 ## Состояние и хранение
@@ -144,15 +193,23 @@ src/
 
 | Поле | Назначение |
 |---|---|
-| `settings` | дневной лимит, длина сессии, исходный уровень, главная лента |
+| `settings` | дневной лимит, длина сессии, исходный уровень, главная лента, приложения и длительность паузы, напоминание об отчёте |
 | `scrollLog` | минуты в ленте по дням (`YYYY-MM-DD → минуты`) |
-| `wins` | последние 2000 побед: `{ timestamp, minutesSaved, source: "sos" \| "replacement", trigger?, replacementId? }` |
+| `wins` | последние 2000 побед: `{ timestamp, minutesSaved, source: "sos" \| "replacement" \| "gate", trigger?, replacementId? }` |
 | `winArchive` | итоги побед, вытесненных из списка (количество, минуты, замены) — «всего» никогда не уменьшается |
 | `slips` | срывы: `{ timestamp, trigger, app, minutesLost, note }` |
+| `intercepts` | последние 2000 пауз перед лентой: `{ timestamp, app, outcome: "declined" \| "sos" \| "replacement" \| "opened" }` — отсюда «предотвращённые открытия» |
+| `achievements` | id достижения → дата получения (у старых установок проставляется по истории, без анимаций) |
+| `lastSeenReport` | понедельник последнего открытого недельного отчёта (метка «Новый») |
 | `customReplacements` | свои замены (Pro) |
 | `lastExerciseId`, `themePreference`, `onboarded` | последнее упражнение SOS, тема, онбординг |
 
 ## Перед публикацией
+
+- Добавьте в `app.json` свой `ios.appleTeamId` — без него Xcode не подпишет цели виджета и действия
+  «Команд». App Group `group.app.stopscroll.mobile` создаётся EAS Build автоматически.
+- Google Play: заполните декларацию Accessibility API (служба паузы) и укажите её в политике
+  конфиденциальности; без декларации приложение со службой не пройдёт ревью.
 
 - Замените идентификаторы `app.stopscroll.mobile` в `app.json` на свои.
 - Иконки в `assets/` — фирменный знак: белая «пауза» на синем градиенте (иконка iOS, адаптивная иконка Android, сплэш, favicon).

@@ -71,6 +71,7 @@ export function OnboardingScreen() {
   const finish = () => {
     haptics.success();
     completeOnboarding({
+      ...DEFAULT_SETTINGS,
       baselineMinutes: baseline,
       mainApp,
       dailyLimitMinutes: limit,

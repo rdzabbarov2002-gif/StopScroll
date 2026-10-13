@@ -8,7 +8,12 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.stopscroll.mobile"
+      "bundleIdentifier": "app.stopscroll.mobile",
+      "entitlements": {
+        "com.apple.security.application-groups": [
+          "group.app.stopscroll.mobile"
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -45,7 +50,76 @@
           }
         }
       ],
-      "./plugins/withSingleTopActivity"
+      "./plugins/withSingleTopActivity",
+      "@bacons/apple-targets",
+      [
+        "expo-notifications",
+        {
+          "color": "#0A84FF"
+        }
+      ],
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "Today",
+              "label": "Сегодня",
+              "description": "Сколько времени вы сегодня вернули себе",
+              "minWidth": "110dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 2,
+              "targetCellHeight": 2,
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            },
+            {
+              "name": "Streak",
+              "label": "Серия",
+              "description": "Сколько дней подряд вы в пределах лимита",
+              "minWidth": "110dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 2,
+              "targetCellHeight": 2,
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            },
+            {
+              "name": "Limit",
+              "label": "Лимит",
+              "description": "Сколько ленты осталось на сегодня",
+              "minWidth": "110dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 2,
+              "targetCellHeight": 2,
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            },
+            {
+              "name": "DayRing",
+              "label": "Прогресс дня",
+              "description": "Круг: сколько из дневного лимита ушло на ленту",
+              "minWidth": "110dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 2,
+              "targetCellHeight": 2,
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            },
+            {
+              "name": "Replacement",
+              "label": "Полезная замена",
+              "description": "Короткое дело вместо ленты, новое каждые полчаса",
+              "minWidth": "180dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 3,
+              "targetCellHeight": 2,
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            }
+          ]
+        }
+      ]
     ]
   }
 }

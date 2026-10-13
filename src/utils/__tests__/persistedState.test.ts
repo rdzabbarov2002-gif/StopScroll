@@ -30,6 +30,9 @@ describe("sanitizePersistedState", () => {
         sessionMinutes: -5,
         baselineMinutes: "a lot",
         mainApp: "vine",
+        gateApps: ["shorts", "vine", "tiktok", "shorts"],
+        gateSeconds: 13,
+        reportReminder: "yes",
       },
       scrollLog: { "2026-10-03": 95.4, "2026-10-04": 9999, yesterday: 10, "2026-10-05": "x" },
       wins: [
@@ -55,6 +58,13 @@ describe("sanitizePersistedState", () => {
         },
         { id: "s2", timestamp: NOW, trigger: "unknown", app: "tiktok", minutesLost: 5, note: "" },
       ],
+      intercepts: [
+        { id: "i1", timestamp: NOW, app: "reels", outcome: "declined" },
+        { id: "i2", timestamp: NOW, app: "other", outcome: "declined" },
+        { id: "i3", timestamp: NOW, app: "tiktok", outcome: "maybe" },
+      ],
+      achievements: { "first-hour": NOW, broken: "yesterday" },
+      lastSeenReport: "2026-10-05",
       customReplacements: [
         {
           id: "c1",
@@ -77,6 +87,9 @@ describe("sanitizePersistedState", () => {
       sessionMinutes: 5,
       baselineMinutes: DEFAULT_SETTINGS.baselineMinutes,
       mainApp: DEFAULT_SETTINGS.mainApp,
+      gateApps: ["tiktok", "shorts"],
+      gateSeconds: 15,
+      reportReminder: false,
     });
     expect(state.scrollLog).toEqual({ "2026-10-03": 95, "2026-10-04": MAX_SCROLL_MINUTES });
     expect(state.wins.map((win) => win.id)).toEqual(["w1", "w3"]);
@@ -97,6 +110,9 @@ describe("sanitizePersistedState", () => {
     expect(state.winArchive).toEqual({ count: 12, minutes: 0, replacementCount: 0 });
     expect(state.lastExerciseId).toBe("breath-ground");
     expect(state.themePreference).toBe("system");
+    expect(state.intercepts.map((item) => item.id)).toEqual(["i1"]);
+    expect(state.achievements).toEqual({ "first-hour": NOW });
+    expect(state.lastSeenReport).toBe("2026-10-05");
   });
 
   it("keeps only the most recent days of the scroll log", () => {

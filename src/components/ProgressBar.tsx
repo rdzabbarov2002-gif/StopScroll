@@ -8,10 +8,12 @@ interface ProgressBarProps {
   /** 0…1 */
   progress: number;
   tone?: "primary" | "warning";
+  /** Overrides the tone, e.g. an achievement's own color. */
+  color?: string;
   className?: string;
 }
 
-export function ProgressBar({ progress, tone = "primary", className }: ProgressBarProps) {
+export function ProgressBar({ progress, tone = "primary", color, className }: ProgressBarProps) {
   const { colors } = useThemeColors();
   const clamped = Math.min(1, Math.max(0, progress));
   const [value] = useState(() => new Animated.Value(clamped));
@@ -35,7 +37,7 @@ export function ProgressBar({ progress, tone = "primary", className }: ProgressB
         style={{
           height: "100%",
           borderRadius: 999,
-          backgroundColor: tone === "primary" ? colors.primary : colors.warning,
+          backgroundColor: color ?? (tone === "primary" ? colors.primary : colors.warning),
           width: value.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }),
         }}
       />

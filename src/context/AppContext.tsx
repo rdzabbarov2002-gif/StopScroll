@@ -24,6 +24,9 @@ import type {
   CustomReplacement,
   CustomReplacementInput,
   ExerciseId,
+  GateApp,
+  GateOutcome,
+  InterceptEntry,
   PersistedState,
   Settings,
   SlipEntry,
@@ -37,6 +40,8 @@ import { appReducer, toPersistedState, type AppState } from "./appReducer";
 export interface AppContextValue extends Omit<PersistedState, "version"> {
   hydrated: boolean;
   todayKey: string;
+  /** Achievements earned in this session that are still waiting for their unlock animation. */
+  unlockQueue: string[];
   completeOnboarding: (settings: Settings) => void;
   updateSettings: (settings: Partial<Settings>) => void;
   logScroll: (day: string, minutes: number) => void;
@@ -46,6 +51,12 @@ export interface AppContextValue extends Omit<PersistedState, "version"> {
   undoWin: (id: string) => void;
   logSlip: (data: SlipInput) => SlipEntry;
   deleteSlip: (id: string) => void;
+  /** Records how an attempt to open a feed app through the pause ended. */
+  logIntercept: (app: GateApp, outcome: GateOutcome) => InterceptEntry;
+  undoIntercept: (id: string) => void;
+  unlockAchievements: (unlocked: Record<string, number>) => void;
+  dismissUnlock: (id: string) => void;
+  markReportSeen: (week: string) => void;
   addCustomReplacement: (data: CustomReplacementInput) => CustomReplacement;
   deleteCustomReplacement: (id: string) => void;
   setLastExercise: (id: ExerciseId) => void;
@@ -60,7 +71,7 @@ const AppContext = createContext<AppContextValue | null>(null);
 const DAY_CHECK_INTERVAL_MS = 60_000;
 
 function createBootState(): AppState {
-  return { ...createInitialState(), hydrated: false, todayKey: dayKey() };
+  return { ...createInitialState(), hydrated: false, todayKey: dayKey(), unlockQueue: [] };
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -167,6 +178,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const deleteSlip = useCallback((id: string) => dispatch({ type: "deleteSlip", id }), []);
 
+  const logIntercept = useCallback((app: GateApp, outcome: GateOutcome): InterceptEntry => {
+    const entry: InterceptEntry = { id: createId(), timestamp: Date.now(), app, outcome };
+    dispatch({ type: "logIntercept", entry });
+    return entry;
+  }, []);
+
+  const undoIntercept = useCallback((id: string) => dispatch({ type: "undoIntercept", id }), []);
+
+  const unlockAchievements = useCallback(
+    (unlocked: Record<string, number>) => dispatch({ type: "unlockAchievements", unlocked }),
+    [],
+  );
+
+  const dismissUnlock = useCallback((id: string) => dispatch({ type: "dismissUnlock", id }), []);
+
+  const markReportSeen = useCallback(
+    (week: string) => dispatch({ type: "markReportSeen", week }),
+    [],
+  );
+
   const addCustomReplacement = useCallback((data: CustomReplacementInput): CustomReplacement => {
     const entry: CustomReplacement = {
       id: `custom-${createId()}`,
@@ -207,15 +238,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     () => ({
       hydrated: state.hydrated,
       todayKey: state.todayKey,
+      unlockQueue: state.unlockQueue,
       onboarded: state.onboarded,
       settings: state.settings,
       scrollLog: state.scrollLog,
       wins: state.wins,
       winArchive: state.winArchive,
       slips: state.slips,
+      intercepts: state.intercepts,
       customReplacements: state.customReplacements,
       lastExerciseId: state.lastExerciseId,
       themePreference: state.themePreference,
+      achievements: state.achievements,
+      lastSeenReport: state.lastSeenReport,
       completeOnboarding,
       updateSettings,
       logScroll,
@@ -224,6 +259,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       undoWin,
       logSlip,
       deleteSlip,
+      logIntercept,
+      undoIntercept,
+      unlockAchievements,
+      dismissUnlock,
+      markReportSeen,
       addCustomReplacement,
       deleteCustomReplacement,
       setLastExercise,
@@ -241,6 +281,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       undoWin,
       logSlip,
       deleteSlip,
+      logIntercept,
+      undoIntercept,
+      unlockAchievements,
+      dismissUnlock,
+      markReportSeen,
       addCustomReplacement,
       deleteCustomReplacement,
       setLastExercise,
