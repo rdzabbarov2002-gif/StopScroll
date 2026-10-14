@@ -13,22 +13,27 @@ interface SlipHistoryItemProps {
   entry: SlipEntry;
   now: number;
   onDelete: (id: string) => void;
+  /** Opens "Что произошло?" for a slip without a reason. */
+  onReflect: (entry: SlipEntry) => void;
 }
 
 /** One row of the slip history, meant to sit inside a ListGroup. */
-export function SlipHistoryItem({ entry, now, onDelete }: SlipHistoryItemProps) {
+export function SlipHistoryItem({ entry, now, onDelete, onReflect }: SlipHistoryItemProps) {
   const { colors } = useThemeColors();
   const [confirming, setConfirming] = useState(false);
-  const trigger = getTrigger(entry.trigger);
+  const trigger = entry.trigger ? getTrigger(entry.trigger) : null;
   const app = getFeedApp(entry.app);
 
   return (
     <View className="gap-2 px-4 py-2.5">
       <View className="flex-row items-center gap-3">
-        <RowIcon icon={trigger.icon} color={colors.warningStrong} />
+        <RowIcon
+          icon={trigger?.icon ?? "help-circle-outline"}
+          color={trigger ? colors.warningStrong : colors.textSubtle}
+        />
         <View className="flex-1 gap-0.5">
-          <AppText variant="heading" className="text-[16px]">
-            {trigger.label}
+          <AppText variant="heading" className="text-[16px]" tone={trigger ? "default" : "muted"}>
+            {trigger?.label ?? "Причина не указана"}
           </AppText>
           <AppText variant="caption" tone="subtle" className="text-[13px]">
             {formatRelativeDay(entry.timestamp, now)} · {app.label}
@@ -52,6 +57,20 @@ export function SlipHistoryItem({ entry, now, onDelete }: SlipHistoryItemProps) 
         <AppText variant="caption" tone="muted" className="pl-[42px]">
           {entry.note}
         </AppText>
+      ) : null}
+
+      {!trigger && !confirming ? (
+        <Pressable
+          onPress={() => onReflect(entry)}
+          accessibilityRole="button"
+          accessibilityLabel="Разобрать срыв с коучем"
+          className="ml-[42px] flex-row items-center gap-1.5 self-start rounded-full bg-brand-50 px-3 py-1.5 active:opacity-70 dark:bg-brand-900"
+        >
+          <Ionicons name="chatbubble-ellipses-outline" size={14} color={colors.primary} />
+          <AppText variant="label" tone="primary" className="text-[14px]">
+            Разобрать
+          </AppText>
+        </Pressable>
       ) : null}
 
       {confirming ? (

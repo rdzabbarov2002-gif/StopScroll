@@ -31,10 +31,6 @@ export type RootStackParamList = {
   Settings: undefined;
   /** In-app privacy policy, used when no hosted policy URL is configured. */
   Privacy: undefined;
-  /** The pause before a feed app; opened by stopscroll://gate?app=tiktok. */
-  Gate: { app?: string; preview?: boolean } | undefined;
-  /** How to put the pause in front of feed apps on this platform. */
-  GateSetup: undefined;
   /** `week` is a Monday key; the newest ready report by default. */
   WeeklyReport: { week?: string } | undefined;
   Achievements: undefined;

@@ -17,7 +17,8 @@ import { ThemePicker } from "../components/ThemePicker";
 import { useApp } from "../context/AppContext";
 import { usePro } from "../context/ProContext";
 import type { RootStackScreenProps } from "../navigation/types";
-import { FEED_APPS, GATE_APPS } from "../utils/catalog";
+import { FEED_APPS } from "../utils/catalog";
+import { COACH_VOICE_AVAILABLE } from "../services/coachVoice";
 import { enableReportReminder } from "../services/reportReminder";
 import { formatMinutes } from "../utils/date";
 import { DEMO_MODE } from "../utils/demo";
@@ -157,25 +158,14 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
       </Card>
 
       <ListGroup
-        header="Пауза и отчёты"
+        header="Коуч и отчёты"
         footer={
           reminderMessage ??
-          "В воскресенье в 19:00 StopScroll соберёт неделю и пришлёт уведомление, что отчёт готов."
+          (COACH_VOICE_AVAILABLE
+            ? "В воскресенье в 19:00 коуч разберёт неделю и пришлёт уведомление. Живые формулировки: выводы коуча (без заметок и записей) переписываются на сервере StopScroll — факты и цифры остаются прежними."
+            : "В воскресенье в 19:00 коуч разберёт неделю и пришлёт уведомление, что отчёт готов.")
         }
       >
-        <ListRow
-          icon="hand-left"
-          iconColor={colors.primary}
-          title="Пауза перед лентой"
-          value={
-            app.settings.gateApps.length === GATE_APPS.length
-              ? "Все"
-              : app.settings.gateApps.length > 0
-                ? String(app.settings.gateApps.length)
-                : "Выкл."
-          }
-          onPress={() => navigation.navigate("GateSetup")}
-        />
         <ListRow
           icon="calendar"
           iconColor={colors.indigo}
@@ -189,6 +179,21 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
             />
           }
         />
+        {COACH_VOICE_AVAILABLE ? (
+          <ListRow
+            icon="chatbubble-ellipses"
+            iconColor={colors.primary}
+            title="Живые формулировки"
+            right={
+              <Switch
+                value={app.settings.coachPhrasing}
+                onValueChange={(value) => app.updateSettings({ coachPhrasing: value })}
+                trackColor={{ true: colors.successBright, false: colors.ringTrack }}
+                accessibilityLabel="Живые формулировки советов коуча"
+              />
+            }
+          />
+        ) : null}
       </ListGroup>
 
       <AppText variant="overline" tone="subtle" className="px-1 pt-3" accessibilityRole="header">

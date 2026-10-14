@@ -130,7 +130,7 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
             navigation.getParent()?.navigate("Intercept");
           }}
           accessibilityRole="button"
-          accessibilityLabel="Пауза перед лентой, SOS"
+          accessibilityLabel="SOS-пауза"
           accessibilityHint="Открывает 15-секундную паузу с дыханием, чтобы импульс ослаб"
           className="items-center justify-center rounded-full active:opacity-80"
           style={{

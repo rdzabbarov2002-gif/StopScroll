@@ -4,25 +4,17 @@ import { useApp } from "../context/AppContext";
 import { usePro } from "../context/ProContext";
 import { buildWidgetSnapshot } from "../widgets/snapshot";
 import { syncWidgets } from "../widgets/sync";
-import { syncGateApps } from "./appGate";
 import { syncReportReminder } from "./reportReminder";
 
 /** Wait for a burst of changes to settle before redrawing widgets. */
 const WIDGET_DEBOUNCE_MS = 400;
 
-/**
- * Keeps what lives outside the JS app in step with the state: the apps the pause guards,
- * the Sunday reminder and the widgets' numbers.
- */
+/** Keeps what lives outside the JS app in step with the state: the Sunday reminder and widgets. */
 export function NativeSync() {
   const app = useApp();
   const { isPro } = usePro();
 
-  const { gateApps, reportReminder } = app.settings;
-  useEffect(() => {
-    syncGateApps(gateApps);
-  }, [gateApps]);
-
+  const { reportReminder } = app.settings;
   useEffect(() => {
     syncReportReminder(reportReminder).catch((error: unknown) =>
       console.warn("StopScroll: could not update the weekly reminder", error),

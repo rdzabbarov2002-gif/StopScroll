@@ -21,17 +21,16 @@ import {
 } from "../utils/persistedState";
 import { loadPersistedState, savePersistedState } from "../utils/storage";
 import type {
+  CoachLogEntry,
   CustomReplacement,
   CustomReplacementInput,
   ExerciseId,
-  GateApp,
-  GateOutcome,
-  InterceptEntry,
   PersistedState,
   Settings,
   SlipEntry,
   SlipInput,
   ThemePreference,
+  TriggerId,
   WinEntry,
   WinInput,
 } from "../utils/types";
@@ -51,9 +50,10 @@ export interface AppContextValue extends Omit<PersistedState, "version"> {
   undoWin: (id: string) => void;
   logSlip: (data: SlipInput) => SlipEntry;
   deleteSlip: (id: string) => void;
-  /** Records how an attempt to open a feed app through the pause ended. */
-  logIntercept: (app: GateApp, outcome: GateOutcome) => InterceptEntry;
-  undoIntercept: (id: string) => void;
+  /** The answer to the coach's "Что произошло?" after a slip. */
+  reflectSlip: (id: string, trigger: TriggerId, note: string) => void;
+  /** Remembers today's risk and advice (one entry per day; the latest advice wins). */
+  recordBriefing: (entry: CoachLogEntry) => void;
   unlockAchievements: (unlocked: Record<string, number>) => void;
   dismissUnlock: (id: string) => void;
   markReportSeen: (week: string) => void;
@@ -178,13 +178,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const deleteSlip = useCallback((id: string) => dispatch({ type: "deleteSlip", id }), []);
 
-  const logIntercept = useCallback((app: GateApp, outcome: GateOutcome): InterceptEntry => {
-    const entry: InterceptEntry = { id: createId(), timestamp: Date.now(), app, outcome };
-    dispatch({ type: "logIntercept", entry });
-    return entry;
-  }, []);
+  const reflectSlip = useCallback(
+    (id: string, trigger: TriggerId, note: string) =>
+      dispatch({
+        type: "reflectSlip",
+        id,
+        trigger,
+        note: note.trim().slice(0, MAX_NOTE_LENGTH),
+      }),
+    [],
+  );
 
-  const undoIntercept = useCallback((id: string) => dispatch({ type: "undoIntercept", id }), []);
+  const recordBriefing = useCallback(
+    (entry: CoachLogEntry) => dispatch({ type: "recordBriefing", entry }),
+    [],
+  );
 
   const unlockAchievements = useCallback(
     (unlocked: Record<string, number>) => dispatch({ type: "unlockAchievements", unlocked }),
@@ -245,12 +253,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       wins: state.wins,
       winArchive: state.winArchive,
       slips: state.slips,
-      intercepts: state.intercepts,
       customReplacements: state.customReplacements,
       lastExerciseId: state.lastExerciseId,
       themePreference: state.themePreference,
       achievements: state.achievements,
       lastSeenReport: state.lastSeenReport,
+      coachLog: state.coachLog,
       completeOnboarding,
       updateSettings,
       logScroll,
@@ -259,8 +267,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       undoWin,
       logSlip,
       deleteSlip,
-      logIntercept,
-      undoIntercept,
+      reflectSlip,
+      recordBriefing,
       unlockAchievements,
       dismissUnlock,
       markReportSeen,
@@ -281,8 +289,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       undoWin,
       logSlip,
       deleteSlip,
-      logIntercept,
-      undoIntercept,
+      reflectSlip,
+      recordBriefing,
       unlockAchievements,
       dismissUnlock,
       markReportSeen,

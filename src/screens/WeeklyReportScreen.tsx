@@ -6,12 +6,14 @@ import { AppText } from "../components/AppText";
 import { BackButton } from "../components/BackButton";
 import { Card } from "../components/Card";
 import { CardLabel, DurationValue, KeyValue, Separator } from "../components/CardLabel";
+import { WeeklyReviewCard } from "../components/coach/WeeklyReviewCard";
 import { ColumnChart, type ColumnDatum } from "../components/charts/ColumnChart";
 import { EmptyState } from "../components/EmptyState";
 import { IconButton } from "../components/IconButton";
 import { ListGroup, ListRow } from "../components/ListGroup";
 import { ChartLegend, SlotsChart, SuccessRing } from "../components/report/ReportCharts";
 import { Screen } from "../components/Screen";
+import { buildWeeklyReview } from "../coach";
 import { useApp } from "../context/AppContext";
 import type { RootStackScreenProps } from "../navigation/types";
 import { getTrigger } from "../utils/catalog";
@@ -33,7 +35,6 @@ import { useThemeColors } from "../utils/theme";
 import type { IconName } from "../utils/types";
 import { useNow } from "../utils/useNow";
 import {
-  buildMotivation,
   buildWeeklyReport,
   compareReports,
   isEmptyReport,
@@ -44,23 +45,20 @@ import {
 } from "../utils/weeklyReport";
 
 const SLIP_FORMS = ["срыв", "срыва", "срывов"] as const;
-const OPEN_FORMS = ["открытие", "открытия", "открытий"] as const;
 const IMPULSE_FORMS = ["импульс", "импульса", "импульсов"] as const;
 const REPLACEMENT_FORMS = ["замена", "замены", "замен"] as const;
 
 export function WeeklyReportScreen({ route }: RootStackScreenProps<"WeeklyReport">) {
-  const { colors } = useThemeColors();
   const app = useApp();
   const now = useNow(60_000);
   const data = useMemo(
     () => ({
       wins: app.wins,
       slips: app.slips,
-      intercepts: app.intercepts,
       scrollLog: app.scrollLog,
       settings: app.settings,
     }),
-    [app.wins, app.slips, app.intercepts, app.scrollLog, app.settings],
+    [app.wins, app.slips, app.scrollLog, app.settings],
   );
   const weeks = useMemo(() => reportWeeks(data, now), [data, now]);
   const latest = latestReportWeek(now);
@@ -75,10 +73,7 @@ export function WeeklyReportScreen({ route }: RootStackScreenProps<"WeeklyReport
     [data, week, now],
   );
   const hasPrevious = !isEmptyReport(previous);
-  const motivation = useMemo(
-    () => buildMotivation(report, hasPrevious ? previous : null),
-    [report, previous, hasPrevious],
-  );
+  const review = useMemo(() => buildWeeklyReview(data, week, now), [data, week, now]);
 
   const { markReportSeen } = app;
   useEffect(() => {
@@ -123,37 +118,19 @@ export function WeeklyReportScreen({ route }: RootStackScreenProps<"WeeklyReport
         <EmptyState
           icon="calendar-outline"
           title="Первый отчёт — в воскресенье"
-          text="Каждое воскресенье вечером StopScroll собирает неделю: спасённое время, трудные часы, причины срывов и серии. Отмечайте время и проходите паузы — отчёту будет о чём рассказать."
+          text="Каждое воскресенье вечером ваш персональный коуч разбирает неделю: что получилось, где лента выигрывает и что попробовать дальше. Отмечайте время и срывы — разбору будет на что опереться."
         />
       ) : isEmptyReport(report) ? (
         <EmptyState
           icon="leaf-outline"
           title="Тихая неделя"
-          text="За эти дни нет записей: ни пауз, ни срывов, ни отмеченного времени."
+          text="За эти дни нет записей: ни побед над импульсом, ни срывов, ни отмеченного времени."
         />
       ) : (
         <ReportBody report={report} previous={hasPrevious ? previous : null} />
       )}
 
-      {weeks.length > 0 ? (
-        <Card tone="primary" className="gap-3">
-          <CardLabel icon="sparkles" label="Итог недели" color={colors.primary} />
-          <AppText className="text-[24px] font-bold leading-[30px] tracking-tight">
-            {motivation[0]!.text}
-          </AppText>
-          {motivation.slice(1, 4).map((card) => (
-            <View key={card.id} className="flex-row items-start gap-3">
-              <Ionicons
-                name={card.icon}
-                size={18}
-                color={colors.primary}
-                style={{ marginTop: 2 }}
-              />
-              <AppText className="flex-1">{card.text}</AppText>
-            </View>
-          ))}
-        </Card>
-      ) : null}
+      {review ? <WeeklyReviewCard sections={review} /> : null}
     </Screen>
   );
 }
@@ -164,7 +141,7 @@ function ReportBody({ report, previous }: { report: WeeklyReport; previous: Week
   const limit = app.settings.dailyLimitMinutes;
   const changes = previous ? compareReports(report, previous) : [];
   const savedChange = changes.find((change) => change.id === "saved");
-  const impulses = report.wins + report.slips + report.openedAnyway;
+  const impulses = report.wins + report.slips;
 
   const savedData: ColumnDatum[] = report.days.map((day, index) => ({
     key: day.key,
@@ -193,7 +170,7 @@ function ReportBody({ report, previous }: { report: WeeklyReport; previous: Week
             ? `На ${formatMinutesInline(Math.abs(savedChange.delta))} ${savedChange.delta > 0 ? "больше" : "меньше"}, чем неделей раньше.`
             : report.savedMinutes > 0
               ? `Каждая пауза и замена этой недели — ${formatMinutesInline(report.savedMinutes)} вашей жизни.`
-              : "На этой неделе время ещё не спасено — следующая пауза это исправит."}
+              : "На этой неделе время ещё не спасено — следующая SOS-пауза это исправит."}
         </AppText>
         <Separator className="my-3.5" />
         <View className="flex-row gap-3">
@@ -221,12 +198,11 @@ function ReportBody({ report, previous }: { report: WeeklyReport; previous: Week
 
       <View className="flex-row flex-wrap gap-3">
         <MetricTile
-          icon="shield-checkmark"
+          icon="checkmark-done-circle"
           color={colors.primary}
-          label="Не открыто"
-          value={report.prevented}
-          unit={pluralize(report.prevented, OPEN_FORMS)}
-          change={changes.find((change) => change.id === "prevented")}
+          label="В лимите"
+          value={report.daysInLimit}
+          unit={`из ${report.loggedDays} ${pluralize(report.loggedDays, DAY_FORMS)}`}
         />
         <MetricTile
           icon="alert-circle"
@@ -266,8 +242,7 @@ function ReportBody({ report, previous }: { report: WeeklyReport; previous: Week
             <AppText variant="caption" tone="muted">
               {impulses} {pluralize(impulses, IMPULSE_FORMS)}: {report.wins}{" "}
               {pluralize(report.wins, WIN_FORMS)}, {report.slips}{" "}
-              {pluralize(report.slips, SLIP_FORMS)}
-              {report.openedAnyway > 0 ? `, ${report.openedAnyway} — «всё равно открыть»` : ""}.
+              {pluralize(report.slips, SLIP_FORMS)}.
             </AppText>
           </View>
         </View>
@@ -416,7 +391,6 @@ function MetricTile({
 
 const CHANGE_LABELS: Record<ReportChange["id"], { title: string; icon: IconName }> = {
   saved: { title: "Спасено", icon: "leaf" },
-  prevented: { title: "Не открыто", icon: "shield-checkmark" },
   slips: { title: "Срывы", icon: "alert-circle" },
   success: { title: "Удержались", icon: "pulse" },
   scroll: { title: "Лента в день", icon: "phone-portrait" },

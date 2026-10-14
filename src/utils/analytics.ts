@@ -103,10 +103,12 @@ export function computePatterns(
     const date = new Date(slip.timestamp);
     byHour[date.getHours()]! += 1;
     byWeekday[weekdayIndex(date)]! += 1;
-    increment(triggerCounts, slip.trigger);
+    if (slip.trigger) {
+      increment(triggerCounts, slip.trigger);
+      stat(slip.trigger).slips += 1;
+    }
     increment(timeCounts, getTimeOfDay(slip.timestamp));
     increment(appCounts, slip.app);
-    stat(slip.trigger).slips += 1;
     const age = now - slip.timestamp;
     if (age <= 7 * MS_PER_DAY) {
       slipsLastWeek += 1;

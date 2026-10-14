@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
-import { useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { Pressable, View } from "react-native";
 
 import { AppText } from "../components/AppText";
@@ -8,13 +8,16 @@ import { Card } from "../components/Card";
 import { CardLabel, DurationValue, KeyValue, Separator } from "../components/CardLabel";
 import { ColumnChart, type ColumnDatum } from "../components/charts/ColumnChart";
 import { Chip } from "../components/Chip";
+import { BriefingCard } from "../components/coach/BriefingCard";
+import { InsightsCard } from "../components/coach/InsightsCard";
 import { IconButton } from "../components/IconButton";
 import { Screen } from "../components/Screen";
+import { buildBriefing } from "../coach";
 import { useApp } from "../context/AppContext";
+import { usePro } from "../context/ProContext";
 import type { RootTabScreenProps } from "../navigation/types";
 import { ACHIEVEMENTS, achievementTitle, getAchievement } from "../utils/achievements";
-import { MIN_SLIPS_FOR_PATTERNS, computePatterns } from "../utils/analytics";
-import { QUICK_TRIGGER_IDS, REPLACEMENTS, getCategory, getTrigger } from "../utils/catalog";
+import { QUICK_TRIGGER_IDS, getCategory, getTrigger } from "../utils/catalog";
 import {
   DAY_FORMS,
   WEEKDAYS_SHORT,
@@ -24,7 +27,6 @@ import {
   formatWeekRange,
   formatMinutesCompact,
   formatMinutesInline,
-  parseDayKey,
   pluralize,
   weekdayIndex,
 } from "../utils/date";
@@ -40,8 +42,6 @@ import { useThemeColors } from "../utils/theme";
 import { useNow } from "../utils/useNow";
 import { buildWeeklyReport, latestReportWeek, reportWeeks } from "../utils/weeklyReport";
 
-const pad = (value: number) => String(value).padStart(2, "0");
-
 export function HomeScreen({ navigation }: RootTabScreenProps<"Home">) {
   const { colors, chart } = useThemeColors();
   const now = useNow(60_000);
@@ -53,15 +53,31 @@ export function HomeScreen({ navigation }: RootTabScreenProps<"Home">) {
   const best = Math.max(streak, getBestStreak(app.scrollLog, limit));
   const comparison = compareScroll(app.scrollLog, app.todayKey, app.settings.baselineMinutes);
   const week = getTrend(app.scrollLog, app.todayKey, 7);
-  const patterns = useMemo(
-    () => computePatterns(app.slips, app.wins, now),
-    [app.slips, app.wins, now],
-  );
+  const { isPro } = usePro();
 
-  // A different free replacement every day.
-  const freeReplacements = REPLACEMENTS.filter((item) => !item.premium);
-  const dayNumber = Math.floor(parseDayKey(app.todayKey).getTime() / 86_400_000);
-  const dailyPick = freeReplacements[dayNumber % freeReplacements.length]!;
+  // The coach's briefing, rebuilt from the records as they change (cheap: eight weeks of data).
+  const briefing = useMemo(
+    () =>
+      buildBriefing(
+        {
+          wins: app.wins,
+          slips: app.slips,
+          scrollLog: app.scrollLog,
+          settings: app.settings,
+          coachLog: app.coachLog,
+          now,
+        },
+        isPro,
+      ),
+    [app.wins, app.slips, app.scrollLog, app.settings, app.coachLog, now, isPro],
+  );
+  const { recordBriefing } = app;
+  const { day, risk, advice: adviceId } = briefing.logEntry;
+  useEffect(() => {
+    // Remember what the coach said today, so tomorrow it can look back on it.
+    if (app.hydrated) recordBriefing({ day, risk, advice: adviceId });
+  }, [app.hydrated, day, risk, adviceId, recordBriefing]);
+  const dailyPick = briefing.replacement.replacement;
 
   const openStats = () => navigation.navigate("Stats");
 
@@ -82,7 +98,7 @@ export function HomeScreen({ navigation }: RootTabScreenProps<"Home">) {
             {formatLongDate(now)}
           </AppText>
           <AppText variant="title" accessibilityRole="header">
-            Сегодня
+            {briefing.greeting}
           </AppText>
         </View>
         <IconButton
@@ -94,14 +110,9 @@ export function HomeScreen({ navigation }: RootTabScreenProps<"Home">) {
         />
       </View>
 
-      <HardHourPill
-        peakHour={patterns.totalSlips >= MIN_SLIPS_FOR_PATTERNS ? patterns.peakHour : null}
-        reason={patterns.topTrigger ? getTrigger(patterns.topTrigger).reason : null}
-        now={now}
-        todayLogged={comparison.today !== null}
-        onOpenJournal={() => navigation.navigate("Journal")}
-        onOpenStats={openStats}
-      />
+      <BriefingCard briefing={briefing} />
+
+      <InsightsCard insights={briefing.insights} />
 
       <PressableCard onPress={openStats} label="Время в ленте, открыть статистику">
         <CardLabel icon="phone-portrait" label="Время в ленте" color={colors.primary} chevron />
@@ -214,7 +225,7 @@ export function HomeScreen({ navigation }: RootTabScreenProps<"Home">) {
           {dailyPick.title}
         </AppText>
         <AppText variant="caption" tone="muted" className="mt-1" numberOfLines={2}>
-          {dailyPick.description}
+          {briefing.replacement.why ?? dailyPick.description}
         </AppText>
         <View className="mt-3.5 flex-row items-center justify-between">
           <AppText variant="caption" tone="subtle">
@@ -240,11 +251,10 @@ function ProgressTiles({ now }: { now: number }) {
     () => ({
       wins: app.wins,
       slips: app.slips,
-      intercepts: app.intercepts,
       scrollLog: app.scrollLog,
       settings: app.settings,
     }),
-    [app.wins, app.slips, app.intercepts, app.scrollLog, app.settings],
+    [app.wins, app.slips, app.scrollLog, app.settings],
   );
   const latest = latestReportWeek(now);
   const hasReport = useMemo(() => reportWeeks(data, now).includes(latest), [data, now, latest]);
@@ -265,7 +275,7 @@ function ProgressTiles({ now }: { now: number }) {
         label="Отчёт"
         color={colors.primary}
         title={hasReport ? (isNew ? "Новый отчёт" : formatWeekRange(latest)) : "В воскресенье"}
-        caption={hasReport ? `Спасено ${formatMinutes(saved)}` : "Соберём вашу неделю"}
+        caption={hasReport ? `Спасено ${formatMinutes(saved)}` : "Коуч разберёт вашу неделю"}
         badge={isNew}
       />
       <Tile
@@ -389,66 +399,6 @@ function PressableCard({
       className="active:opacity-80"
     >
       <Card>{children}</Card>
-    </Pressable>
-  );
-}
-
-/** The top pill: "Сейчас трудный час" from the diary, or a nudge to log today's time. */
-function HardHourPill({
-  peakHour,
-  reason,
-  now,
-  todayLogged,
-  onOpenJournal,
-  onOpenStats,
-}: {
-  peakHour: number | null;
-  reason: string | null;
-  now: number;
-  todayLogged: boolean;
-  onOpenJournal: () => void;
-  onOpenStats: () => void;
-}) {
-  const { colors } = useThemeColors();
-  let title: string;
-  let tail: string;
-  let onPress: () => void;
-  let icon: "moon" | "create";
-
-  if (peakHour !== null) {
-    const inWindow = new Date(now).getHours() === peakHour;
-    title = inWindow ? "Сейчас трудный час" : "Трудный час";
-    tail = inWindow
-      ? `до ${pad((peakHour + 1) % 24)}:00`
-      : `${pad(peakHour)}:00–${pad((peakHour + 1) % 24)}:00`;
-    onPress = onOpenJournal;
-    icon = "moon";
-  } else if (!todayLogged) {
-    title = "Отметьте время в ленте";
-    tail = "за сегодня";
-    onPress = onOpenStats;
-    icon = "create";
-  } else {
-    return null;
-  }
-
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`${title}, ${tail}${reason && peakHour !== null ? `, обычно ${reason}` : ""}`}
-      className="h-14 flex-row items-center gap-3 rounded-full bg-card px-4 active:opacity-80 dark:bg-ink-900"
-    >
-      <View className="h-[30px] w-[30px] items-center justify-center rounded-full bg-brand-50 dark:bg-brand-900">
-        <Ionicons name={icon} size={16} color={icon === "moon" ? colors.indigo : colors.primary} />
-      </View>
-      <AppText variant="heading" className="flex-1 text-[16px]" numberOfLines={1}>
-        {title}
-        <AppText variant="heading" tone="subtle" className="text-[16px] font-medium">
-          {` · ${tail}`}
-        </AppText>
-      </AppText>
-      <Ionicons name="chevron-forward" size={18} color={colors.chevron} />
     </Pressable>
   );
 }

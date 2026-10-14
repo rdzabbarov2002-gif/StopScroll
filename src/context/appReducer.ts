@@ -1,6 +1,6 @@
 import {
+  MAX_COACH_LOG,
   MAX_CUSTOM_REPLACEMENTS,
-  MAX_INTERCEPTS,
   MAX_SLIPS,
   MAX_WINS,
   archiveWins,
@@ -9,13 +9,14 @@ import {
   trimScrollLog,
 } from "../utils/persistedState";
 import type {
+  CoachLogEntry,
   CustomReplacement,
   ExerciseId,
-  InterceptEntry,
   PersistedState,
   Settings,
   SlipEntry,
   ThemePreference,
+  TriggerId,
   WinEntry,
 } from "../utils/types";
 
@@ -39,8 +40,8 @@ export type AppAction =
   | { type: "undoWin"; id: string }
   | { type: "logSlip"; entry: SlipEntry }
   | { type: "deleteSlip"; id: string }
-  | { type: "logIntercept"; entry: InterceptEntry }
-  | { type: "undoIntercept"; id: string }
+  | { type: "reflectSlip"; id: string; trigger: TriggerId; note: string }
+  | { type: "recordBriefing"; entry: CoachLogEntry }
   | { type: "unlockAchievements"; unlocked: Record<string, number> }
   | { type: "dismissUnlock"; id: string }
   | { type: "markReportSeen"; week: string }
@@ -99,14 +100,23 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     case "deleteSlip":
       return { ...state, slips: state.slips.filter((entry) => entry.id !== action.id) };
 
-    case "logIntercept":
+    case "reflectSlip":
       return {
         ...state,
-        intercepts: [action.entry, ...state.intercepts].slice(0, MAX_INTERCEPTS),
+        slips: state.slips.map((entry) =>
+          entry.id === action.id ? { ...entry, trigger: action.trigger, note: action.note } : entry,
+        ),
       };
 
-    case "undoIntercept":
-      return { ...state, intercepts: state.intercepts.filter((entry) => entry.id !== action.id) };
+    case "recordBriefing": {
+      // One entry per day. The advice follows the day (a slip can change it), so the entry keeps
+      // the latest one — that is the advice tomorrow's briefing looks back on.
+      const { entry } = action;
+      const current = state.coachLog.find((item) => item.day === entry.day);
+      if (current && current.risk === entry.risk && current.advice === entry.advice) return state;
+      const rest = state.coachLog.filter((item) => item.day !== entry.day);
+      return { ...state, coachLog: [entry, ...rest].slice(0, MAX_COACH_LOG) };
+    }
 
     case "unlockAchievements": {
       // An earned achievement keeps its first date.
@@ -154,10 +164,10 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         wins: fresh.wins,
         winArchive: fresh.winArchive,
         slips: fresh.slips,
-        intercepts: fresh.intercepts,
         customReplacements: fresh.customReplacements,
         achievements: fresh.achievements,
         lastSeenReport: fresh.lastSeenReport,
+        coachLog: fresh.coachLog,
         unlockQueue: [],
       };
     }
@@ -176,11 +186,11 @@ export function toPersistedState(state: AppState): PersistedState {
     wins: state.wins,
     winArchive: state.winArchive,
     slips: state.slips,
-    intercepts: state.intercepts,
     customReplacements: state.customReplacements,
     lastExerciseId: state.lastExerciseId,
     themePreference: state.themePreference,
     achievements: state.achievements,
     lastSeenReport: state.lastSeenReport,
+    coachLog: state.coachLog,
   };
 }

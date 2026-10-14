@@ -49,6 +49,9 @@ const TRIGGER_PHRASE: Record<TriggerId, string> = {
   loneliness: "от одиночества",
   procrastination: "вместо дела",
   autopilot: "на автопилоте",
+  relax: "чтобы расслабиться",
+  sleepless: "когда не спится",
+  other: "",
 };
 
 export function ReplacementsScreen({ navigation, route }: RootTabScreenProps<"Replacements">) {
@@ -125,7 +128,7 @@ export function ReplacementsScreen({ navigation, route }: RootTabScreenProps<"Re
         <Card>
           <CardLabel icon="sparkles" label="Подходит сейчас" color={colors.primary} />
           <AppText variant="statement" className="mt-2">
-            {patterns.topTrigger
+            {patterns.topTrigger && TRIGGER_PHRASE[patterns.topTrigger]
               ? `Когда тянет в ленту ${TRIGGER_PHRASE[patterns.topTrigger]}, попробуйте «${pick.title}».`
               : `Попробуйте «${pick.title}» вместо ленты.`}
           </AppText>

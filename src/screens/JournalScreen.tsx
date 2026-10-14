@@ -3,6 +3,7 @@ import { View } from "react-native";
 
 import { AppText } from "../components/AppText";
 import { Button } from "../components/Button";
+import { ReflectionSheet } from "../components/coach/ReflectionSheet";
 import { EmptyState } from "../components/EmptyState";
 import { DeepAnalytics } from "../components/journal/DeepAnalytics";
 import { PatternsCard } from "../components/journal/PatternsCard";
@@ -17,6 +18,7 @@ import { usePro } from "../context/ProContext";
 import type { RootTabScreenProps } from "../navigation/types";
 import { computePatterns } from "../utils/analytics";
 import { ENTRY_FORMS, pluralize } from "../utils/date";
+import type { SlipEntry, TriggerId } from "../utils/types";
 import { useNow } from "../utils/useNow";
 
 const PAGE_SIZE = 15;
@@ -26,7 +28,14 @@ export function JournalScreen({ route }: RootTabScreenProps<"Journal">) {
   const { isPro } = usePro();
   const now = useNow(60_000);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const prefill = route.params?.trigger;
+  // The slip the coach is asking about, and the reason already known from the SOS screen.
+  const [reflecting, setReflecting] = useState<{ slip: SlipEntry; trigger?: TriggerId } | null>(
+    null,
+  );
+  // A hand-over from the SOS screen brings a reason for the next slip only.
+  const handoffAt = route.params?.handoffAt;
+  const [usedHandoff, setUsedHandoff] = useState<number | undefined>(undefined);
+  const prefill = handoffAt !== usedHandoff ? route.params?.trigger : undefined;
 
   const patterns = useMemo(() => computePatterns(slips, wins, now), [slips, wins, now]);
   const visible = slips.slice(0, visibleCount);
@@ -38,12 +47,17 @@ export function JournalScreen({ route }: RootTabScreenProps<"Journal">) {
           Дневник
         </AppText>
         <AppText variant="caption" tone="muted">
-          Запишите срыв за 10 секунд — без самокритики. Через пару записей станут видны паттерны.
+          Запишите срыв за 10 секунд — без самокритики. Коуч спросит, что произошло, и со временем
+          покажет, что повторяется.
         </AppText>
       </View>
 
-      {/* Remount on every hand-over from the SOS screen, so the form starts pre-filled. */}
-      <SlipForm key={String(route.params?.handoffAt ?? 0)} initialTrigger={prefill} />
+      <SlipForm
+        onSaved={(slip) => {
+          setReflecting({ slip, trigger: prefill });
+          setUsedHandoff(handoffAt);
+        }}
+      />
 
       <PatternsCard patterns={patterns} />
 
@@ -82,7 +96,13 @@ export function JournalScreen({ route }: RootTabScreenProps<"Journal">) {
             }
           >
             {visible.map((entry) => (
-              <SlipHistoryItem key={entry.id} entry={entry} now={now} onDelete={deleteSlip} />
+              <SlipHistoryItem
+                key={entry.id}
+                entry={entry}
+                now={now}
+                onDelete={deleteSlip}
+                onReflect={(slip) => setReflecting({ slip })}
+              />
             ))}
           </ListGroup>
           {slips.length > visibleCount ? (
@@ -94,6 +114,12 @@ export function JournalScreen({ route }: RootTabScreenProps<"Journal">) {
           ) : null}
         </View>
       )}
+
+      <ReflectionSheet
+        slip={reflecting?.slip ?? null}
+        initialTrigger={reflecting?.trigger}
+        onClose={() => setReflecting(null)}
+      />
     </Screen>
   );
 }

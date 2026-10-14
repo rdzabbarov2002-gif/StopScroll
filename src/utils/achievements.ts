@@ -4,7 +4,6 @@ import { isControlled, type ScrollLog } from "./stats";
 import type {
   FeedApp,
   IconName,
-  InterceptEntry,
   Settings,
   SlipEntry,
   TriggerId,
@@ -17,7 +16,6 @@ export interface AchievementData {
   wins: readonly WinEntry[];
   winArchive: WinArchive;
   slips: readonly SlipEntry[];
-  intercepts: readonly InterceptEntry[];
   scrollLog: ScrollLog;
   settings: Settings;
 }
@@ -75,7 +73,6 @@ interface History {
   /** Oldest first. */
   wins: WinEntry[];
   slips: SlipEntry[];
-  intercepts: InterceptEntry[];
   /** Local hours of slips, per day key. */
   slipHours: Map<string, number[]>;
   /** Local hours of wins, per day key. */
@@ -105,7 +102,6 @@ function prepare(data: AchievementData, now: number): History {
     winArchive: data.winArchive,
     wins: byTime(data.wins),
     slips: byTime(data.slips),
-    intercepts: byTime(data.intercepts),
     slipHours: hoursByDay(data.slips),
     winHours: hoursByDay(data.wins),
   };
@@ -160,7 +156,6 @@ function cleanWindows(
   const days = new Set<string>(history.winHours.keys());
   if (!options.needsWin) {
     for (const key of Object.keys(history.scrollLog)) days.add(key);
-    for (const item of history.intercepts) days.add(dayKey(item.timestamp));
   }
 
   const ends: number[] = [];
@@ -181,15 +176,12 @@ function windowsUntil(ends: readonly number[], target: number): Evaluation {
     : { current: ends.length, achievedAt: null };
 }
 
-/** Wins in a row with no slip and no "open anyway" between them. */
+/** Wins in a row with no slip between them. */
 function refusalRun(history: History, target: number): Evaluation {
   type Event = { timestamp: number; win: boolean };
   const events: Event[] = [
     ...history.wins.map((win) => ({ timestamp: win.timestamp, win: true })),
     ...history.slips.map((slip) => ({ timestamp: slip.timestamp, win: false })),
-    ...history.intercepts
-      .filter((item) => item.outcome === "opened")
-      .map((item) => ({ timestamp: item.timestamp, win: false })),
   ].sort((a, b) => a.timestamp - b.timestamp);
 
   let run = 0;
@@ -299,21 +291,6 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
       windowsUntil(cleanWindows(history, EVENING.from, EVENING.to, { needsWin: true }), 1),
   },
   {
-    id: "first-prevented",
-    title: "Пауза сильнее привычки",
-    description: "Палец уже открыл ленту, но вы остановились и закрыли её, не начав листать.",
-    hint: "Откажитесь от ленты на экране паузы перед приложением.",
-    icon: "shield-checkmark",
-    tone: "primary",
-    unit: { kind: "once" },
-    target: 1,
-    evaluate: (history) =>
-      countUntil(
-        history.intercepts.filter((item) => item.outcome !== "opened"),
-        1,
-      ),
-  },
-  {
     id: "first-hour",
     title: "Первый спасённый час",
     description: "60 минут, которые остались вам, а не алгоритму.",
@@ -346,6 +323,22 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
     unit: { kind: "once" },
     target: 1,
     evaluate: comeback,
+  },
+  {
+    id: "honest-look",
+    title: "Пять честных разборов",
+    description:
+      "Пять раз после срыва вместо самокритики — спокойный разговор о том, что произошло.",
+    hint: "Ответьте коучу «Что произошло?» после пяти срывов.",
+    icon: "chatbubbles",
+    tone: "indigo",
+    unit: { kind: "count", forms: TIMES },
+    target: 5,
+    evaluate: (history) =>
+      countUntil(
+        history.slips.filter((slip) => slip.trigger !== null),
+        5,
+      ),
   },
   {
     id: "sunday-evening",
@@ -427,7 +420,7 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
     id: "refusals-30",
     title: "30 успешных отказов подряд",
     description: "Тридцать импульсов подряд — и ни одного срыва между ними.",
-    hint: "Удержитесь 30 раз подряд без срыва и без «всё равно открыть».",
+    hint: "Удержитесь 30 раз подряд без срыва.",
     icon: "flame",
     tone: "danger",
     unit: { kind: "count", forms: ["отказ", "отказа", "отказов"] },
@@ -444,21 +437,6 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
     unit: { kind: "once" },
     target: 1,
     evaluate: halfFeed,
-  },
-  {
-    id: "prevented-100",
-    title: "100 предотвращённых открытий",
-    description: "Сто раз палец тянулся к ленте, а пауза оказалась сильнее.",
-    hint: "Откажитесь от ленты на экране паузы 100 раз.",
-    icon: "shield",
-    tone: "primary",
-    unit: { kind: "count", forms: ["открытие", "открытия", "открытий"] },
-    target: 100,
-    evaluate: (history) =>
-      countUntil(
-        history.intercepts.filter((item) => item.outcome !== "opened"),
-        100,
-      ),
   },
   {
     id: "day-of-life",

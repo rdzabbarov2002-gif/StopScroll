@@ -1,7 +1,6 @@
 import type {
   ExerciseId,
   FeedApp,
-  GateApp,
   IconName,
   Replacement,
   ReplacementCategory,
@@ -21,6 +20,12 @@ export interface TriggerOption {
   icon: IconName;
   /** Shown under the label on the quick cards. */
   hint: string;
+  /** The answer as it reads in the coach's "Что произошло?" after a slip. */
+  ask: string;
+  /** The cause as a noun inside the coach's sentences: "основная причина — усталость". */
+  noun: string;
+  /** The cause after a slip in the coach's sentences: "срывы чаще всего из-за усталости". */
+  because: string;
   tone: TriggerTone;
   /** Completes "Чаще всего срывы случаются по вечерам …". */
   reason: string;
@@ -33,6 +38,9 @@ export const TRIGGERS: readonly TriggerOption[] = [
     label: "Скука",
     icon: "hourglass-outline",
     hint: "Хочется новизны",
+    ask: "Было скучно",
+    noun: "скука",
+    because: "от скуки",
     tone: "amber",
     reason: "от скуки",
     advice:
@@ -43,6 +51,9 @@ export const TRIGGERS: readonly TriggerOption[] = [
     label: "Усталость",
     icon: "battery-dead-outline",
     hint: "Нет сил ни на что",
+    ask: "Не было сил",
+    noun: "усталость",
+    because: "из-за усталости",
     tone: "sky",
     reason: "из-за усталости",
     advice:
@@ -53,6 +64,9 @@ export const TRIGGERS: readonly TriggerOption[] = [
     label: "Стресс",
     icon: "thunderstorm-outline",
     hint: "Хочется сбежать",
+    ask: "Было тревожно",
+    noun: "стресс",
+    because: "из-за стресса",
     tone: "rose",
     reason: "из-за стресса",
     advice:
@@ -63,6 +77,9 @@ export const TRIGGERS: readonly TriggerOption[] = [
     label: "Одиночество",
     icon: "person-outline",
     hint: "Не хватает людей",
+    ask: "Было одиноко",
+    noun: "одиночество",
+    because: "из-за одиночества",
     tone: "violet",
     reason: "из-за одиночества",
     advice:
@@ -73,6 +90,9 @@ export const TRIGGERS: readonly TriggerOption[] = [
     label: "Прокрастинация",
     icon: "time-outline",
     hint: "Откладываю дело",
+    ask: "Не хотелось браться за дело",
+    noun: "откладывание дел",
+    because: "из-за откладывания дел",
     tone: "teal",
     reason: "когда вы откладываете дела",
     advice:
@@ -83,15 +103,70 @@ export const TRIGGERS: readonly TriggerOption[] = [
     label: "Автопилот",
     icon: "repeat-outline",
     hint: "Рука сама открыла",
+    ask: "Открылось само, на автомате",
+    noun: "автопилот",
+    because: "на автопилоте",
     tone: "slate",
     reason: "на автопилоте",
     advice:
       "Привычка срабатывает раньше мысли. Уберите приложения с первого экрана и положите телефон экраном вниз — трение ломает автопилот.",
   },
+  {
+    id: "relax",
+    label: "Отдых",
+    icon: "cafe-outline",
+    hint: "Хочется расслабиться",
+    ask: "Хотелось расслабиться",
+    noun: "желание отдохнуть",
+    because: "из-за желания отдохнуть",
+    tone: "teal",
+    reason: "когда хочется расслабиться",
+    advice:
+      "Лента обещает отдых, но редко его даёт. Выберите отдых, после которого правда легче: душ, музыка с закрытыми глазами, пять минут растяжки.",
+  },
+  {
+    id: "sleepless",
+    label: "Бессонница",
+    icon: "moon-outline",
+    hint: "Не получается уснуть",
+    ask: "Не получалось уснуть",
+    noun: "бессонница",
+    because: "из-за бессонницы",
+    tone: "violet",
+    reason: "когда не получается уснуть",
+    advice:
+      "Яркий экран будит мозг ещё сильнее. Если не спится, приглушите свет и почитайте бумажную книгу минут десять, а телефон заряжайте вне спальни.",
+  },
+  {
+    id: "other",
+    label: "Другое",
+    icon: "ellipsis-horizontal-circle-outline",
+    hint: "Своя причина",
+    ask: "Другое",
+    noun: "другие причины",
+    because: "по другим причинам",
+    tone: "slate",
+    reason: "по разным причинам",
+    advice:
+      "Пара слов о том, что было перед срывом, помогает заметить, что повторяется. Запишите их — дальше станет понятнее.",
+  },
 ];
 
 /** The three quick cards on the home screen. */
 export const QUICK_TRIGGER_IDS: readonly TriggerId[] = ["boredom", "fatigue", "stress"];
+
+/** Order of the answers in the coach's "Что произошло?" after a slip. */
+export const REFLECTION_TRIGGERS: readonly TriggerId[] = [
+  "boredom",
+  "fatigue",
+  "relax",
+  "sleepless",
+  "autopilot",
+  "stress",
+  "loneliness",
+  "procrastination",
+  "other",
+];
 
 export function getTrigger(id: TriggerId): TriggerOption {
   return TRIGGERS.find((trigger) => trigger.id === id) ?? TRIGGERS[0]!;
@@ -111,78 +186,6 @@ export const FEED_APPS: readonly { id: FeedApp; label: string; icon: IconName }[
 export function getFeedApp(id: FeedApp) {
   return FEED_APPS.find((app) => app.id === id) ?? FEED_APPS[FEED_APPS.length - 1]!;
 }
-
-// ---------------------------------------------------------------------------
-// The pause before a feed app
-// ---------------------------------------------------------------------------
-
-export interface GateAppInfo {
-  id: GateApp;
-  /** The app the feed lives in. */
-  appName: string;
-  icon: IconName;
-  /** URL scheme that opens the app on iOS. */
-  scheme: string;
-  /** Universal / app link: opens the app when it is installed, the site otherwise. */
-  webUrl: string;
-  /** Android package names (TikTok ships under two of them). */
-  packages: readonly string[];
-}
-
-export const GATE_APPS: readonly GateAppInfo[] = [
-  {
-    id: "tiktok",
-    appName: "TikTok",
-    icon: "logo-tiktok",
-    scheme: "tiktok://",
-    webUrl: "https://www.tiktok.com/",
-    packages: ["com.zhiliaoapp.musically", "com.ss.android.ugc.trill"],
-  },
-  {
-    id: "reels",
-    appName: "Instagram",
-    icon: "logo-instagram",
-    scheme: "instagram://",
-    webUrl: "https://www.instagram.com/reels/",
-    packages: ["com.instagram.android"],
-  },
-  {
-    id: "shorts",
-    appName: "YouTube",
-    icon: "logo-youtube",
-    scheme: "youtube://",
-    webUrl: "https://www.youtube.com/shorts/",
-    packages: ["com.google.android.youtube"],
-  },
-];
-
-export function getGateApp(id: GateApp): GateAppInfo {
-  return GATE_APPS.find((app) => app.id === id) ?? GATE_APPS[0]!;
-}
-
-export const isGateApp = (value: unknown): value is GateApp =>
-  typeof value === "string" && GATE_APPS.some((app) => app.id === value);
-
-/** After "open anyway" the app opens without a pause for this long. */
-export const GATE_ALLOW_MINUTES = 5;
-
-/** Thoughts shown on the pause before a feed app, one at random. */
-export const GATE_THOUGHTS: readonly string[] = [
-  "Лента не закончится. А этот вечер — да.",
-  "Через несколько секунд желание обычно становится слабее.",
-  "Вы открываете приложение или оно открывает вас?",
-  "Скука — это сигнал, а не приказ.",
-  "Алгоритм знает, что вы посмотрите дальше. Удивите его.",
-  "Самое интересное сегодня случится не в телефоне.",
-  "Импульс длится меньше минуты. Решение — дольше.",
-  "Что вы на самом деле хотите сейчас почувствовать?",
-  "Один отказ — это маленькая победа. Из них складываются дни.",
-  "Отдых — это то, после чего становится легче. Лента так умеет редко.",
-  "Пять минут ленты почти никогда не бывают пятью минутами.",
-  "Вы уже сделали самое трудное — остановились.",
-  "Мозгу нужна пауза, а не новые 200 видео.",
-  "Тишина тоже может быть наградой.",
-];
 
 // ---------------------------------------------------------------------------
 // Micro-replacements
@@ -236,7 +239,7 @@ export const REPLACEMENTS: readonly Replacement[] = [
     minutes: 2,
     category: "body",
     icon: "accessibility-outline",
-    triggers: ["fatigue", "stress"],
+    triggers: ["fatigue", "stress", "relax"],
   },
   {
     id: "eyes-20-20",
@@ -337,7 +340,7 @@ export const REPLACEMENTS: readonly Replacement[] = [
     category: "body",
     icon: "bed-outline",
     premium: true,
-    triggers: ["stress", "fatigue"],
+    triggers: ["stress", "fatigue", "relax", "sleepless"],
   },
 
   // --- Mind -----------------------------------------------------------------
@@ -381,7 +384,7 @@ export const REPLACEMENTS: readonly Replacement[] = [
     minutes: 2,
     category: "mind",
     icon: "heart-outline",
-    triggers: ["loneliness", "stress"],
+    triggers: ["loneliness", "stress", "relax"],
   },
   {
     id: "message-human",
@@ -410,7 +413,7 @@ export const REPLACEMENTS: readonly Replacement[] = [
     category: "mind",
     icon: "create-outline",
     premium: true,
-    triggers: ["stress", "procrastination"],
+    triggers: ["stress", "procrastination", "sleepless"],
   },
   {
     id: "alphabet-game",
@@ -440,7 +443,7 @@ export const REPLACEMENTS: readonly Replacement[] = [
     category: "mind",
     icon: "sparkles-outline",
     premium: true,
-    triggers: ["fatigue", "procrastination"],
+    triggers: ["fatigue", "procrastination", "sleepless"],
   },
 
   // --- Facts ----------------------------------------------------------------

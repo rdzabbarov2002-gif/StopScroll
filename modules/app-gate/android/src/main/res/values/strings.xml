@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-  <string name="stopscroll_gate_service_label">StopScroll — пауза перед лентой</string>
-  <string name="stopscroll_gate_service_description">Когда вы открываете TikTok, Instagram или YouTube, StopScroll сначала показывает короткую паузу с дыханием, а решение остаётся за вами. Служба узнаёт только, какое приложение появилось на экране: она не читает содержимое экранов, ничего не записывает и не отправляет.</string>
-</resources>

@@ -1,6 +1,6 @@
 /**
- * The App Group shared with the iOS widget and the Shortcuts action exists only on iOS
- * (sharedStorage.ios.ts); elsewhere nothing reads these values.
+ * The App Group shared with the iOS widget exists only on iOS (sharedStorage.ios.ts);
+ * elsewhere nothing reads these values.
  */
 export const APP_GROUP = "group.app.stopscroll.mobile";
 

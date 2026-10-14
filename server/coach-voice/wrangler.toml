@@ -1,0 +1,11 @@
+name = "stopscroll-coach-voice"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Secrets (never commit them):
+#   npx wrangler@4 secret put ANTHROPIC_API_KEY
+#   npx wrangler@4 secret put APP_TOKEN        # optional, same value as EXPO_PUBLIC_COACH_VOICE_TOKEN
+# Optional plain variable for the web build:
+# [vars]
+# ALLOWED_ORIGIN = "https://your-web-app.example"

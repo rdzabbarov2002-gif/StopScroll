@@ -35,7 +35,6 @@ function data(overrides: Partial<AchievementData> = {}): AchievementData {
     wins: [],
     winArchive: { count: 0, minutes: 0, replacementCount: 0 },
     slips: [],
-    intercepts: [],
     scrollLog: {},
     settings: DEFAULT_SETTINGS,
     ...overrides,

@@ -6,10 +6,7 @@ import type { RootStackParamList } from "./types";
 
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
-/**
- * stopscroll:// links: the pause before a feed app (from the Shortcuts automation on iOS and
- * the accessibility service on Android), widget taps and the Sunday report notification.
- */
+/** stopscroll:// links: widget taps, the SOS pause and the Sunday report notification. */
 export const linking: LinkingOptions<RootStackParamList> = {
   prefixes: ["stopscroll://"],
   config: {
@@ -23,7 +20,6 @@ export const linking: LinkingOptions<RootStackParamList> = {
           Journal: "journal",
         },
       },
-      Gate: "gate",
       Intercept: "pause",
       Replacement: "replacement/:id",
       WeeklyReport: "report",

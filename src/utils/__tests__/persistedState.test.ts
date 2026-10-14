@@ -33,6 +33,7 @@ describe("sanitizePersistedState", () => {
         gateApps: ["shorts", "vine", "tiktok", "shorts"],
         gateSeconds: 13,
         reportReminder: "yes",
+        coachPhrasing: "no",
       },
       scrollLog: { "2026-10-03": 95.4, "2026-10-04": 9999, yesterday: 10, "2026-10-05": "x" },
       wins: [
@@ -58,10 +59,13 @@ describe("sanitizePersistedState", () => {
         },
         { id: "s2", timestamp: NOW, trigger: "unknown", app: "tiktok", minutesLost: 5, note: "" },
       ],
-      intercepts: [
-        { id: "i1", timestamp: NOW, app: "reels", outcome: "declined" },
-        { id: "i2", timestamp: NOW, app: "other", outcome: "declined" },
-        { id: "i3", timestamp: NOW, app: "tiktok", outcome: "maybe" },
+      intercepts: [{ id: "i1", timestamp: NOW, app: "reels", outcome: "declined" }],
+      coachLog: [
+        { day: "2026-10-03", risk: "high", advice: "early-sleep" },
+        { day: "2026-10-03", risk: "low", advice: "keep-rhythm" },
+        { day: "2026-10-04", risk: "extreme", advice: "walk-instead" },
+        { day: "soon", risk: "low", advice: "keep-rhythm" },
+        { day: "2026-10-02", risk: null, advice: 42 },
       ],
       achievements: { "first-hour": NOW, broken: "yesterday" },
       lastSeenReport: "2026-10-05",
@@ -87,16 +91,18 @@ describe("sanitizePersistedState", () => {
       sessionMinutes: 5,
       baselineMinutes: DEFAULT_SETTINGS.baselineMinutes,
       mainApp: DEFAULT_SETTINGS.mainApp,
-      gateApps: ["tiktok", "shorts"],
-      gateSeconds: 15,
       reportReminder: false,
+      coachPhrasing: true,
     });
+    expect(state.settings).not.toHaveProperty("gateApps");
     expect(state.scrollLog).toEqual({ "2026-10-03": 95, "2026-10-04": MAX_SCROLL_MINUTES });
     expect(state.wins.map((win) => win.id)).toEqual(["w1", "w3"]);
     expect(state.wins[1]).not.toHaveProperty("trigger");
-    expect(state.slips).toHaveLength(1);
+    expect(state.slips).toHaveLength(2);
     expect(state.slips[0]!.app).toBe("other");
     expect(state.slips[0]!.note).toHaveLength(MAX_NOTE_LENGTH);
+    // A slip whose reason is unknown is kept: the coach asks about it later.
+    expect(state.slips[1]!.trigger).toBeNull();
     expect(state.customReplacements).toEqual([
       {
         id: "c1",
@@ -110,7 +116,11 @@ describe("sanitizePersistedState", () => {
     expect(state.winArchive).toEqual({ count: 12, minutes: 0, replacementCount: 0 });
     expect(state.lastExerciseId).toBe("breath-ground");
     expect(state.themePreference).toBe("system");
-    expect(state.intercepts.map((item) => item.id)).toEqual(["i1"]);
+    expect(state).not.toHaveProperty("intercepts");
+    expect(state.coachLog).toEqual([
+      { day: "2026-10-04", risk: null, advice: "walk-instead" },
+      { day: "2026-10-03", risk: "high", advice: "early-sleep" },
+    ]);
     expect(state.achievements).toEqual({ "first-hour": NOW });
     expect(state.lastSeenReport).toBe("2026-10-05");
   });

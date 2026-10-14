@@ -8,12 +8,11 @@ import { useNow } from "../../utils/useNow";
 import { AchievementUnlock, type UnlockedAchievement } from "./AchievementUnlock";
 
 /**
- * Full-screen modals (the pause, a replacement, the paywall) finish their own moment first;
+ * Full-screen modals (the SOS pause, a replacement, the paywall) finish their own moment first;
  * a new achievement waits until the user is back on a regular screen.
  */
 const QUIET_ROUTES = new Set<keyof RootStackParamList>([
   "Intercept",
-  "Gate",
   "Replacement",
   "Paywall",
   "Privacy",
@@ -42,13 +41,12 @@ export function AchievementCenter() {
           wins: app.wins,
           winArchive: app.winArchive,
           slips: app.slips,
-          intercepts: app.intercepts,
           scrollLog: app.scrollLog,
           settings: app.settings,
         },
         now,
       ),
-    [app.wins, app.winArchive, app.slips, app.intercepts, app.scrollLog, app.settings, now],
+    [app.wins, app.winArchive, app.slips, app.scrollLog, app.settings, now],
   );
 
   const { achievements, unlockAchievements, unlockQueue, dismissUnlock } = app;

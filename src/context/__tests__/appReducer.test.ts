@@ -86,9 +86,8 @@ describe("appReducer", () => {
         sessionMinutes: 20,
         baselineMinutes: 240,
         mainApp: "reels",
-        gateApps: ["tiktok"],
-        gateSeconds: 15,
         reportReminder: false,
+        coachPhrasing: true,
       },
     });
     expect(state.onboarded).toBe(true);
@@ -101,9 +100,8 @@ describe("appReducer", () => {
       sessionMinutes: 20,
       baselineMinutes: 240,
       mainApp: "reels",
-      gateApps: ["tiktok"],
-      gateSeconds: 15,
       reportReminder: false,
+      coachPhrasing: true,
     });
   });
 
@@ -135,14 +133,42 @@ describe("appReducer", () => {
   });
 });
 
-describe("appReducer: pause, achievements and reports", () => {
-  it("logs pause outcomes and keeps the first date of an achievement", () => {
-    let state = appReducer(makeState(), {
-      type: "logIntercept",
-      entry: { id: "i1", timestamp: NOW, app: "tiktok", outcome: "declined" },
+describe("appReducer: coach, achievements and reports", () => {
+  it("saves the reason given after a slip", () => {
+    const slip = {
+      id: "s1",
+      timestamp: NOW,
+      trigger: null,
+      app: "tiktok" as const,
+      minutesLost: 20,
+      note: "",
+    };
+    const state = appReducer(makeState({ slips: [slip] }), {
+      type: "reflectSlip",
+      id: "s1",
+      trigger: "fatigue",
+      note: "после смены",
     });
-    expect(state.intercepts).toHaveLength(1);
-    state = appReducer(state, { type: "unlockAchievements", unlocked: { "first-hour": NOW } });
+    expect(state.slips).toEqual([{ ...slip, trigger: "fatigue", note: "после смены" }]);
+  });
+
+  it("keeps one briefing per day, with the latest advice", () => {
+    const yesterday = { day: "2026-10-10", risk: "low" as const, advice: "keep-rhythm" };
+    const entry = { day: TODAY, risk: "medium" as const, advice: "walk-instead" };
+    let state = appReducer(makeState({ coachLog: [yesterday] }), { type: "recordBriefing", entry });
+    expect(state.coachLog).toEqual([entry, yesterday]);
+    expect(appReducer(state, { type: "recordBriefing", entry: { ...entry } })).toBe(state);
+    const changed = { ...entry, risk: "high" as const, advice: "sos-ready" };
+    state = appReducer(state, { type: "recordBriefing", entry: changed });
+    expect(state.coachLog).toEqual([changed, yesterday]);
+    expect(appReducer(state, { type: "resetProgress" }).coachLog).toEqual([]);
+  });
+
+  it("keeps the first date of an achievement", () => {
+    const state = appReducer(makeState(), {
+      type: "unlockAchievements",
+      unlocked: { "first-hour": NOW },
+    });
     const again = appReducer(state, {
       type: "unlockAchievements",
       unlocked: { "first-hour": NOW + 1 },
@@ -158,6 +184,6 @@ describe("appReducer: pause, achievements and reports", () => {
     const reset = appReducer(state, { type: "resetProgress" });
     expect(reset.lastSeenReport).toBeNull();
     expect(reset.achievements).toEqual({});
-    expect(toPersistedState(reset).intercepts).toEqual([]);
+    expect(toPersistedState(reset).coachLog).toEqual([]);
   });
 });

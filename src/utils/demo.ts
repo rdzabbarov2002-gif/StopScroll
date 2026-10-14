@@ -1,11 +1,9 @@
 import { earnedAchievements } from "./achievements";
-import { addDays, parseDayKey } from "./date";
+import { addDays, parseDayKey, weekdayIndex } from "./date";
 import { createInitialState } from "./persistedState";
 import type {
+  CoachLogEntry,
   FeedApp,
-  GateApp,
-  GateOutcome,
-  InterceptEntry,
   PersistedState,
   SlipEntry,
   ThemePreference,
@@ -65,61 +63,57 @@ export function createDemoState(today: string, themePreference: ThemePreference)
     }
   }
 
-  // Slips: mostly in the evening, mostly from boredom, mostly in Reels.
-  const slipTriggers: TriggerId[] = [
-    "boredom",
-    "boredom",
-    "fatigue",
-    "stress",
-    "boredom",
-    "fatigue",
+  // Walks in the late afternoon: none was followed by a slip, so the coach notices they help.
+  for (const daysAgo of [3, 6, 9, 13, 17]) {
+    pastWins.push({
+      id: `demo-walk-${daysAgo}`,
+      timestamp: at(daysAgo, 17),
+      minutesSaved: 15,
+      source: "replacement",
+      trigger: "boredom",
+      replacementId: "walk-3",
+    });
+  }
+
+  // Slips: mostly late in the evening, mostly from fatigue and boredom, Sundays the hardest.
+  const lastSunday = (weekdayIndex(today) + 1) % 7 || 7;
+  const plan: [daysAgo: number, hour: number, trigger: TriggerId | null][] = [
+    [lastSunday, 21, "boredom"],
+    [lastSunday, 23, "fatigue"],
+    [lastSunday + 7, 21, "boredom"],
+    [lastSunday + 7, 22, "sleepless"],
+    [lastSunday + 14, 22, "fatigue"],
+    [lastSunday + 14, 23, "fatigue"],
+    [2, 22, null],
+    [4, 22, "fatigue"],
+    [5, 14, "procrastination"],
+    [8, 21, "boredom"],
+    [10, 23, "fatigue"],
+    [11, 21, "relax"],
+    [15, 22, "autopilot"],
+    [16, 14, "procrastination"],
+    [19, 22, "fatigue"],
+    [23, 21, "boredom"],
+    [25, 22, "stress"],
   ];
   const apps: FeedApp[] = ["reels", "tiktok", "shorts"];
-  const slips: SlipEntry[] = Array.from({ length: 24 }, (_, index) => {
-    const daysAgo = index + 1;
-    const hour = index % 5 === 0 ? 14 : index % 3 === 0 ? 22 : 21;
-    return {
-      id: `demo-slip-${daysAgo}`,
+  const slips: SlipEntry[] = plan
+    .map(([daysAgo, hour, trigger], index) => ({
+      id: `demo-slip-${index}`,
       timestamp: at(daysAgo, hour, 5 + index),
-      trigger: slipTriggers[index % slipTriggers.length]!,
+      trigger,
       app: apps[index % apps.length]!,
       minutesLost: [12, 25, 18, 15][index % 4]!,
       note: index === 1 ? "Открыл «на минутку» перед сном" : "",
-    };
-  });
+    }))
+    .sort((a, b) => b.timestamp - a.timestamp);
 
-  // Two weeks of the pause before a feed app: most attempts end without the feed. Every
-  // "declined" is also a win, exactly as the pause screen records it.
-  const gateApps: GateApp[] = ["reels", "tiktok", "shorts"];
-  const outcomes: GateOutcome[] = [
-    "declined",
-    "declined",
-    "sos",
-    "declined",
-    "opened",
-    "replacement",
+  // What the coach advised in the last days.
+  const coachLog: CoachLogEntry[] = [
+    { day: addDays(today, -1), risk: "medium", advice: "phone-away-evening" },
+    { day: addDays(today, -2), risk: "high", advice: "early-sleep" },
+    { day: addDays(today, -3), risk: "medium", advice: "walk-instead" },
   ];
-  const intercepts: InterceptEntry[] = [];
-  for (let daysAgo = 1; daysAgo <= 14; daysAgo += 1) {
-    for (let index = 0; index < (daysAgo % 3) + 1; index += 1) {
-      const outcome = outcomes[(daysAgo + index * 2) % outcomes.length]!;
-      const timestamp = at(daysAgo, [20, 13, 22][index]!, 30 + index);
-      intercepts.push({
-        id: `demo-gate-${daysAgo}-${index}`,
-        timestamp,
-        app: gateApps[(daysAgo + index) % gateApps.length]!,
-        outcome,
-      });
-      if (outcome === "declined") {
-        pastWins.push({
-          id: `demo-gate-win-${daysAgo}-${index}`,
-          timestamp,
-          minutesSaved: 15,
-          source: "gate",
-        });
-      }
-    }
-  }
 
   const state: PersistedState = {
     ...base,
@@ -129,7 +123,7 @@ export function createDemoState(today: string, themePreference: ThemePreference)
     wins: [...todayWins.reverse(), ...pastWins].sort((a, b) => b.timestamp - a.timestamp),
     winArchive: { count: 30, minutes: 450, replacementCount: 15 },
     slips,
-    intercepts: intercepts.sort((a, b) => b.timestamp - a.timestamp),
+    coachLog,
     themePreference,
   };
   return { ...state, achievements: earnedAchievements(state, now) };

@@ -1,20 +1,10 @@
-import {
-  CATEGORIES,
-  EXERCISES,
-  FEED_APPS,
-  GATE_APPS,
-  MAX_SCROLL_MINUTES,
-  TRIGGERS,
-  isGateApp,
-} from "./catalog";
+import { CATEGORIES, EXERCISES, FEED_APPS, MAX_SCROLL_MINUTES, TRIGGERS } from "./catalog";
 import { DAY_KEY_PATTERN } from "./date";
 import type {
   CustomReplacement,
   ExerciseId,
+  CoachLogEntry,
   FeedApp,
-  GateApp,
-  GateOutcome,
-  InterceptEntry,
   PersistedState,
   ReplacementCategory,
   Settings,
@@ -28,7 +18,8 @@ import type {
 /** Upper bounds keep the single JSON blob small and fast to (de)serialize. */
 export const MAX_WINS = 2000;
 export const MAX_SLIPS = 1000;
-export const MAX_INTERCEPTS = 2000;
+/** About four months of daily briefings — enough for the coach to look back at its advice. */
+export const MAX_COACH_LOG = 120;
 /** Ten years of daily entries is still only ~80 KB; trimming earlier would shrink the best streak. */
 export const MAX_SCROLL_DAYS = 3660;
 export const MAX_CUSTOM_REPLACEMENTS = 30;
@@ -41,8 +32,6 @@ export const MAX_DESCRIPTION_LENGTH = 160;
 export const LIMIT_RANGE = { min: 0, max: MAX_SCROLL_MINUTES, step: 5 } as const;
 export const SESSION_RANGE = { min: 5, max: MAX_SCROLL_MINUTES, step: 5 } as const;
 export const BASELINE_RANGE = { min: 0, max: MAX_SCROLL_MINUTES, step: 5 } as const;
-/** Seconds of the pause before a feed app opens. */
-export const GATE_SECONDS_RANGE = { min: 5, max: 60, step: 5 } as const;
 
 /**
  * Slider position (0…1) → minutes on a quadratic curve: short times get fine steps, while the
@@ -62,9 +51,8 @@ export const DEFAULT_SETTINGS: Settings = {
   sessionMinutes: 15,
   baselineMinutes: 180,
   mainApp: "tiktok",
-  gateApps: GATE_APPS.map((app) => app.id),
-  gateSeconds: 10,
   reportReminder: false,
+  coachPhrasing: true,
 };
 
 export function createId(): string {
@@ -75,17 +63,17 @@ export function createInitialState(): PersistedState {
   return {
     version: 1,
     onboarded: false,
-    settings: { ...DEFAULT_SETTINGS, gateApps: [...DEFAULT_SETTINGS.gateApps] },
+    settings: { ...DEFAULT_SETTINGS },
     scrollLog: {},
     wins: [],
     winArchive: { count: 0, minutes: 0, replacementCount: 0 },
     slips: [],
-    intercepts: [],
     customReplacements: [],
     lastExerciseId: "breath-ground",
     themePreference: "system",
     achievements: {},
     lastSeenReport: null,
+    coachLog: [],
   };
 }
 
@@ -124,7 +112,9 @@ const APP_IDS = new Set<string>(FEED_APPS.map((app) => app.id));
 const CATEGORY_IDS = new Set<string>(CATEGORIES.map((category) => category.id));
 const EXERCISE_IDS = new Set<string>(EXERCISES.map((exercise) => exercise.id));
 const THEMES = new Set<string>(["system", "light", "dark"]);
-const GATE_OUTCOMES = new Set<string>(["declined", "sos", "replacement", "opened"]);
+const RISKS = new Set<string>(["low", "medium", "high"]);
+// "gate" came from the removed pause before feed apps: such a win was a resisted impulse,
+// so its saved time is kept as an SOS win rather than lost.
 const WIN_SOURCES = new Set<string>(["sos", "replacement", "gate"]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -155,13 +145,9 @@ function sanitizeSettings(value: unknown): Settings {
       typeof raw.mainApp === "string" && APP_IDS.has(raw.mainApp)
         ? (raw.mainApp as FeedApp)
         : DEFAULT_SETTINGS.mainApp,
-    gateApps: Array.isArray(raw.gateApps)
-      ? GATE_APPS.map((app) => app.id).filter((id) => (raw.gateApps as unknown[]).includes(id))
-      : [...DEFAULT_SETTINGS.gateApps],
-    gateSeconds: isFiniteNumber(raw.gateSeconds)
-      ? clampToRange(raw.gateSeconds, GATE_SECONDS_RANGE)
-      : DEFAULT_SETTINGS.gateSeconds,
     reportReminder: raw.reportReminder === true,
+    coachPhrasing:
+      typeof raw.coachPhrasing === "boolean" ? raw.coachPhrasing : DEFAULT_SETTINGS.coachPhrasing,
   };
 }
 
@@ -197,7 +183,7 @@ function sanitizeWin(value: unknown): WinEntry | null {
     id,
     timestamp,
     minutesSaved: Math.min(SESSION_RANGE.max, Math.max(0, Math.round(minutesSaved))),
-    source: source as WinEntry["source"],
+    source: source === "replacement" ? "replacement" : "sos",
     ...(isTrigger(trigger) ? { trigger } : {}),
     ...(typeof replacementId === "string" ? { replacementId } : {}),
   };
@@ -206,23 +192,42 @@ function sanitizeWin(value: unknown): WinEntry | null {
 function sanitizeSlip(value: unknown): SlipEntry | null {
   if (!isRecord(value)) return null;
   const { id, timestamp, trigger, app, minutesLost, note } = value;
-  if (typeof id !== "string" || !isTimestamp(timestamp) || !isTrigger(trigger)) return null;
+  if (typeof id !== "string" || !isTimestamp(timestamp)) return null;
   return {
     id,
     timestamp,
-    trigger,
+    // A slip whose reason the user hasn't given (yet) keeps null.
+    trigger: isTrigger(trigger) ? trigger : null,
     app: typeof app === "string" && APP_IDS.has(app) ? (app as FeedApp) : "other",
     minutesLost: isFiniteNumber(minutesLost) ? clampScrollMinutes(minutesLost) : 0,
     note: typeof note === "string" ? note.slice(0, MAX_NOTE_LENGTH) : "",
   };
 }
 
-function sanitizeIntercept(value: unknown): InterceptEntry | null {
+function sanitizeCoachEntry(value: unknown): CoachLogEntry | null {
   if (!isRecord(value)) return null;
-  const { id, timestamp, app, outcome } = value;
-  if (typeof id !== "string" || !isTimestamp(timestamp) || !isGateApp(app)) return null;
-  if (typeof outcome !== "string" || !GATE_OUTCOMES.has(outcome)) return null;
-  return { id, timestamp, app: app as GateApp, outcome: outcome as GateOutcome };
+  const { day, risk, advice } = value;
+  if (typeof day !== "string" || !DAY_KEY_PATTERN.test(day) || typeof advice !== "string") {
+    return null;
+  }
+  return {
+    day,
+    risk: typeof risk === "string" && RISKS.has(risk) ? (risk as CoachLogEntry["risk"]) : null,
+    advice: advice.slice(0, 40),
+  };
+}
+
+function sanitizeCoachLog(value: unknown): CoachLogEntry[] {
+  const seen = new Set<string>();
+  return (Array.isArray(value) ? value : [])
+    .map(sanitizeCoachEntry)
+    .filter((entry): entry is CoachLogEntry => {
+      if (entry === null || seen.has(entry.day)) return false;
+      seen.add(entry.day);
+      return true;
+    })
+    .sort((a, b) => (a.day < b.day ? 1 : -1))
+    .slice(0, MAX_COACH_LOG);
 }
 
 function sanitizeAchievements(value: unknown): Record<string, number> {
@@ -284,12 +289,6 @@ export function sanitizePersistedState(raw: unknown): PersistedState {
     wins: sanitizeList(raw.wins, sanitizeWin, (item) => item.timestamp, MAX_WINS),
     winArchive: sanitizeWinArchive(raw.winArchive),
     slips: sanitizeList(raw.slips, sanitizeSlip, (item) => item.timestamp, MAX_SLIPS),
-    intercepts: sanitizeList(
-      raw.intercepts,
-      sanitizeIntercept,
-      (item) => item.timestamp,
-      MAX_INTERCEPTS,
-    ),
     customReplacements: sanitizeList(
       raw.customReplacements,
       sanitizeCustom,
@@ -309,5 +308,6 @@ export function sanitizePersistedState(raw: unknown): PersistedState {
       typeof raw.lastSeenReport === "string" && DAY_KEY_PATTERN.test(raw.lastSeenReport)
         ? raw.lastSeenReport
         : null,
+    coachLog: sanitizeCoachLog(raw.coachLog),
   };
 }

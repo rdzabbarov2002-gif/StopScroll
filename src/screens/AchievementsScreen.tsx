@@ -43,13 +43,12 @@ export function AchievementsScreen() {
           wins: app.wins,
           winArchive: app.winArchive,
           slips: app.slips,
-          intercepts: app.intercepts,
           scrollLog: app.scrollLog,
           settings: app.settings,
         },
         now,
       ),
-    [app.wins, app.winArchive, app.slips, app.intercepts, app.scrollLog, app.settings, now],
+    [app.wins, app.winArchive, app.slips, app.scrollLog, app.settings, now],
   );
 
   // The saved date wins: it is when the user actually saw the achievement unlock.

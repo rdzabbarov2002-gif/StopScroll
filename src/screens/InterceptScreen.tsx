@@ -2,9 +2,9 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Animated, Easing, Platform, Pressable, ScrollView, View } from "react-native";
+import Svg, { Circle } from "react-native-svg";
 
 import { AppText } from "../components/AppText";
-import { BreathingRing } from "../components/BreathingRing";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { Chip } from "../components/Chip";
@@ -179,7 +179,7 @@ export function InterceptScreen({ navigation, route }: RootStackScreenProps<"Int
             }}
           />
           <Button
-            label="Всё-таки сорвался — записать"
+            label="Лента победила — записать срыв"
             variant="ghost"
             onPress={() =>
               navigation.popTo("Main", {
@@ -295,6 +295,7 @@ function ExerciseChip({
 // ---------------------------------------------------------------------------
 
 const CIRCLE = 300;
+const RING_STROKE = 6;
 const MIN_SCALE = 0.6;
 const useNativeDriver = Platform.OS !== "web";
 
@@ -318,7 +319,7 @@ function PausePhase({
   active: boolean;
   onDone: () => void;
 }) {
-  const { colors } = useThemeColors();
+  const { colors, isDark } = useThemeColors();
   const [elapsedMs, setElapsedMs] = useState(0);
   const [scale] = useState(() => new Animated.Value(MIN_SCALE));
   const onDoneRef = useRef(onDone);
@@ -380,14 +381,63 @@ function PausePhase({
 
   const secondsLeft = Math.ceil((TOTAL_MS - elapsedMs) / 1000);
 
+  const ringRadius = CIRCLE / 2 - RING_STROKE;
+  const circumference = 2 * Math.PI * ringRadius;
+  const remaining = Math.max(0, 1 - elapsedMs / TOTAL_MS);
+
   return (
     <View className="items-center gap-5">
-      <BreathingRing
-        size={CIRCLE}
-        scale={scale}
-        remaining={1 - elapsedMs / TOTAL_MS}
+      <View
+        style={{ width: CIRCLE, height: CIRCLE }}
+        className="items-center justify-center"
+        accessible
+        accessibilityLiveRegion="polite"
         accessibilityLabel={`${phase.label}. Осталось ${secondsLeft} секунд`}
       >
+        {[0.86, 0.72, 0.58].map((size, index) => (
+          <View
+            key={size}
+            className="absolute rounded-full"
+            style={{
+              width: CIRCLE * size,
+              height: CIRCLE * size,
+              backgroundColor: colors.primary,
+              opacity: isDark ? [0.1, 0.14, 0.2][index] : [0.07, 0.1, 0.15][index],
+            }}
+          />
+        ))}
+        <Animated.View
+          style={{
+            position: "absolute",
+            width: CIRCLE * 0.86,
+            height: CIRCLE * 0.86,
+            borderRadius: CIRCLE,
+            backgroundColor: colors.primary,
+            opacity: isDark ? 0.18 : 0.12,
+            transform: [{ scale }],
+          }}
+        />
+        <Svg width={CIRCLE} height={CIRCLE} style={{ position: "absolute" }}>
+          <Circle
+            cx={CIRCLE / 2}
+            cy={CIRCLE / 2}
+            r={ringRadius}
+            stroke={colors.ringTrack}
+            strokeWidth={RING_STROKE}
+            fill="none"
+          />
+          <Circle
+            cx={CIRCLE / 2}
+            cy={CIRCLE / 2}
+            r={ringRadius}
+            stroke={colors.primary}
+            strokeWidth={RING_STROKE}
+            strokeLinecap="round"
+            fill="none"
+            strokeDasharray={`${circumference * remaining} ${circumference}`}
+            transform={`rotate(-90 ${CIRCLE / 2} ${CIRCLE / 2})`}
+          />
+        </Svg>
         <View className="items-center">
           <AppText variant="heading" tone="primary">
             {phase.label}
@@ -399,7 +449,7 @@ function PausePhase({
             {pluralize(secondsLeft, SECOND_FORMS)}
           </AppText>
         </View>
-      </BreathingRing>
+      </View>
 
       <Card className="w-full gap-2">
         <View className="flex-row items-center justify-between gap-3">

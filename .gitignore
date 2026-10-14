@@ -40,3 +40,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Cloudflare Worker (server/coach-voice)
+.wrangler/
+.dev.vars
