@@ -55,7 +55,7 @@ export function AiScreen(_props: RootTabScreenProps<"AI">) {
         <Connected now={now} />
       )}
 
-      {ai.configured ? <EntryHistory entries={ai.entries} now={now} /> : null}
+      <EntryHistory entries={ai.entries} now={now} />
     </Screen>
   );
 }
