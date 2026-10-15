@@ -1,3 +1,4 @@
+import { dayKey } from "../utils/date";
 import { MAX_ENTRY_LENGTH, createInitialAiState } from "./storage";
 import { MAX_ENTRY_ATTEMPTS, challengeEndDay } from "./schedule";
 import type {
@@ -18,12 +19,19 @@ export type AiAction =
   | { type: "addEntry"; entry: AiEntry }
   | { type: "deleteEntry"; id: string }
   | { type: "entryAnalyzed"; id: string; analysis: EntryAnalysis }
-  | { type: "entryFailed"; id: string }
+  /** `countAttempt` is false for passing trouble (no network, timeout, busy service). */
+  | { type: "entryFailed"; id: string; countAttempt: boolean }
   | { type: "retryEntry"; id: string }
+  | { type: "retryFailed" }
   | {
       type: "insightsUpdated";
+      /** When the request was built — what changed after it goes into the next update. */
       at: number;
       recordsKey: string;
+      sentEntryIds: string[];
+      sentAnswerIds: string[];
+      /** How many of `deletedSinceInsights` went with this update. */
+      sentDeleted: number;
       memory: AiMemory | null;
       analytics: AiAnalytics;
       forecast: AiForecast | null;
@@ -34,7 +42,7 @@ export type AiAction =
   | { type: "forecastUpdated"; forecast: AiForecast; recordsKey: string }
   | { type: "answerQuestion"; answer: string; at: number }
   | { type: "dismissQuestion" }
-  | { type: "acceptChallenge"; today: string }
+  | { type: "acceptChallenge"; today: string; at: number }
   | { type: "declineChallenge" }
   | { type: "checkinChallenge"; day: string; done: boolean }
   | { type: "finishChallenge" }
@@ -69,13 +77,36 @@ export function aiReducer(state: AiState, action: AiAction): AiState {
       return {
         ...state,
         entries: [
-          { ...action.entry, text: action.entry.text.slice(0, MAX_ENTRY_LENGTH) },
+          {
+            ...action.entry,
+            text: action.entry.text.slice(0, MAX_ENTRY_LENGTH),
+            inInsights: false,
+          },
           ...state.entries,
         ],
       };
 
-    case "deleteEntry":
-      return { ...state, entries: state.entries.filter((entry) => entry.id !== action.id) };
+    case "deleteEntry": {
+      const removed = state.entries.find((entry) => entry.id === action.id);
+      if (!removed) return state;
+      const date = new Date(removed.timestamp);
+      const pad = (value: number) => String(value).padStart(2, "0");
+      return {
+        ...state,
+        entries: state.entries.filter((entry) => entry.id !== action.id),
+        // ChatGPT already saw it: tell the next update to drop conclusions that rested on it.
+        deletedSinceInsights: removed.inInsights
+          ? [
+              ...state.deletedSinceInsights,
+              {
+                date: dayKey(removed.timestamp),
+                time: `${pad(date.getHours())}:${pad(date.getMinutes())}`,
+                cause: removed.analysis?.cause ?? null,
+              },
+            ].slice(-50)
+          : state.deletedSinceInsights,
+      };
+    }
 
     case "entryAnalyzed":
       return updateEntry(state, action.id, (entry) => ({
@@ -85,11 +116,22 @@ export function aiReducer(state: AiState, action: AiAction): AiState {
       }));
 
     case "entryFailed":
+      if (!action.countAttempt) return state;
       return updateEntry(state, action.id, (entry) => ({
         ...entry,
         attempts: entry.attempts + 1,
         status: entry.attempts + 1 >= MAX_ENTRY_ATTEMPTS ? "failed" : "pending",
       }));
+
+    case "retryFailed":
+      return state.entries.some((entry) => entry.status === "failed")
+        ? {
+            ...state,
+            entries: state.entries.map((entry) =>
+              entry.status === "failed" ? { ...entry, status: "pending", attempts: 0 } : entry,
+            ),
+          }
+        : state;
 
     case "retryEntry":
       return updateEntry(state, action.id, (entry) => ({
@@ -99,20 +141,30 @@ export function aiReducer(state: AiState, action: AiAction): AiState {
       }));
 
     case "insightsUpdated": {
+      const sentEntries = new Set(action.sentEntryIds);
+      const sentAnswers = new Set(action.sentAnswerIds);
       let next: AiState = {
         ...state,
+        entries: state.entries.map((entry) =>
+          sentEntries.has(entry.id) && !entry.inInsights ? { ...entry, inInsights: true } : entry,
+        ),
+        answers: state.answers.map((answer) =>
+          sentAnswers.has(answer.questionId) ? { ...answer, inInsights: true } : answer,
+        ),
         memory: action.memory ?? state.memory,
         analytics: action.analytics,
         forecast: action.forecast ?? state.forecast,
         forecastRecordsKey: action.forecast ? action.recordsKey : state.forecastRecordsKey,
         insightsAt: action.at,
         insightsRecordsKey: action.recordsKey,
+        deletedSinceInsights: state.deletedSinceInsights.slice(action.sentDeleted),
       };
       // A question only when none is waiting for an answer.
       if (action.question && !state.question) {
         next = { ...next, question: action.question, lastQuestionAt: action.at };
       }
-      if (action.challengeReview && next.challenge?.status === "reviewing") {
+      // The review is asked for once: without one, the experiment is simply closed.
+      if (next.challenge?.status === "reviewing") {
         next = {
           ...next,
           challenge: { ...next.challenge, status: "done", review: action.challengeReview },
@@ -137,6 +189,7 @@ export function aiReducer(state: AiState, action: AiAction): AiState {
         question: state.question.text,
         answer: action.answer.slice(0, 60),
         answeredAt: action.at,
+        inInsights: false,
       };
       return {
         ...state,
@@ -156,6 +209,7 @@ export function aiReducer(state: AiState, action: AiAction): AiState {
           ...state.challenge,
           status: "active",
           startDay: action.today,
+          startedAt: action.at,
           endDay: challengeEndDay(action.today, state.challenge.durationDays),
         },
       };

@@ -8,6 +8,7 @@ import { Card } from "../components/Card";
 import { CardLabel, DurationValue, KeyValue, Separator } from "../components/CardLabel";
 import { ColumnChart, type ColumnDatum } from "../components/charts/ColumnChart";
 import { AiForecastCard } from "../components/ai/AiForecastCard";
+import { AiForecastPending } from "../components/ai/AiForecastPending";
 import { AiHighlightsCard } from "../components/ai/AiHighlightsCard";
 import { ImpulseEntryCard } from "../components/ai/ImpulseEntryCard";
 import { BriefingCard } from "../components/coach/BriefingCard";
@@ -75,12 +76,13 @@ export function HomeScreen({ navigation }: RootTabScreenProps<"Home">) {
   );
   const { recordBriefing } = app;
   const { day, risk, advice: adviceId } = briefing.logEntry;
-  useEffect(() => {
-    // Remember what the coach said today, so tomorrow it can look back on it.
-    if (app.hydrated) recordBriefing({ day, risk, advice: adviceId });
-  }, [app.hydrated, day, risk, adviceId, recordBriefing]);
-  const dailyPick = briefing.replacement.replacement;
   const ai = useAi();
+  useEffect(() => {
+    // Remember what the on-device coach said today (only when it is the one shown), so tomorrow
+    // it can look back on it.
+    if (app.hydrated && !ai.enabled) recordBriefing({ day, risk, advice: adviceId });
+  }, [app.hydrated, ai.enabled, day, risk, adviceId, recordBriefing]);
+  const dailyPick = briefing.replacement.replacement;
   const aiForecast = ai.enabled && ai.forecast?.day === app.todayKey ? ai.forecast : null;
 
   const openStats = () => navigation.navigate("Stats");
@@ -115,9 +117,9 @@ export function HomeScreen({ navigation }: RootTabScreenProps<"Home">) {
       </View>
 
       {/* With the AI coach connected, ChatGPT's forecast leads; otherwise the on-device coach. */}
-      {aiForecast ? (
+      {ai.enabled ? (
         <>
-          <AiForecastCard forecast={aiForecast} compact />
+          {aiForecast ? <AiForecastCard forecast={aiForecast} compact /> : <AiForecastPending />}
           <AiHighlightsCard />
         </>
       ) : (

@@ -143,7 +143,10 @@ export function AiProvider({ children }: { children: ReactNode }) {
 
   // Load once; saving starts only after a successful load, so nothing real is overwritten.
   const canPersist = useRef(false);
-  const lastSaved = useRef<AiState | null>(null);
+  // `queued` — the last state handed to storage; `written` — the last one written successfully.
+  // A failed write keeps `written`, so the next save rewrites everything changed since then.
+  const queued = useRef<AiState | null>(null);
+  const written = useRef<AiState | null>(null);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   useEffect(() => {
     let cancelled = false;
@@ -153,7 +156,8 @@ export function AiProvider({ children }: { children: ReactNode }) {
         (loaded) => {
           if (cancelled) return;
           canPersist.current = true;
-          lastSaved.current = loaded;
+          queued.current = loaded;
+          written.current = loaded;
           apply({ type: "hydrate", state: loaded });
           setHydrated(true);
         },
@@ -168,14 +172,16 @@ export function AiProvider({ children }: { children: ReactNode }) {
   }, [apply]);
 
   useEffect(() => {
-    if (!hydrated || !canPersist.current || state === lastSaved.current) return;
-    const previous = lastSaved.current;
-    lastSaved.current = state;
-    saveQueue.current = saveQueue.current
-      .then(() => saveAiState(state, previous))
-      .catch((error: unknown) =>
-        console.warn("StopScroll: could not save the AI coach data", error),
-      );
+    if (!hydrated || !canPersist.current || state === queued.current) return;
+    queued.current = state;
+    saveQueue.current = saveQueue.current.then(async () => {
+      try {
+        await saveAiState(state, written.current);
+        written.current = state;
+      } catch (error) {
+        console.warn("StopScroll: could not save the AI coach data", error);
+      }
+    });
   }, [state, hydrated]);
 
   const enabled = AI_CONFIGURED && hydrated && state.consent === true && app.hydrated;
@@ -185,16 +191,32 @@ export function AiProvider({ children }: { children: ReactNode }) {
   }, [enabled]);
 
   const retryAt = useRef(0);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const runRef = useRef<() => Promise<void>>(async () => undefined);
+  // Bumped by a reset: an answer to a request sent before it is about erased data and is dropped.
+  const generation = useRef(0);
 
+  /** Remembers the failure and comes back by itself once the pause is over. */
   const fail = useCallback((task: AiTask, error: unknown) => {
     const kind = error instanceof AiRequestError ? error.kind : "unusable";
-    retryAt.current = Date.now() + (kind === "offline" ? MINUTE : RETRY_DELAY);
+    const delay = kind === "offline" ? MINUTE : RETRY_DELAY;
+    retryAt.current = Date.now() + delay;
     setSync({ status: "error", task, error: AI_ERROR_TEXT[kind] });
+    if (retryTimer.current) clearTimeout(retryTimer.current);
+    retryTimer.current = setTimeout(() => void runRef.current(), delay + 1_000);
   }, []);
+  useEffect(
+    () => () => {
+      if (retryTimer.current) clearTimeout(retryTimer.current);
+    },
+    [],
+  );
 
   /** One unit of work: an entry, the analytics, or the forecast. Returns true to continue. */
   const step = useCallback(async (): Promise<boolean> => {
     if (!enabledRef.current || Date.now() < retryAt.current) return false;
+    const startedIn = generation.current;
+    const current = () => generation.current === startedIn && enabledRef.current;
     const now = Date.now();
     const today = dayKey(now);
     let ai = stateRef.current;
@@ -219,12 +241,20 @@ export function AiProvider({ children }: { children: ReactNode }) {
           },
           TIMEOUTS.entry,
         );
+        if (!current()) return false;
         const analysis = parseEntryAnalysis(raw, Date.now());
         if (!analysis) throw new AiRequestError("unusable");
         apply({ type: "entryAnalyzed", id: entry.id, analysis });
         return true;
       } catch (error) {
-        apply({ type: "entryFailed", id: entry.id });
+        if (!current()) return false;
+        // Only a broken answer or a server fault counts as an attempt; no network, a timeout
+        // or a busy service just wait and try again.
+        const countAttempt =
+          !(error instanceof AiRequestError) ||
+          error.kind === "unusable" ||
+          error.kind === "server";
+        apply({ type: "entryFailed", id: entry.id, countAttempt });
         fail("entry", error);
         return false;
       }
@@ -240,19 +270,20 @@ export function AiProvider({ children }: { children: ReactNode }) {
       lastChallengeAt: lastChallengeAt(ai),
       now,
     };
-    const key = recordsKey(data, today);
+    const key = recordsKey(data);
     const facts = buildFacts(factsInput);
     const hasHistory = facts.coverage.observedDays > 0 || ai.entries.length > 0;
 
     if (needsInsights(ai, key, hasHistory, now)) {
       setSync({ status: "working", task: "insights", error: null });
       const fresh = entriesSinceInsights(ai);
+      const sent = fresh.slice(0, MAX_NEW_ENTRIES);
       try {
         const raw = await postAi(
           "/insights",
           {
             memory: ai.memory,
-            newEntries: fresh.slice(0, MAX_NEW_ENTRIES).map((item) => ({
+            newEntries: sent.map((item) => ({
               ...describeEntry(item),
               text: item.text.slice(0, 600),
               analysis: item.analysis && {
@@ -265,18 +296,27 @@ export function AiProvider({ children }: { children: ReactNode }) {
               },
             })),
             olderNewEntriesNotSent: Math.max(0, fresh.length - MAX_NEW_ENTRIES),
+            deletedEntries: ai.deletedSinceInsights,
             facts,
           },
           TIMEOUTS.insights,
         );
+        if (!current()) return false;
         const result = (raw ?? {}) as Record<string, unknown>;
         const analytics = parseAnalytics(result.analytics);
         if (!analytics) throw new AiRequestError("unusable");
         const at = Date.now();
         apply({
           type: "insightsUpdated",
-          at,
+          // What is answered or changed while the request runs goes into the next update.
+          at: now,
           recordsKey: key,
+          // Entries that didn't fit stay "new" and go with the next update.
+          sentEntryIds: sent.map((item) => item.id),
+          sentDeleted: ai.deletedSinceInsights.length,
+          sentAnswerIds: ai.answers
+            .filter((answer) => !answer.inInsights)
+            .map((answer) => answer.questionId),
           memory: parseMemory(result.memory),
           analytics,
           forecast: parseForecast(result.forecast, today, at),
@@ -291,8 +331,10 @@ export function AiProvider({ children }: { children: ReactNode }) {
               ? result.challengeReview.trim().slice(0, 600)
               : null,
         });
-        return true;
+        // One full update per pass; anything new since then sets off another pass.
+        return false;
       } catch (error) {
+        if (!current()) return false;
         fail("insights", error);
         return false;
       }
@@ -310,11 +352,13 @@ export function AiProvider({ children }: { children: ReactNode }) {
           },
           TIMEOUTS.forecast,
         );
+        if (!current()) return false;
         const forecast = parseForecast(raw, today, Date.now());
         if (!forecast) throw new AiRequestError("unusable");
         apply({ type: "forecastUpdated", forecast, recordsKey: key });
         return false;
       } catch (error) {
+        if (!current()) return false;
         fail("forecast", error);
         return false;
       }
@@ -344,6 +388,9 @@ export function AiProvider({ children }: { children: ReactNode }) {
       );
     }
   }, [step]);
+  useEffect(() => {
+    runRef.current = run;
+  }, [run]);
 
   // What sets the engine going: being enabled, a new entry or answer, the experiment,
   // returning to the app, and — a little later — any change in the app's records.
@@ -352,7 +399,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
     if (enabled) void run();
   }, [enabled, pendingCount, state.answers.length, state.challenge?.status, run]);
 
-  const recordsFingerprint = recordsKey(appData, app.todayKey);
+  const recordsFingerprint = recordsKey(appData);
   useEffect(() => {
     if (!enabled) return;
     const timer = setTimeout(() => void run(), RECORDS_DEBOUNCE);
@@ -383,6 +430,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
         status: "pending",
         attempts: 0,
         analysis: null,
+        inInsights: false,
       };
       apply({ type: "addEntry", entry });
       return entry;
@@ -401,6 +449,11 @@ export function AiProvider({ children }: { children: ReactNode }) {
   const setConsent = useCallback(
     (consent: boolean) => {
       retryAt.current = 0;
+      // Turning it off also drops whatever answer is still on its way.
+      if (!consent) {
+        generation.current += 1;
+        setSync({ status: "idle", task: null, error: null });
+      }
       apply({ type: "setConsent", consent });
     },
     [apply],
@@ -411,7 +464,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
   );
   const dismissQuestion = useCallback(() => apply({ type: "dismissQuestion" }), [apply]);
   const acceptChallenge = useCallback(
-    () => apply({ type: "acceptChallenge", today: dayKey() }),
+    () => apply({ type: "acceptChallenge", today: dayKey(), at: Date.now() }),
     [apply],
   );
   const declineChallenge = useCallback(() => apply({ type: "declineChallenge" }), [apply]);
@@ -420,13 +473,15 @@ export function AiProvider({ children }: { children: ReactNode }) {
     [apply],
   );
   const resetAi = useCallback(() => {
+    generation.current += 1;
     apply({ type: "reset" });
     setSync({ status: "idle", task: null, error: null });
   }, [apply]);
   const retryNow = useCallback(() => {
     retryAt.current = 0;
+    apply({ type: "retryFailed" });
     void run();
-  }, [run]);
+  }, [apply, run]);
 
   const value = useMemo<AiContextValue>(
     () => ({

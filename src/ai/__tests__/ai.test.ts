@@ -68,6 +68,7 @@ const entry = (daysAgo: number, hour: number, extra: Partial<AiEntry> = {}): AiE
     tags: ["усталость", "работа"],
     analyzedAt: at(daysAgo, hour, 1),
   },
+  inInsights: false,
   ...extra,
 });
 
@@ -156,9 +157,40 @@ describe("facts sent to ChatGPT: arithmetic over the whole history", () => {
     });
   });
 
+  it("counts an experiment only from the moment it was accepted", () => {
+    const challenge = {
+      ...parseChallenge(
+        { title: "t", description: "d", durationDays: 2, focus: "all" },
+        "c1",
+        NOW,
+      )!,
+      status: "reviewing" as const,
+      startDay: addDays(TODAY, -2),
+      endDay: addDays(TODAY, -1),
+      startedAt: at(2, 20),
+    };
+    const result = buildFacts(
+      input({ slips: [slip(2, 18), slip(2, 19), slip(1, 22)], challenge }),
+    ).challenge!;
+    expect(result).toMatchObject({ startedAt: "20:00", during: { slipsInFocus: 1 } });
+  });
+
+  it("counts all saved time, however old", () => {
+    const old = Array.from({ length: 3 }, (_, index) => win(900 + index, 12));
+    expect(
+      buildFacts(input({ wins: old, winArchive: { count: 1, minutes: 15, replacementCount: 0 } }))
+        .savedMinutes.total,
+    ).toBe(60);
+  });
+
   it("notices changes in the records", () => {
-    const before = recordsKey({ wins: [], slips: [], scrollLog: {} }, TODAY);
-    expect(recordsKey({ wins: [], slips: [slip(0, 9)], scrollLog: {} }, TODAY)).not.toBe(before);
+    const before = recordsKey({ wins: [], slips: [], scrollLog: {} });
+    expect(recordsKey({ wins: [], slips: [slip(0, 9)], scrollLog: {} })).not.toBe(before);
+    // Logging or changing the feed time changes it; the date alone does not.
+    expect(recordsKey({ wins: [], slips: [], scrollLog: { [TODAY]: 30 } })).not.toBe(before);
+    expect(recordsKey({ wins: [], slips: [], scrollLog: { [TODAY]: 30 } })).not.toBe(
+      recordsKey({ wins: [], slips: [], scrollLog: { [TODAY]: 45 } }),
+    );
     expect(partOfDay(7)).toBe("morning");
     expect(partOfDay(23)).toBe("night");
   });
@@ -254,7 +286,7 @@ describe("AI reducer", () => {
     const pending = { ...entry(0, 19), status: "pending" as const, analysis: null };
     let state = aiReducer(base(), { type: "addEntry", entry: pending });
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      state = aiReducer(state, { type: "entryFailed", id: pending.id });
+      state = aiReducer(state, { type: "entryFailed", id: pending.id, countAttempt: true });
     }
     expect(state.entries[0]).toMatchObject({ status: "failed", attempts: 3 });
     state = aiReducer(state, { type: "retryEntry", id: pending.id });
@@ -276,6 +308,9 @@ describe("AI reducer", () => {
       type: "insightsUpdated" as const,
       at: NOW,
       recordsKey: "k",
+      sentEntryIds: [],
+      sentAnswerIds: [],
+      sentDeleted: 0,
       memory: null,
       analytics: parseAnalytics({ conclusion: "Вывод." })!,
       forecast: null,
@@ -292,7 +327,7 @@ describe("AI reducer", () => {
     expect(state.question).toBeNull();
     expect(state.answers[0]).toMatchObject({ question: "Что мешало?", answer: "стресс" });
 
-    state = aiReducer(state, { type: "acceptChallenge", today: TODAY });
+    state = aiReducer(state, { type: "acceptChallenge", today: TODAY, at: NOW });
     expect(state.challenge).toMatchObject({
       status: "active",
       startDay: TODAY,
@@ -324,6 +359,54 @@ describe("AI reducer", () => {
   });
 });
 
+describe("AI reducer: sending, failures and deletions", () => {
+  const base = (): AiState => ({ ...createInitialAiState(), consent: true });
+
+  it("waits out passing trouble without spending attempts, and retries failed entries on demand", () => {
+    const pending = { ...entry(0, 19), status: "pending" as const, analysis: null };
+    let state = aiReducer(base(), { type: "addEntry", entry: pending });
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      state = aiReducer(state, { type: "entryFailed", id: pending.id, countAttempt: false });
+    }
+    expect(state.entries[0]).toMatchObject({ status: "pending", attempts: 0 });
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      state = aiReducer(state, { type: "entryFailed", id: pending.id, countAttempt: true });
+    }
+    expect(state.entries[0]!.status).toBe("failed");
+    expect(aiReducer(state, { type: "retryFailed" }).entries[0]).toMatchObject({
+      status: "pending",
+      attempts: 0,
+    });
+  });
+
+  it("marks what was sent and remembers deleted entries ChatGPT had already seen", () => {
+    const seen = entry(1, 21);
+    const later = entry(0, 9);
+    let state: AiState = { ...base(), entries: [later, seen] };
+    state = aiReducer(state, {
+      type: "insightsUpdated",
+      at: NOW,
+      recordsKey: "k",
+      sentEntryIds: [seen.id],
+      sentAnswerIds: [],
+      sentDeleted: 0,
+      memory: null,
+      analytics: parseAnalytics({ conclusion: "Вывод." })!,
+      forecast: null,
+      question: null,
+      challenge: null,
+      challengeReview: null,
+    });
+    expect(state.entries.map((item) => item.inInsights)).toEqual([false, true]);
+    state = aiReducer(state, { type: "deleteEntry", id: seen.id });
+    state = aiReducer(state, { type: "deleteEntry", id: later.id });
+    // Only the one ChatGPT had seen needs forgetting; the text itself is not kept.
+    expect(state.deletedSinceInsights).toEqual([
+      { date: addDays(TODAY, -1), time: "21:00", cause: "усталость" },
+    ]);
+  });
+});
+
 describe("when to ask ChatGPT again", () => {
   const forecast = parseForecast(
     { probability: 50, headline: "h", reasons: [], window: {}, basis: "", validUntil: "21:00" },
@@ -341,20 +424,71 @@ describe("when to ask ChatGPT again", () => {
     expect(forecastStale({ ...forecast, day: addDays(TODAY, -1) }, "k", "k", NOW)).toBe(true);
   });
 
-  it("recalculates the analytics after new entries and answers, and daily for other records", () => {
+  it("recalculates the analytics after new entries, answers and deletions, and daily for other records", () => {
     const state: AiState = { ...createInitialAiState(), consent: true };
     expect(needsInsights(state, "k", false, NOW)).toBe(false);
     expect(needsInsights(state, "k", true, NOW)).toBe(true);
     const done = { ...state, insightsAt: NOW, insightsRecordsKey: "k" };
     expect(needsInsights(done, "k", true, NOW + 60_000)).toBe(false);
-    expect(needsInsights({ ...done, entries: [entry(0, 19)] }, "k", true, NOW + 60_000)).toBe(
-      false,
-    );
-    const fresh = entry(0, 20);
-    fresh.analysis!.analyzedAt = NOW + 1;
-    expect(needsInsights({ ...done, entries: [fresh] }, "k", true, NOW + 60_000)).toBe(true);
+    // Entries go once: sent ones don't trigger, new ones do (whatever the device clock says).
+    expect(
+      needsInsights(
+        { ...done, entries: [entry(0, 19, { inInsights: true })] },
+        "k",
+        true,
+        NOW + 60_000,
+      ),
+    ).toBe(false);
+    expect(needsInsights({ ...done, entries: [entry(0, 23)] }, "k", true, NOW + 60_000)).toBe(true);
+    expect(
+      needsInsights(
+        { ...done, deletedSinceInsights: [{ date: TODAY, time: "19:00", cause: null }] },
+        "k",
+        true,
+        NOW,
+      ),
+    ).toBe(true);
+    // Other records: once a day, and only if they really changed.
     expect(needsInsights(done, "k2", true, NOW + 60_000)).toBe(false);
+    expect(needsInsights(done, "k", true, NOW + 86_400_000)).toBe(false);
     expect(needsInsights(done, "k2", true, NOW + 86_400_000)).toBe(true);
+  });
+
+  it("asks for an experiment's review once, even if none comes back", () => {
+    const challenge = {
+      ...parseChallenge(
+        { title: "t", description: "d", durationDays: 1, focus: "evening" },
+        "c1",
+        NOW,
+      )!,
+      status: "reviewing" as const,
+      startDay: addDays(TODAY, -1),
+      endDay: addDays(TODAY, -1),
+    };
+    const state: AiState = {
+      ...createInitialAiState(),
+      consent: true,
+      insightsAt: NOW - 1,
+      insightsRecordsKey: "k",
+      challenge,
+    };
+    expect(needsInsights(state, "k", true, NOW)).toBe(true);
+    const after = aiReducer(state, {
+      type: "insightsUpdated",
+      at: NOW,
+      recordsKey: "k",
+      sentEntryIds: [],
+      sentAnswerIds: [],
+      sentDeleted: 0,
+      memory: null,
+      analytics: parseAnalytics({ conclusion: "Вывод." })!,
+      forecast: null,
+      question: null,
+      challenge: null,
+      challengeReview: null,
+    });
+    expect(after.challenge).toMatchObject({ status: "done", review: null });
+    expect(needsInsights(after, "k", true, NOW + 1)).toBe(false);
   });
 });
 
@@ -392,8 +526,21 @@ describe("AI storage", () => {
     expect(loaded.entries.map((item) => item.id)).toEqual(first.entries.map((item) => item.id));
     expect(loaded.consent).toBe(true);
 
-    const reset = { ...first, entries: [] };
-    await saveAiState(reset, first);
+    // An entry stored under another month key (an older version, another time zone) is found
+    // and removed from where it really is.
+    const moved = entry(5, 9, { id: "moved" });
+    await AsyncStorage.setItem("@stopscroll/ai/entries/2020-01", JSON.stringify([moved]));
+    const reloaded = await loadAiState();
+    expect(reloaded.entries.map((item) => item.id)).toContain("moved");
+    const withoutMoved = {
+      ...reloaded,
+      entries: reloaded.entries.filter((item) => item.id !== "moved"),
+    };
+    await saveAiState(withoutMoved, reloaded);
+    expect((await loadAiState()).entries.map((item) => item.id)).not.toContain("moved");
+
+    const reset = { ...withoutMoved, entries: [] };
+    await saveAiState(reset, withoutMoved);
     const keys = await AsyncStorage.getAllKeys();
     expect(keys.filter((key) => key.startsWith("@stopscroll/ai/entries/"))).toEqual([]);
   });

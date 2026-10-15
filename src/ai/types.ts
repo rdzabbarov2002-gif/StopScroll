@@ -32,6 +32,8 @@ export interface AiEntry {
   status: EntryStatus;
   attempts: number;
   analysis: EntryAnalysis | null;
+  /** Already sent with an analytics update — entries go to ChatGPT in full only once. */
+  inInsights: boolean;
 }
 
 export interface MemoryNote {
@@ -111,6 +113,8 @@ export interface AiAnswer {
   question: string;
   answer: string;
   answeredAt: number;
+  /** Already taken into account by an analytics update. */
+  inInsights: boolean;
 }
 
 export type ChallengeFocus = "morning" | "day" | "evening" | "night" | "all";
@@ -129,6 +133,8 @@ export interface AiChallenge {
   proposedAt: number;
   /** Day keys, set when the user accepts. */
   startDay: string | null;
+  /** The moment the user accepted: what happened earlier that day doesn't count. */
+  startedAt: number | null;
   endDay: string | null;
   /** Day key → whether the user managed it that day. */
   checkins: Record<string, boolean>;
@@ -136,6 +142,13 @@ export interface AiChallenge {
 }
 
 export type SyncStatus = "idle" | "working" | "error";
+
+/** What is left of a deleted entry — no text, only when it was and what ChatGPT called it. */
+export interface DeletedEntry {
+  date: string;
+  time: string;
+  cause: string | null;
+}
 
 export interface AiState {
   /** null — not asked yet; the user must allow sending entries to OpenAI first. */
@@ -151,6 +164,8 @@ export interface AiState {
   challenge: AiChallenge | null;
   pastChallenges: AiChallenge[];
   insightsAt: number | null;
+  /** Entries the user deleted after ChatGPT saw them: the next update forgets what relied on them. */
+  deletedSinceInsights: DeletedEntry[];
   /** Fingerprint of the app records the last analytics/forecast saw. */
   insightsRecordsKey: string | null;
   forecastRecordsKey: string | null;

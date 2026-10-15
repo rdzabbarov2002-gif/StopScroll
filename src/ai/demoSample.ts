@@ -83,6 +83,7 @@ export function demoSample(now: number): {
       status: "proposed",
       proposedAt: now,
       startDay: null,
+      startedAt: null,
       endDay: null,
       checkins: {},
       review: null,

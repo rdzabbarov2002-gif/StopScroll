@@ -16,7 +16,7 @@ import { CardLabel } from "../components/CardLabel";
 import { Screen } from "../components/Screen";
 import { useAi } from "../context/AiContext";
 import type { RootTabScreenProps } from "../navigation/types";
-import { dayKey } from "../utils/date";
+import { addDays, dayKey } from "../utils/date";
 import { DEMO_MODE } from "../utils/demo";
 import { useThemeColors } from "../utils/theme";
 import { useNow } from "../utils/useNow";
@@ -38,9 +38,11 @@ export function AiScreen(_props: RootTabScreenProps<"AI">) {
         <AppText variant="title" accessibilityRole="header">
           AI-коуч
         </AppText>
-        <View className="pt-1">
-          <SyncLine />
-        </View>
+        {ai.enabled ? (
+          <View className="pt-1">
+            <SyncLine />
+          </View>
+        ) : null}
       </View>
 
       {!ai.configured ? (
@@ -64,6 +66,17 @@ function Connected({ now }: { now: number }) {
   const { colors } = useThemeColors();
   const ai = useAi();
   const forecast = ai.forecast?.day === dayKey(now) ? ai.forecast : null;
+  // The last finished experiment's review stays visible for two weeks, even after a new proposal.
+  const lastReview =
+    ai.challenge?.status === "done"
+      ? null
+      : (ai.pastChallenges.find(
+          (item) =>
+            item.status === "done" &&
+            item.review &&
+            item.endDay !== null &&
+            item.endDay >= addDays(dayKey(now), -14),
+        ) ?? null);
   return (
     <>
       {ai.question ? <QuestionCard question={ai.question} /> : null}
@@ -71,6 +84,7 @@ function Connected({ now }: { now: number }) {
       {ai.challenge && ai.challenge.status !== "declined" ? (
         <ChallengeCard challenge={ai.challenge} />
       ) : null}
+      {lastReview ? <ChallengeCard challenge={lastReview} readOnly /> : null}
       {ai.analytics ? (
         <AnalyticsView analytics={ai.analytics} memory={ai.memory} />
       ) : (

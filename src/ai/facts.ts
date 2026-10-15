@@ -83,17 +83,20 @@ const average = (values: number[]) =>
 
 const share = (part: number, whole: number) => ({ part, of: whole });
 
-/** A fingerprint of the app's records, to notice when analytics or the forecast went stale. */
-export function recordsKey(input: Pick<FactsInput, "wins" | "slips" | "scrollLog">, today: string) {
-  const feed = [0, 1, 2].map((offset) => input.scrollLog[addDays(today, -offset)] ?? "-").join(",");
+/**
+ * A fingerprint of the app's records (not of the date), to notice when analytics or the forecast
+ * went stale: new or deleted slips and wins, a reason given, any feed time logged or changed.
+ */
+export function recordsKey(input: Pick<FactsInput, "wins" | "slips" | "scrollLog">) {
+  const feed = Object.entries(input.scrollLog);
   return [
-    today,
     input.slips.length,
     input.slips[0]?.timestamp ?? 0,
     input.slips.filter((slip) => slip.trigger !== null).length,
     input.wins.length,
     input.wins[0]?.timestamp ?? 0,
-    feed,
+    feed.length,
+    feed.reduce((sum, [key, minutes]) => sum + minutes * (Number(key.slice(-2)) + 1), 0),
   ].join("|");
 }
 
@@ -179,7 +182,14 @@ export function buildFacts(input: FactsInput) {
     const byPart = { morning: 0, day: 0, evening: 0, night: 0 };
     for (const slip of slips) byPart[partOfDay(hourOf(slip.timestamp))] += 1;
     const weekdays = weekdayStats(list);
-    const hardest = [...weekdays].sort((a, b) => b.hardDays - a.hardDays)[0];
+    // The weekday with the highest share of hard days (at least two of them observed); a tie
+    // means there is no single hardest day.
+    const rated = weekdays
+      .filter((day) => day.observedDays >= 2 && day.hardDays > 0)
+      .map((day) => ({ day, rate: day.hardDays / day.observedDays }))
+      .sort((a, b) => b.rate - a.rate);
+    const hardest =
+      rated[0] && (rated.length === 1 || rated[0].rate > rated[1]!.rate) ? rated[0].day : null;
     return {
       month,
       observedDays: list.length,
@@ -189,7 +199,7 @@ export function buildFacts(input: FactsInput) {
       entries: list.reduce((sum, day) => sum + day.entries.length, 0),
       wins: list.reduce((sum, day) => sum + day.wins, 0),
       avgFeedMinutes: average(list.filter((day) => day.feed !== null).map((day) => day.feed!)),
-      hardestWeekday: hardest && hardest.hardDays > 0 ? hardest.weekday : null,
+      hardestWeekday: hardest?.weekday ?? null,
     };
   });
 
@@ -337,7 +347,7 @@ export function buildFacts(input: FactsInput) {
       today: todayRecord.savedMinutes,
       last7Days: savedSince(addDays(today, -6)),
       last30Days: savedSince(addDays(today, -29)),
-      total: all.reduce((sum, day) => sum + day.savedMinutes, 0) + input.winArchive.minutes,
+      total: input.wins.reduce((sum, win) => sum + win.minutesSaved, 0) + input.winArchive.minutes,
     },
     baseRates: {
       sameWeekdayHard: share(
@@ -388,6 +398,7 @@ function challengeFacts(
     status: challenge.status,
     focus: challenge.focus,
     startDay: challenge.startDay,
+    startedAt: challenge.startedAt === null ? null : clock(challenge.startedAt),
     endDay: challenge.endDay,
     checkins: challenge.checkins,
   };
@@ -397,14 +408,21 @@ function challengeFacts(
       (parseDayKey(challenge.endDay).getTime() - parseDayKey(challenge.startDay).getTime()) /
         86_400_000,
     ) + 1;
-  const measure = (from: string) => {
+  // `after` cuts the first day at the moment of acceptance: what happened earlier doesn't count.
+  const measure = (from: string, after = 0) => {
     const list = Array.from({ length }, (_, offset) => days.get(addDays(from, offset))).filter(
       (day): day is Day => day !== undefined && day.key <= today,
     );
-    const inFocus = (timestamp: number) =>
-      challenge.focus === "all" || partOfDay(hourOf(timestamp)) === challenge.focus;
-    const slips = list.flatMap((day) => day.slips).filter((slip) => inFocus(slip.timestamp));
-    const entries = list.flatMap((day) => day.entries).filter((entry) => inFocus(entry.timestamp));
+    const counts = (timestamp: number) =>
+      timestamp >= after &&
+      (challenge.focus === "all" || partOfDay(hourOf(timestamp)) === challenge.focus);
+    const slips = list.flatMap((day) => day.slips).filter((slip) => counts(slip.timestamp));
+    const entries = list.flatMap((day) => day.entries).filter((entry) => counts(entry.timestamp));
+    const hard = (day: Day) =>
+      day.slips.some((slip) => slip.timestamp >= after) ||
+      day.entries.some((entry) => entry.outcome === "opened" && entry.timestamp >= after) ||
+      // A day's feed total can't be split by time, so the first, partial day leaves it out.
+      (day.key !== from || after === 0 ? day.feed !== null && day.feed > limit : false);
     return {
       from,
       days: list.length,
@@ -412,13 +430,13 @@ function challengeFacts(
       minutesLostInFocus: slips.reduce((sum, slip) => sum + slip.minutesLost, 0),
       entriesInFocus: entries.length,
       openedInFocus: entries.filter((entry) => entry.outcome === "opened").length,
-      hardDays: list.filter((day) => isObserved(day) && isHard(day, limit)).length,
+      hardDays: list.filter((day) => isObserved(day) && hard(day)).length,
       avgFeedMinutes: average(list.filter((day) => day.feed !== null).map((day) => day.feed!)),
     };
   };
   return {
     ...base,
     before: measure(addDays(challenge.startDay, -length)),
-    during: measure(challenge.startDay),
+    during: measure(challenge.startDay, challenge.startedAt ?? 0),
   };
 }

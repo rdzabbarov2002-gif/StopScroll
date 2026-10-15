@@ -203,6 +203,7 @@ export function parseChallenge(raw: unknown, id: string, proposedAt: number): Ai
       "proposed",
     proposedAt: typeof raw.proposedAt === "number" ? raw.proposedAt : proposedAt,
     startDay: dayOrNull(raw.startDay),
+    startedAt: typeof raw.startedAt === "number" && raw.startedAt > 0 ? raw.startedAt : null,
     endDay: dayOrNull(raw.endDay),
     checkins,
     review: text(raw.review, 600),

@@ -39,6 +39,7 @@ export function createInitialAiState(): AiState {
     challenge: null,
     pastChallenges: [],
     insightsAt: null,
+    deletedSinceInsights: [],
     insightsRecordsKey: null,
     forecastRecordsKey: null,
   };
@@ -72,6 +73,7 @@ export function sanitizeEntry(value: unknown): AiEntry | null {
     attempts:
       typeof value.attempts === "number" && value.attempts >= 0 ? Math.floor(value.attempts) : 0,
     analysis,
+    inInsights: value.inInsights === true && analysis !== null,
   };
 }
 
@@ -90,6 +92,7 @@ function sanitizeAnswer(value: unknown): AiAnswer | null {
     question: question.slice(0, 200),
     answer: answer.slice(0, 60),
     answeredAt: value.answeredAt,
+    inInsights: value.inInsights === true,
   };
 }
 
@@ -122,6 +125,20 @@ export function sanitizeAiMeta(value: unknown): Omit<AiState, "entries"> {
       .filter((item): item is NonNullable<typeof item> => item !== null && Boolean(item.id))
       .slice(0, MAX_PAST_CHALLENGES),
     insightsAt: isTimestamp(value.insightsAt) ? value.insightsAt : null,
+    deletedSinceInsights: (Array.isArray(value.deletedSinceInsights)
+      ? value.deletedSinceInsights
+      : []
+    )
+      .filter(
+        (item): item is { date: string; time: string; cause: unknown } =>
+          isRecord(item) && typeof item.date === "string" && typeof item.time === "string",
+      )
+      .slice(-50)
+      .map((item) => ({
+        date: item.date.slice(0, 10),
+        time: item.time.slice(0, 5),
+        cause: typeof item.cause === "string" ? item.cause.slice(0, 120) : null,
+      })),
     insightsRecordsKey:
       typeof value.insightsRecordsKey === "string" ? value.insightsRecordsKey : null,
     forecastRecordsKey:
@@ -129,16 +146,20 @@ export function sanitizeAiMeta(value: unknown): Omit<AiState, "entries"> {
   };
 }
 
-const monthOf = (timestamp: number) => {
-  const date = new Date(timestamp);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-};
+/** The month an entry is stored under — in UTC, so a change of time zone doesn't move it. */
+const monthOf = (timestamp: number) => new Date(timestamp).toISOString().slice(0, 7);
+
+/** Where each loaded or saved entry actually is, to diff against the real stored keys. */
+const storedMonth = new Map<string, string>();
 
 /** Entries grouped by the month key they are stored under. */
-export function groupByMonth(entries: readonly AiEntry[]): Map<string, AiEntry[]> {
+export function groupByMonth(
+  entries: readonly AiEntry[],
+  keyOf: (entry: AiEntry) => string = (entry) => monthOf(entry.timestamp),
+): Map<string, AiEntry[]> {
   const months = new Map<string, AiEntry[]>();
   for (const entry of entries) {
-    const key = monthOf(entry.timestamp);
+    const key = keyOf(entry);
     const list = months.get(key) ?? [];
     list.push(entry);
     months.set(key, list);
@@ -165,6 +186,7 @@ export async function loadAiState(): Promise<AiState> {
   );
   const entries: AiEntry[] = [];
   const seen = new Set<string>();
+  storedMonth.clear();
   for (const key of keys) {
     const list = await readJson(key);
     for (const item of Array.isArray(list) ? list : []) {
@@ -172,6 +194,7 @@ export async function loadAiState(): Promise<AiState> {
       if (entry && !seen.has(entry.id)) {
         seen.add(entry.id);
         entries.push(entry);
+        storedMonth.set(entry.id, key.slice(ENTRIES_PREFIX.length));
       }
     }
   }
@@ -180,15 +203,21 @@ export async function loadAiState(): Promise<AiState> {
 }
 
 /**
- * Writes the meta and only the months whose entries changed since `previous`.
- * Months that no longer have entries are removed.
+ * Writes the meta and only the months whose entries changed since `previous` (the last state that
+ * was written successfully). Months that no longer have entries are removed.
  */
 export async function saveAiState(state: AiState, previous: AiState | null): Promise<void> {
   const { entries, ...meta } = state;
   await AsyncStorage.setItem(AI_META_KEY, JSON.stringify(meta));
   if (previous?.entries === entries) return;
   const now = groupByMonth(entries);
-  const before = previous ? groupByMonth(previous.entries) : new Map<string, AiEntry[]>();
+  // Previous entries are placed where they really are stored (an old key may differ).
+  const before = previous
+    ? groupByMonth(
+        previous.entries,
+        (entry) => storedMonth.get(entry.id) ?? monthOf(entry.timestamp),
+      )
+    : new Map<string, AiEntry[]>();
   const changed: [string, string][] = [];
   for (const [month, list] of now) {
     const old = before.get(month);
@@ -196,12 +225,11 @@ export async function saveAiState(state: AiState, previous: AiState | null): Pro
       changed.push([ENTRIES_PREFIX + month, JSON.stringify(list)]);
     }
   }
-  if (changed.length) await AsyncStorage.multiSet(changed);
   const removed = [...before.keys()]
     .filter((month) => !now.has(month))
     .map((month) => ENTRIES_PREFIX + month);
   if (!previous) {
-    // First save of a session: clear months left over from a reset in an earlier run.
+    // Nothing to diff against: clear any month key not in the current history.
     const stale = (await AsyncStorage.getAllKeys()).filter(
       (key) =>
         key.startsWith(ENTRIES_PREFIX) &&
@@ -210,5 +238,8 @@ export async function saveAiState(state: AiState, previous: AiState | null): Pro
     );
     removed.push(...stale);
   }
+  if (changed.length) await AsyncStorage.multiSet(changed);
   if (removed.length) await AsyncStorage.multiRemove(removed);
+  storedMonth.clear();
+  for (const [month, list] of now) for (const entry of list) storedMonth.set(entry.id, month);
 }

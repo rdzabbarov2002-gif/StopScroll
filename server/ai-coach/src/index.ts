@@ -36,7 +36,10 @@ export interface Env {
   APP_TOKEN?: string;
   /** Optional CORS origin for the web build. */
   ALLOWED_ORIGIN?: string;
+  /** Per client IP — the main limit (the client can't choose its IP). */
   RATE_LIMITER?: RateLimiter;
+  /** Optional, stricter, per install id — on top of the IP limit, never instead of it. */
+  INSTALL_RATE_LIMITER?: RateLimiter;
 }
 
 const DEFAULT_MODEL = "gpt-5.4-mini";
@@ -160,16 +163,23 @@ export async function handle(request: Request, env: Env, client?: OpenAI): Promi
     return json(env, 401, { error: "unauthorized" });
   }
   if (env.RATE_LIMITER) {
-    const key =
-      request.headers.get("X-Install-Id")?.slice(0, 64) ||
-      request.headers.get("CF-Connecting-IP") ||
-      "anonymous";
-    const { success } = await env.RATE_LIMITER.limit({ key });
-    if (!success) return json(env, 429, { error: "rate_limited" });
+    const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+    if (!(await env.RATE_LIMITER.limit({ key: ip })).success) {
+      return json(env, 429, { error: "rate_limited" });
+    }
+  }
+  const installId = request.headers.get("X-Install-Id")?.slice(0, 64);
+  if (env.INSTALL_RATE_LIMITER && installId) {
+    if (!(await env.INSTALL_RATE_LIMITER.limit({ key: installId })).success) {
+      return json(env, 429, { error: "rate_limited" });
+    }
   }
 
-  const raw = await request.text();
-  if (raw.length > route.maxBodyBytes) return json(env, 413, { error: "too_large" });
+  // The size is checked in bytes, before and while reading — a huge body is never buffered.
+  const declared = Number(request.headers.get("Content-Length") ?? NaN);
+  if (declared > route.maxBodyBytes) return json(env, 413, { error: "too_large" });
+  const raw = await readLimited(request, route.maxBodyBytes);
+  if (raw === null) return json(env, 413, { error: "too_large" });
   let body: unknown;
   try {
     body = JSON.parse(raw);
@@ -182,13 +192,61 @@ export async function handle(request: Request, env: Env, client?: OpenAI): Promi
     const result = await callModel(env, route, body, client);
     return json(env, 200, result);
   } catch (error) {
-    if (error instanceof UnusableAnswer) return json(env, 502, { error: "unusable_answer" });
-    if (error instanceof OpenAI.RateLimitError) return json(env, 429, { error: "upstream_busy" });
-    if (error instanceof OpenAI.APIConnectionTimeoutError) {
-      return json(env, 504, { error: "upstream_timeout" });
-    }
-    return json(env, 502, { error: "upstream" });
+    return errorResponse(env, route, error);
   }
+}
+
+/** Reads the body as text, or null as soon as it grows past `limit` bytes. */
+async function readLimited(request: Request, limit: number): Promise<string | null> {
+  if (!request.body) return "";
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > limit) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
+/**
+ * Maps a failure to what the app can act on: 502 — the answer was unusable (counts as an attempt),
+ * 503/504/429 — passing trouble (the app waits and retries), 500 — the server is misconfigured.
+ * Details go to the Worker log (never the key or the user's data).
+ */
+function errorResponse(env: Env, route: Route, error: unknown): Response {
+  if (error instanceof UnusableAnswer) {
+    console.error(route.name, "unusable answer:", error.message);
+    return json(env, 502, { error: "unusable_answer" });
+  }
+  if (error instanceof OpenAI.APIConnectionTimeoutError) {
+    console.error(route.name, "timeout");
+    return json(env, 504, { error: "upstream_timeout" });
+  }
+  if (error instanceof OpenAI.APIError) {
+    console.error(route.name, "OpenAI error", error.status, error.code, error.type);
+    if (error.code === "insufficient_quota") return json(env, 503, { error: "quota" });
+    if (error.status === 429) return json(env, 429, { error: "upstream_busy" });
+    if (error.status === undefined || error.status >= 500) {
+      return json(env, 503, { error: "upstream_unavailable" });
+    }
+    // 400/401/403/404: a wrong key, model id or request — fix the configuration.
+    return json(env, 500, { error: "configuration" });
+  }
+  console.error(route.name, "unexpected", error instanceof Error ? error.message : typeof error);
+  return json(env, 503, { error: "upstream_unavailable" });
 }
 
 export default {

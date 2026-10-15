@@ -38,7 +38,9 @@ export function ChallengeCard({
           ? "Попробуем маленький эксперимент"
           : challenge.status === "active"
             ? `Эксперимент · день ${Math.min(days.indexOf(today) + 1 || days.length, days.length)} из ${days.length}`
-            : "Итог эксперимента"}
+            : readOnly && challenge.status === "done"
+              ? "Итог прошлого эксперимента"
+              : "Итог эксперимента"}
       </AppText>
       <AppText variant="statement">{challenge.title}</AppText>
       <AppText className="text-[16px] leading-[22px]">{challenge.description}</AppText>
@@ -118,6 +120,12 @@ export function ChallengeCard({
             Эксперимент завершён. ChatGPT сравнивает дни до и во время эксперимента…
           </AppText>
         </View>
+      ) : null}
+
+      {challenge.status === "done" && !challenge.review ? (
+        <AppText variant="caption" tone="muted">
+          Эксперимент завершён.
+        </AppText>
       ) : null}
 
       {challenge.status === "done" && challenge.review ? (

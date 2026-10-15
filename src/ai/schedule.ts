@@ -40,13 +40,9 @@ export function forecastStale(
   return false;
 }
 
-/** Entries analyzed after the last analytics update — they go into the next one. */
+/** Analyzed entries not yet sent with an analytics update — they go into the next one. */
 export function entriesSinceInsights(state: AiState) {
-  return state.entries.filter(
-    (entry) =>
-      entry.analysis !== null &&
-      (state.insightsAt === null || entry.analysis.analyzedAt > state.insightsAt),
-  );
+  return state.entries.filter((entry) => entry.analysis !== null && !entry.inInsights);
 }
 
 export function needsInsights(
@@ -57,9 +53,9 @@ export function needsInsights(
 ): boolean {
   if (state.insightsAt === null) return hasHistory;
   if (entriesSinceInsights(state).length > 0) return true;
-  const lastAnswer = state.answers[0];
-  if (lastAnswer && lastAnswer.answeredAt > state.insightsAt) return true;
-  if (state.challenge?.status === "reviewing" && !state.challenge.review) return true;
+  if (state.answers.some((answer) => !answer.inInsights)) return true;
+  if (state.deletedSinceInsights.length > 0) return true;
+  if (state.challenge?.status === "reviewing") return true;
   // Slips, wins and the feed time also change the picture: recount once a day when they did.
   return dayKey(state.insightsAt) !== dayKey(now) && recordsKey !== state.insightsRecordsKey;
 }

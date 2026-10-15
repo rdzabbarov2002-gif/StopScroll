@@ -5,6 +5,8 @@
  */
 
 const str = { type: "string" } as const;
+/** 24-hour time, "21:30". */
+const CLOCK = "^([01][0-9]|2[0-3]):[0-5][0-9]$";
 const nullableStr = { type: ["string", "null"] } as const;
 const strings = { type: "array", items: str } as const;
 
@@ -63,6 +65,7 @@ const forecastProperties = {
   window: object({
     until: {
       ...nullableStr,
+      pattern: CLOCK,
       description: "До какого времени (ЧЧ:ММ) длится опасный период сегодня.",
     },
     message: {
@@ -80,6 +83,7 @@ const forecastProperties = {
   basis: { ...str, description: "На чём основан прогноз (коротко, с числами)." },
   validUntil: {
     ...nullableStr,
+    pattern: CLOCK,
     description: "До какого времени сегодня (ЧЧ:ММ) прогноз остаётся актуальным.",
   },
 };
@@ -183,9 +187,10 @@ export const INSIGHTS_SCHEMA = object({
         description: { ...str, description: "Что сделать, одним-двумя предложениями." },
         durationDays: { type: "integer", description: "1–7 дней." },
         focus: {
-          ...str,
+          type: "string",
+          enum: ["morning", "day", "evening", "night", "all"],
           description:
-            "Что будет сравниваться: morning, day, evening, night или all (часть дня, к которой относится эксперимент).",
+            "Часть дня, к которой относится эксперимент: morning 5–12, day 12–17, evening 17–23, night 23–5, all — весь день.",
         },
         expectation: { ...str, description: "Что ожидаем увидеть, осторожно." },
       }),
@@ -195,7 +200,7 @@ export const INSIGHTS_SCHEMA = object({
   challengeReview: {
     ...nullableStr,
     description:
-      "Итог завершённого эксперимента по цифрам до/во время. Если заметных изменений нет — честно скажите. null, если оценивать нечего.",
+      "Если facts.challenge.status = reviewing — обязательно итог эксперимента по цифрам до/во время (если разницы не видно или данных мало — честно скажите это). Иначе null.",
   },
 });
 

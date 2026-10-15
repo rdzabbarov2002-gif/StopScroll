@@ -33,6 +33,9 @@ export function Screen({ children, scroll = true, contentClassName }: ScreenProp
       <ScrollView
         contentContainerStyle={{ paddingTop: top, paddingBottom: bottom }}
         keyboardShouldPersistTaps="handled"
+        // iOS: keep a focused text field (e.g. the entry on Home) above the keyboard.
+        automaticallyAdjustKeyboardInsets
+        keyboardDismissMode="interactive"
         showsVerticalScrollIndicator={false}
       >
         <View className={cn("gap-3 px-4", contentClassName)}>{children}</View>

@@ -266,8 +266,8 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
       </AppText>
       <Card className="gap-3">
         <AppText variant="caption" tone="muted">
-          Все записи хранятся только на этом устройстве. Сброс удалит историю времени, побед, срывов
-          и свои замены, но сохранит цели и подписку.
+          Все записи хранятся только на этом устройстве. Сброс удалит историю времени, побед,
+          срывов, свои замены, записи об импульсах и память AI-коуча, но сохранит цели и подписку.
         </AppText>
         {confirmReset ? (
           <View className="flex-row gap-3">

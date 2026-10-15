@@ -27,7 +27,7 @@ function getInstallId(): Promise<string> {
   return installId;
 }
 
-export type AiErrorKind = "offline" | "timeout" | "busy" | "server" | "unusable";
+export type AiErrorKind = "offline" | "timeout" | "busy" | "unavailable" | "server" | "unusable";
 
 export class AiRequestError extends Error {
   constructor(readonly kind: AiErrorKind) {
@@ -57,9 +57,9 @@ export async function postAi(path: string, body: unknown, timeoutMs: number): Pr
     clearTimeout(timer);
   }
   if (response.status === 429) throw new AiRequestError("busy");
-  if (response.status === 502 || response.status === 504) {
-    throw new AiRequestError(response.status === 504 ? "timeout" : "unusable");
-  }
+  if (response.status === 504) throw new AiRequestError("timeout");
+  if (response.status === 503) throw new AiRequestError("unavailable");
+  if (response.status === 502) throw new AiRequestError("unusable");
   if (!response.ok) throw new AiRequestError("server");
   try {
     return (await response.json()) as unknown;
@@ -72,6 +72,7 @@ export const AI_ERROR_TEXT: Record<AiErrorKind, string> = {
   offline: "Нет соединения с интернетом. Анализ продолжится, когда сеть появится.",
   timeout: "ChatGPT отвечает слишком долго. Попробуем ещё раз чуть позже.",
   busy: "Сервис сейчас перегружен. Попробуем ещё раз через пару минут.",
+  unavailable: "ChatGPT сейчас недоступен. Попробуем ещё раз через пару минут.",
   server: "Сервер AI-коуча недоступен. Попробуем ещё раз позже.",
   unusable: "Ответ ChatGPT не получилось разобрать. Попробуем ещё раз.",
 };

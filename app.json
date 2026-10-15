@@ -51,6 +51,7 @@
         }
       ],
       "./plugins/withSingleTopActivity",
+      "./plugins/withAsyncStorageSize",
       "@bacons/apple-targets",
       [
         "expo-notifications",
