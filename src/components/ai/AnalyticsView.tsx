@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { View } from "react-native";
 
-import type { AiAnalytics, AiMemory } from "../../ai/types";
+import type { AiAnalytics } from "../../ai/types";
 import { useThemeColors } from "../../utils/theme";
 import type { IconName } from "../../utils/types";
 import { AppText } from "../AppText";
@@ -16,14 +16,8 @@ const CONFIDENCE: Record<"low" | "medium" | "high", string> = {
   high: "Сильные признаки",
 };
 
-/** Everything ChatGPT concluded from the whole history, in the app's card style. */
-export function AnalyticsView({
-  analytics,
-  memory,
-}: {
-  analytics: AiAnalytics;
-  memory: AiMemory | null;
-}) {
+/** ChatGPT's conclusions from the long-term memory and the numbers behind them, as cards. */
+export function AnalyticsView({ analytics }: { analytics: AiAnalytics }) {
   const { colors } = useThemeColors();
   const changes = [
     ...analytics.improvements.map((text) => ({
@@ -42,10 +36,7 @@ export function AnalyticsView({
       color: colors.indigo,
     })),
   ];
-  const memoryLines = [
-    ...analytics.longTerm,
-    ...(memory?.milestones ?? []).slice(0, 3).map((item) => `${item.date}: ${item.note}`),
-  ];
+  const memoryLines = analytics.longTerm;
 
   return (
     <>

@@ -4,7 +4,7 @@ import { AppText } from "../AppText";
 import { useThemeColors } from "../../utils/theme";
 import { SyncLine } from "./parts";
 
-/** While ChatGPT prepares today's forecast (e.g. the first open of the day). */
+/** Until there is any history to forecast from. */
 export function AiForecastPending() {
   const { colors } = useThemeColors();
   return (

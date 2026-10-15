@@ -11,7 +11,7 @@ import { CardLabel, Separator } from "../CardLabel";
 import { ProgressBar } from "../ProgressBar";
 import { Bullet, levelColor } from "./parts";
 
-/** Today's risk as ChatGPT estimates it from the user's own history, and why. */
+/** Today's risk, from the user's own history and the coach's memory, and why. */
 export function AiForecastCard({
   forecast,
   compact = false,

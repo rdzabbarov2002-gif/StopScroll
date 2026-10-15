@@ -1,5 +1,5 @@
 import { dayKey } from "../utils/date";
-import type { AiAnalytics, AiChallenge, AiForecast, AiMemory } from "./types";
+import type { AiAnalytics, AiChallenge, AiForecast } from "./types";
 
 /**
  * Web preview only (EXPO_PUBLIC_DEMO=1 without an AI server): a sample of what the AI tab shows,
@@ -8,7 +8,6 @@ import type { AiAnalytics, AiChallenge, AiForecast, AiMemory } from "./types";
  */
 export function demoSample(now: number): {
   analytics: AiAnalytics;
-  memory: AiMemory;
   forecast: AiForecast;
   challenge: AiChallenge;
 } {
@@ -30,7 +29,6 @@ export function demoSample(now: number): {
       passed: null,
       advice: "Положите телефон заряжаться в другой комнате около 21:00.",
       basis: "пример",
-      validUntil: "23:00",
       day: today,
       createdAt: now,
     },
@@ -60,18 +58,14 @@ export function demoSample(now: number): {
         },
       ],
       selfComparison: ["За месяц спокойных дней стало на 24% больше, чем в прошлом."],
-      longTerm: ["Раньше самым трудным временем был обед; уже месяц это поздний вечер."],
+      longTerm: [
+        "Раньше самым трудным временем был обед; уже месяц это поздний вечер.",
+        "Лучшая серия — 9 дней в пределах лимита.",
+      ],
       numbers: {
         headline: "Вы вернули почти 17 часов.",
         equivalents: ["около восьми фильмов", "две рабочие смены", "34 прогулки по 30 минут"],
       },
-    },
-    memory: {
-      summary: "Пример памяти коуча.",
-      timeline: [],
-      milestones: [{ date: "сентябрь", note: "самая длинная серия — 9 дней" }],
-      hypotheses: [],
-      openQuestions: [],
     },
     challenge: {
       id: "demo",

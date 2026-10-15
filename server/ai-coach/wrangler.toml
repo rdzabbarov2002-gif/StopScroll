@@ -9,8 +9,12 @@ compatibility_flags = ["nodejs_compat"]
 #
 # Optional settings:
 # [vars]
-# OPENAI_MODEL = "gpt-5.4-mini"              # any model with Structured Outputs support
-# OPENAI_REASONING_EFFORT = "low"            # "off" for models without reasoning
+# Frequent, simple requests (entry analysis, phrasing) — an inexpensive model:
+# OPENAI_MODEL_LIGHT = "gpt-5.4-nano"        # any model with Structured Outputs support
+# OPENAI_EFFORT_LIGHT = "low"                # "off" for models without reasoning
+# The rare deep analysis (about once a week per user) — a stronger model:
+# OPENAI_MODEL_DEEP = "gpt-5.4-mini"
+# OPENAI_EFFORT_DEEP = "medium"
 # ALLOWED_ORIGIN = "https://your-web-app.example"
 #
 # Strongly recommended before going public (Workers Rate Limiting API):

@@ -43,8 +43,7 @@ export function levelColor(
 
 const TASK_TEXT = {
   entry: "ChatGPT разбирает запись…",
-  insights: "ChatGPT обновляет аналитику по всей истории…",
-  forecast: "ChatGPT обновляет прогноз…",
+  deep: "ChatGPT обновляет аналитику по всей истории…",
 } as const;
 
 /** What the AI coach is doing right now, or when it last updated. */
@@ -81,10 +80,10 @@ export function SyncLine() {
       </View>
     );
   }
-  if (!ai.insightsAt) return null;
+  if (!ai.updatedAt) return null;
   return (
     <AppText variant="caption" tone="subtle" className="text-[14px]">
-      Аналитика обновлена {formatUpdated(ai.insightsAt)}
+      Аналитика обновлена {formatUpdated(ai.updatedAt)}
     </AppText>
   );
 }

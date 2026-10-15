@@ -11,31 +11,22 @@ import {
 } from "react";
 import { AppState as RNAppState } from "react-native";
 
+import { buildAnalytics, challengeReview } from "../ai/analytics";
 import { AI_CONFIGURED, AI_ERROR_TEXT, AiRequestError, postAi } from "../ai/client";
-import { WEEKDAYS, buildFacts, clock, recordsKey, type Facts } from "../ai/facts";
-import {
-  parseAnalytics,
-  parseChallenge,
-  parseEntryAnalysis,
-  parseForecast,
-  parseMemory,
-  parseQuestion,
-} from "../ai/parse";
-import { aiReducer, lastChallengeAt, type AiAction } from "../ai/reducer";
-import {
-  MAX_NEW_ENTRIES,
-  challengeFinished,
-  entriesSinceInsights,
-  forecastStale,
-  needsInsights,
-} from "../ai/schedule";
+import { buildTimeline, hasHistory, recordsKey } from "../ai/facts";
+import { buildForecast } from "../ai/forecast";
+import { parseChallenge, parseEntryResult, parseMemory, parseQuestions } from "../ai/parse";
+import { ENTRY_BATCH, deepPayload, duplicateAnalysis, entryPayload } from "../ai/payload";
+import { aiReducer, type AiAction } from "../ai/reducer";
+import { challengeFinished, entriesSinceDeep, needsDeep, questionDue } from "../ai/schedule";
 import { createInitialAiState, loadAiState, saveAiState } from "../ai/storage";
-import type { AiEntry, AiState, EntryOutcome } from "../ai/types";
-import { dayKey, weekdayIndex } from "../utils/date";
+import type { AiAnalytics, AiEntry, AiForecast, AiState, EntryOutcome } from "../ai/types";
+import { dayKey } from "../utils/date";
 import { createId } from "../utils/persistedState";
+import { useNow } from "../utils/useNow";
 import { useApp } from "./AppContext";
 
-export type AiTask = "entry" | "insights" | "forecast";
+export type AiTask = "entry" | "deep";
 
 export interface AiSync {
   status: "idle" | "working" | "error";
@@ -50,6 +41,12 @@ export interface AiContextValue extends AiState {
   /** Configured, allowed by the user and loaded: entries are being sent to ChatGPT. */
   enabled: boolean;
   sync: AiSync;
+  /** The AI tab's analytics: the memory's conclusions + numbers counted on the device. */
+  analytics: AiAnalytics | null;
+  /** Today's forecast, computed on the device (null while there is no history at all). */
+  forecast: AiForecast | null;
+  /** When the analysis last changed: the last deep analysis or the last analyzed entry. */
+  updatedAt: number | null;
   addEntry: (text: string, outcome: EntryOutcome | null) => AiEntry;
   retryEntry: (id: string) => void;
   deleteEntry: (id: string) => void;
@@ -68,48 +65,16 @@ export interface AiContextValue extends AiState {
 const AiContext = createContext<AiContextValue | null>(null);
 
 const MINUTE = 60_000;
-const TIMEOUTS: Record<AiTask, number> = { entry: 45_000, insights: 150_000, forecast: 60_000 };
+const TIMEOUTS: Record<AiTask, number> = { entry: 45_000, deep: 150_000 };
 /** A failed request waits this long before the next automatic attempt. */
 const RETRY_DELAY = 2 * MINUTE;
-/** While the app is open, staleness of the forecast is checked this often. */
-const CHECK_INTERVAL = 10 * MINUTE;
-/** A burst of record changes (a slip, a win) settles before the forecast is redone. */
-const RECORDS_DEBOUNCE = 5_000;
+/** While the app is open, whether a deep analysis is due is checked this often (no request). */
+const CHECK_INTERVAL = 30 * MINUTE;
+/** The on-device forecast follows the clock at this pace (and every new record at once). */
+const FORECAST_TICK = 5 * MINUTE;
 
-function topTags(entries: readonly AiEntry[], size: number): string[] {
-  const counts = new Map<string, number>();
-  for (const entry of entries) {
-    for (const tag of entry.analysis?.tags ?? []) counts.set(tag, (counts.get(tag) ?? 0) + 1);
-  }
-  return [...counts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, size)
-    .map(([tag]) => tag);
-}
-
-const describeEntry = (entry: AiEntry) => ({
-  date: dayKey(entry.timestamp),
-  time: clock(entry.timestamp),
-  weekday: WEEKDAYS[weekdayIndex(entry.timestamp)],
-  outcome: entry.outcome,
-});
-
-/** The part of the facts a forecast needs — keeps the frequent refresh small. */
-function forecastFacts(facts: Facts) {
-  const { now, settings, today, recentDays, byHour, byWeekday, streaks, baseRates, coverage } =
-    facts;
-  return {
-    now,
-    settings,
-    coverage,
-    today,
-    recentDays: recentDays.slice(-7),
-    byHour,
-    byWeekday: byWeekday.last8Weeks,
-    streaks,
-    baseRates,
-  };
-}
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
 
 export function AiProvider({ children }: { children: ReactNode }) {
   const app = useApp();
@@ -212,39 +177,70 @@ export function AiProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  /** One unit of work: an entry, the analytics, or the forecast. Returns true to continue. */
+  /**
+   * One unit of work. On the device: the experiment's result, the next prepared question,
+   * repeated texts. Requests: new entries (light, in batches) and, rarely, the deep analysis.
+   * Returns true to continue.
+   */
   const step = useCallback(async (): Promise<boolean> => {
     if (!enabledRef.current || Date.now() < retryAt.current) return false;
     const startedIn = generation.current;
     const current = () => generation.current === startedIn && enabledRef.current;
     const now = Date.now();
-    const today = dayKey(now);
-    let ai = stateRef.current;
     const data = appRef.current;
+    const timeline = () => buildTimeline({ ...data, entries: stateRef.current.entries, now });
 
-    if (challengeFinished(ai.challenge, today)) {
-      apply({ type: "finishChallenge" });
-      ai = stateRef.current;
+    const finished = stateRef.current.challenge;
+    if (finished && challengeFinished(finished, dayKey(now))) {
+      apply({ type: "finishChallenge", review: challengeReview(finished, timeline()) });
     }
+    if (questionDue(stateRef.current, now)) apply({ type: "showQuestion", at: now });
 
-    // 1. Every new entry is read by ChatGPT first, oldest first.
-    const entry = [...ai.entries].reverse().find((item) => item.status === "pending");
-    if (entry) {
+    // 1. New entries, oldest first. The same words again reuse the earlier analysis.
+    for (const item of [...stateRef.current.entries].reverse()) {
+      if (item.status !== "pending") continue;
+      const reused = duplicateAnalysis(item, stateRef.current.entries);
+      if (reused) {
+        apply({
+          type: "entryAnalyzed",
+          id: item.id,
+          analysis: { ...reused, analyzedAt: now },
+          votes: [],
+        });
+      }
+    }
+    const ai = stateRef.current;
+    const batch = [...ai.entries]
+      .reverse()
+      .filter((item) => item.status === "pending")
+      .slice(0, ENTRY_BATCH);
+    if (batch.length) {
       setSync({ status: "working", task: "entry", error: null });
       try {
         const raw = await postAi(
           "/entry",
-          {
-            entry: { ...describeEntry(entry), text: entry.text },
-            profile: ai.memory?.summary || null,
-            knownTags: topTags(ai.entries, 25),
-          },
+          entryPayload(batch, ai.memory, ai.entries),
           TIMEOUTS.entry,
         );
         if (!current()) return false;
-        const analysis = parseEntryAnalysis(raw, Date.now());
-        if (!analysis) throw new AiRequestError("unusable");
-        apply({ type: "entryAnalyzed", id: entry.id, analysis });
+        const at = Date.now();
+        const results = (isRecord(raw) && Array.isArray(raw.results) ? raw.results : [])
+          .map((item) => parseEntryResult(item, at))
+          .filter((item) => item !== null);
+        if (!results.length) throw new AiRequestError("unusable");
+        batch.forEach((item, index) => {
+          const result = results.find((value) => value.n === index + 1);
+          apply(
+            result
+              ? {
+                  type: "entryAnalyzed",
+                  id: item.id,
+                  analysis: result.analysis,
+                  votes: result.votes,
+                }
+              : { type: "entryFailed", id: item.id, countAttempt: true },
+          );
+        });
         return true;
       } catch (error) {
         if (!current()) return false;
@@ -254,112 +250,44 @@ export function AiProvider({ children }: { children: ReactNode }) {
           !(error instanceof AiRequestError) ||
           error.kind === "unusable" ||
           error.kind === "server";
-        apply({ type: "entryFailed", id: entry.id, countAttempt });
+        for (const item of batch) apply({ type: "entryFailed", id: item.id, countAttempt });
         fail("entry", error);
         return false;
       }
     }
 
-    // 2. Then the whole history: memory + new entries + arithmetic over everything.
-    const factsInput = {
-      ...data,
-      entries: ai.entries,
-      answers: ai.answers,
-      challenge: ai.challenge,
-      lastQuestionAt: ai.lastQuestionAt,
-      lastChallengeAt: lastChallengeAt(ai),
-      now,
-    };
+    // 2. Rarely: the deep analysis rebuilds the long-term memory.
+    const t = timeline();
     const key = recordsKey(data);
-    const facts = buildFacts(factsInput);
-    const hasHistory = facts.coverage.observedDays > 0 || ai.entries.length > 0;
-
-    if (needsInsights(ai, key, hasHistory, now)) {
-      setSync({ status: "working", task: "insights", error: null });
-      const fresh = entriesSinceInsights(ai);
-      const sent = fresh.slice(0, MAX_NEW_ENTRIES);
+    if (needsDeep(ai, key, hasHistory(t), now)) {
+      setSync({ status: "working", task: "deep", error: null });
+      const body = deepPayload(ai, t);
       try {
-        const raw = await postAi(
-          "/insights",
-          {
-            memory: ai.memory,
-            newEntries: sent.map((item) => ({
-              ...describeEntry(item),
-              text: item.text.slice(0, 600),
-              analysis: item.analysis && {
-                enough: item.analysis.enough,
-                cause: item.analysis.cause,
-                emotion: item.analysis.emotion,
-                context: item.analysis.context,
-                behavior: item.analysis.behavior,
-                tags: item.analysis.tags,
-              },
-            })),
-            olderNewEntriesNotSent: Math.max(0, fresh.length - MAX_NEW_ENTRIES),
-            deletedEntries: ai.deletedSinceInsights,
-            facts,
-          },
-          TIMEOUTS.insights,
-        );
+        const raw = await postAi("/deep", body, TIMEOUTS.deep);
         if (!current()) return false;
-        const result = (raw ?? {}) as Record<string, unknown>;
-        const analytics = parseAnalytics(result.analytics);
-        if (!analytics) throw new AiRequestError("unusable");
+        const result = isRecord(raw) ? raw : {};
+        // Votes that came in while the request ran are kept: counts come from the latest memory.
+        const memory = parseMemory(result, stateRef.current.memory);
+        if (!memory) throw new AiRequestError("unusable");
         const at = Date.now();
         apply({
-          type: "insightsUpdated",
-          // What is answered or changed while the request runs goes into the next update.
+          type: "deepUpdated",
+          // What is answered or changed while the request runs goes into the next analysis.
           at: now,
           recordsKey: key,
-          // Entries that didn't fit stay "new" and go with the next update.
-          sentEntryIds: sent.map((item) => item.id),
-          sentDeleted: ai.deletedSinceInsights.length,
+          sentEntryIds: entriesSinceDeep(ai).map((item) => item.id),
           sentAnswerIds: ai.answers
-            .filter((answer) => !answer.inInsights)
+            .filter((answer) => !answer.inMemory)
             .map((answer) => answer.questionId),
-          memory: parseMemory(result.memory),
-          analytics,
-          forecast: parseForecast(result.forecast, today, at),
-          question: facts.questionPolicy.allowed
-            ? parseQuestion(result.question, `q-${at}`, at)
-            : null,
-          challenge: facts.challengePolicy.canPropose
-            ? parseChallenge(result.challenge, `c-${at}`, at)
-            : null,
-          challengeReview:
-            typeof result.challengeReview === "string" && result.challengeReview.trim()
-              ? result.challengeReview.trim().slice(0, 600)
-              : null,
+          sentDeleted: ai.deletedSinceDeep.length,
+          memory,
+          questions: body.policy.questions ? parseQuestions(result.questions) : [],
+          challenge: body.policy.challenge ? parseChallenge(result.challenge, `c-${at}`, at) : null,
         });
-        // One full update per pass; anything new since then sets off another pass.
         return false;
       } catch (error) {
         if (!current()) return false;
-        fail("insights", error);
-        return false;
-      }
-    }
-
-    // 3. Between updates, the forecast follows the day.
-    if (hasHistory && forecastStale(ai.forecast, ai.forecastRecordsKey, key, now)) {
-      setSync({ status: "working", task: "forecast", error: null });
-      try {
-        const raw = await postAi(
-          "/forecast",
-          {
-            memory: ai.memory && { summary: ai.memory.summary, hypotheses: ai.memory.hypotheses },
-            facts: forecastFacts(facts),
-          },
-          TIMEOUTS.forecast,
-        );
-        if (!current()) return false;
-        const forecast = parseForecast(raw, today, Date.now());
-        if (!forecast) throw new AiRequestError("unusable");
-        apply({ type: "forecastUpdated", forecast, recordsKey: key });
-        return false;
-      } catch (error) {
-        if (!current()) return false;
-        fail("forecast", error);
+        fail("deep", error);
         return false;
       }
     }
@@ -392,19 +320,12 @@ export function AiProvider({ children }: { children: ReactNode }) {
     runRef.current = run;
   }, [run]);
 
-  // What sets the engine going: being enabled, a new entry or answer, the experiment,
-  // returning to the app, and — a little later — any change in the app's records.
+  // What sets the engine going: being enabled, a new entry or answer, the experiment, returning
+  // to the app, and a rare check (whether a deep analysis is due costs nothing to find out).
   const pendingCount = state.entries.filter((entry) => entry.status === "pending").length;
   useEffect(() => {
     if (enabled) void run();
   }, [enabled, pendingCount, state.answers.length, state.challenge?.status, run]);
-
-  const recordsFingerprint = recordsKey(appData);
-  useEffect(() => {
-    if (!enabled) return;
-    const timer = setTimeout(() => void run(), RECORDS_DEBOUNCE);
-    return () => clearTimeout(timer);
-  }, [enabled, recordsFingerprint, run]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -420,6 +341,34 @@ export function AiProvider({ children }: { children: ReactNode }) {
     };
   }, [enabled, run]);
 
+  // Computed on the device from the records and the memory — no requests.
+  const tick = useNow(FORECAST_TICK);
+  const at = Math.max(
+    tick,
+    appData.slips[0]?.timestamp ?? 0,
+    appData.wins[0]?.timestamp ?? 0,
+    state.entries[0]?.timestamp ?? 0,
+  );
+  const timeline = useMemo(
+    () => buildTimeline({ ...appData, entries: state.entries, now: at }),
+    [appData, state.entries, at],
+  );
+  const forecast = useMemo(
+    () => (enabled ? buildForecast(timeline, state.memory) : null),
+    [enabled, timeline, state.memory],
+  );
+  const analytics = useMemo(
+    () => (state.memory ? buildAnalytics(timeline, state.memory) : null),
+    [timeline, state.memory],
+  );
+  const updatedAt = useMemo(() => {
+    const analyzed = state.entries.reduce(
+      (latest, entry) => Math.max(latest, entry.analysis?.analyzedAt ?? 0),
+      state.deepAt ?? 0,
+    );
+    return analyzed > 0 ? analyzed : null;
+  }, [state.entries, state.deepAt]);
+
   const addEntry = useCallback(
     (text: string, outcome: EntryOutcome | null) => {
       const entry: AiEntry = {
@@ -430,7 +379,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
         status: "pending",
         attempts: 0,
         analysis: null,
-        inInsights: false,
+        inMemory: false,
       };
       apply({ type: "addEntry", entry });
       return entry;
@@ -490,6 +439,9 @@ export function AiProvider({ children }: { children: ReactNode }) {
       hydrated,
       enabled,
       sync,
+      analytics,
+      forecast,
+      updatedAt,
       addEntry,
       retryEntry,
       deleteEntry,
@@ -507,6 +459,9 @@ export function AiProvider({ children }: { children: ReactNode }) {
       hydrated,
       enabled,
       sync,
+      analytics,
+      forecast,
+      updatedAt,
       addEntry,
       retryEntry,
       deleteEntry,

@@ -52,7 +52,8 @@ export const DEFAULT_SETTINGS: Settings = {
   baselineMinutes: 180,
   mainApp: "tiktok",
   reportReminder: false,
-  coachPhrasing: true,
+  // Off by default: rewording the coach's ready sentences costs requests for a small gain.
+  coachPhrasing: false,
 };
 
 export function createId(): string {

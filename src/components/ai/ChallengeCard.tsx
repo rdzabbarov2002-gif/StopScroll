@@ -11,7 +11,7 @@ import { Button } from "../Button";
 import { Card } from "../Card";
 import { CardLabel } from "../CardLabel";
 
-/** The weekly experiment: proposed → in progress (daily check) → ChatGPT's review. */
+/** The weekly experiment: proposed → in progress (daily check) → its result in numbers. */
 export function ChallengeCard({
   challenge,
   readOnly = false,
@@ -117,7 +117,7 @@ export function ChallengeCard({
         <View className="flex-row items-center gap-2.5">
           <ActivityIndicator size="small" color={colors.primary} />
           <AppText variant="caption" tone="muted" className="flex-1">
-            Эксперимент завершён. ChatGPT сравнивает дни до и во время эксперимента…
+            Эксперимент завершён. Сравниваем дни до и во время эксперимента…
           </AppText>
         </View>
       ) : null}

@@ -1,25 +1,24 @@
 /**
  * StopScroll AI coach — a Cloudflare Worker between the app and the OpenAI API.
  *
- * POST /entry     one entry the user wrote → its analysis (cause, emotion, context, behavior)
- * POST /insights  memory + new entries + arithmetic over the whole history
- *                 → updated memory, analytics, forecast, an occasional question, a weekly
- *                   experiment and its review
- * POST /forecast  memory summary + today's facts → today's risk forecast (cheaper refresh)
- * POST /phrase    the on-device coach's sentences → the same sentences, worded more naturally
+ * POST /entry   new entries the user wrote (usually one) + a short digest of the memory
+ *               → their analysis, a one-line gist for the memory, votes on the hypotheses
+ *               (a light, inexpensive model)
+ * POST /deep    the memory + compact digests of the new entries + arithmetic over the whole
+ *               history → the rebuilt long-term memory, questions, a weekly experiment
+ *               (rare: about once a week; a stronger model)
+ * POST /phrase  the on-device coach's sentences → the same sentences, worded more naturally
+ *
+ * Everything that is plain arithmetic — counts, streaks, records, percentages, the daily
+ * forecast — is computed by the app and never costs a request.
  *
  * The OpenAI key lives only here, as a Worker secret. The server keeps nothing: the memory
- * and the history stay on the user's device and come with each request.
+ * and the history stay on the user's device.
  */
 import OpenAI from "openai";
 
-import {
-  ENTRY_INSTRUCTIONS,
-  FORECAST_INSTRUCTIONS,
-  INSIGHTS_INSTRUCTIONS,
-  PHRASE_INSTRUCTIONS,
-} from "./prompts";
-import { ENTRY_SCHEMA, FORECAST_SCHEMA, INSIGHTS_SCHEMA, PHRASE_SCHEMA } from "./schemas";
+import { DEEP_INSTRUCTIONS, ENTRY_INSTRUCTIONS, PHRASE_INSTRUCTIONS } from "./prompts";
+import { DEEP_SCHEMA, ENTRY_SCHEMA, PHRASE_SCHEMA } from "./schemas";
 
 /** Cloudflare's rate limiting binding (optional, see wrangler.toml). */
 interface RateLimiter {
@@ -28,10 +27,13 @@ interface RateLimiter {
 
 export interface Env {
   OPENAI_API_KEY: string;
-  /** Model id; a cost-efficient model with Structured Outputs support by default. */
-  OPENAI_MODEL?: string;
-  /** Reasoning effort for reasoning models ("none" | "minimal" | "low" | "medium" | "high"). */
-  OPENAI_REASONING_EFFORT?: string;
+  /** Model for the frequent, simple requests (/entry, /phrase). */
+  OPENAI_MODEL_LIGHT?: string;
+  /** Model for the rare deep analysis (/deep). */
+  OPENAI_MODEL_DEEP?: string;
+  /** Reasoning effort per tier ("none" | "minimal" | "low" | "medium" | "high"; "off" — omit). */
+  OPENAI_EFFORT_LIGHT?: string;
+  OPENAI_EFFORT_DEEP?: string;
   /** Optional shared value the app sends in X-App-Token; filters out casual traffic. */
   APP_TOKEN?: string;
   /** Optional CORS origin for the web build. */
@@ -42,9 +44,16 @@ export interface Env {
   INSTALL_RATE_LIMITER?: RateLimiter;
 }
 
-const DEFAULT_MODEL = "gpt-5.4-mini";
+type Tier = "light" | "deep";
+
+/** Cost-efficient models with Structured Outputs support; both can be changed in wrangler.toml. */
+const DEFAULTS: Record<Tier, { model: string; effort: string }> = {
+  light: { model: "gpt-5.4-nano", effort: "low" },
+  deep: { model: "gpt-5.4-mini", effort: "medium" },
+};
 
 interface Route {
+  tier: Tier;
   instructions: string;
   schema: Record<string, unknown>;
   name: string;
@@ -56,40 +65,41 @@ interface Route {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+/** Entries analyzed in one request (a backlog after being offline goes in batches). */
+const MAX_ENTRIES = 5;
+
 const ROUTES: Record<string, Route> = {
   "/entry": {
+    tier: "light",
     instructions: ENTRY_INSTRUCTIONS,
     schema: ENTRY_SCHEMA,
     name: "entry_analysis",
-    maxBodyBytes: 24_000,
-    maxOutputTokens: 4_000,
-    validate: (body) =>
-      isRecord(body.entry) &&
-      typeof body.entry.text === "string" &&
-      body.entry.text.trim().length > 0,
-  },
-  "/insights": {
-    instructions: INSIGHTS_INSTRUCTIONS,
-    schema: INSIGHTS_SCHEMA,
-    name: "habit_insights",
-    maxBodyBytes: 160_000,
-    maxOutputTokens: 16_000,
-    validate: (body) => isRecord(body.facts) && Array.isArray(body.newEntries),
-  },
-  "/forecast": {
-    instructions: FORECAST_INSTRUCTIONS,
-    schema: FORECAST_SCHEMA,
-    name: "risk_forecast",
-    maxBodyBytes: 80_000,
+    maxBodyBytes: 40_000,
     maxOutputTokens: 6_000,
-    validate: (body) => isRecord(body.facts),
+    validate: (body) =>
+      Array.isArray(body.entries) &&
+      body.entries.length > 0 &&
+      body.entries.length <= MAX_ENTRIES &&
+      body.entries.every(
+        (entry) => isRecord(entry) && typeof entry.text === "string" && entry.text.trim() !== "",
+      ),
+  },
+  "/deep": {
+    tier: "deep",
+    instructions: DEEP_INSTRUCTIONS,
+    schema: DEEP_SCHEMA,
+    name: "deep_analysis",
+    maxBodyBytes: 64_000,
+    maxOutputTokens: 16_000,
+    validate: (body) => isRecord(body.stats) && Array.isArray(body.newEntries),
   },
   "/phrase": {
+    tier: "light",
     instructions: PHRASE_INSTRUCTIONS,
     schema: PHRASE_SCHEMA,
     name: "phrasing",
     maxBodyBytes: 8_000,
-    maxOutputTokens: 4_000,
+    maxOutputTokens: 3_000,
     validate: (body) =>
       Array.isArray(body.texts) &&
       body.texts.length > 0 &&
@@ -125,19 +135,40 @@ export async function callModel(
   payload: Record<string, unknown>,
   client = new OpenAI({ apiKey: env.OPENAI_API_KEY, maxRetries: 1, timeout: 90_000 }),
 ): Promise<unknown> {
-  const effort = env.OPENAI_REASONING_EFFORT ?? "low";
+  const tier = route.tier === "light" ? "LIGHT" : "DEEP";
+  const model = env[`OPENAI_MODEL_${tier}`] || DEFAULTS[route.tier].model;
+  const effort = env[`OPENAI_EFFORT_${tier}`] || DEFAULTS[route.tier].effort;
   const response = await client.responses.create({
-    model: env.OPENAI_MODEL || DEFAULT_MODEL,
+    model,
+    // The instructions and the schema come first and never change, so OpenAI serves them from
+    // its prompt cache (cheaper input); the key keeps each kind of request on its own cache.
     instructions: route.instructions,
     input: JSON.stringify(payload),
     text: {
       format: { type: "json_schema", name: route.name, schema: route.schema, strict: true },
+      verbosity: "low",
     },
     ...(effort === "off" ? {} : { reasoning: { effort: effort as "low" } }),
     max_output_tokens: route.maxOutputTokens,
+    prompt_cache_key: `stopscroll-${route.name}`,
     // Nothing is kept on OpenAI's side for later retrieval.
     store: false,
   });
+
+  // Token usage per request, for watching the cost (no user data is logged).
+  const usage = response.usage;
+  if (usage) {
+    console.log(
+      JSON.stringify({
+        route: route.name,
+        model,
+        input: usage.input_tokens,
+        cached: usage.input_tokens_details?.cached_tokens ?? 0,
+        output: usage.output_tokens,
+        reasoning: usage.output_tokens_details?.reasoning_tokens ?? 0,
+      }),
+    );
+  }
 
   if (response.status !== "completed") {
     throw new UnusableAnswer(`status ${response.status}: ${response.incomplete_details?.reason}`);

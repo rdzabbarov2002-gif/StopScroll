@@ -1,69 +1,75 @@
-import { addDays, dayKey } from "../utils/date";
-import type { AiChallenge, AiForecast, AiState } from "./types";
+import { addDays } from "../utils/date";
+import { CHALLENGE_COOLDOWN_DAYS, DAY_MS, QUESTION_COOLDOWN_DAYS } from "./facts";
+import type { AiChallenge, AiState } from "./types";
 
 /**
- * When to ask ChatGPT again. These are plain timing rules — how often to spend a request —
- * not analysis: what to conclude is always the model's job.
+ * When to spend a request. Each new entry is read once, as it comes (a light request); the
+ * long-term memory is rebuilt rarely — about once a week, more often only while it is young
+ * or when many entries piled up. Everything in between is computed on the device.
  */
 
-const MINUTE = 60_000;
-/** A forecast is refreshed at least this often while the app is in use. */
-export const FORECAST_MAX_AGE = 3 * 60 * MINUTE;
-/** After a new record (a slip, a win, the feed time) the forecast is redone, but not sooner. */
-const FORECAST_RECORD_DELAY = 10 * MINUTE;
 /** Entry analysis is attempted this many times before it waits for "Повторить". */
 export const MAX_ENTRY_ATTEMPTS = 3;
-/** Entries sent with one analytics update; older unsent ones are covered by the counts. */
-export const MAX_NEW_ENTRIES = 40;
+/** The usual rhythm of the deep analysis. */
+export const DEEP_INTERVAL_DAYS = 7;
+/** During the first two weeks the memory is rebuilt every few days: it learns the most then. */
+export const YOUNG_MEMORY_DAYS = 14;
+const YOUNG_INTERVAL_DAYS = 3;
+/** So many new entries rebuild the memory early (but not more than every few days). */
+export const DEEP_EARLY_ENTRIES = 25;
 
-const minutesOfDay = (clock: string) => {
-  const [hours, minutes] = clock.split(":").map(Number);
-  return (hours ?? 0) * 60 + (minutes ?? 0);
-};
-
-export function forecastStale(
-  forecast: AiForecast | null,
-  forecastRecordsKey: string | null,
-  recordsKey: string,
-  now: number,
-): boolean {
-  if (!forecast) return true;
-  if (forecast.day !== dayKey(now)) return true;
-  const age = now - forecast.createdAt;
-  if (age > FORECAST_MAX_AGE) return true;
-  if (forecastRecordsKey !== recordsKey && age > FORECAST_RECORD_DELAY) return true;
-  if (forecast.validUntil) {
-    const date = new Date(now);
-    const current = date.getHours() * 60 + date.getMinutes();
-    if (current > minutesOfDay(forecast.validUntil) && age > 30 * MINUTE) return true;
-  }
-  return false;
+/** Analyzed entries the memory hasn't taken in yet — they go into the next deep analysis. */
+export function entriesSinceDeep(state: AiState) {
+  return state.entries.filter((entry) => entry.analysis !== null && !entry.inMemory);
 }
 
-/** Analyzed entries not yet sent with an analytics update — they go into the next one. */
-export function entriesSinceInsights(state: AiState) {
-  return state.entries.filter((entry) => entry.analysis !== null && !entry.inInsights);
-}
-
-export function needsInsights(
+export function needsDeep(
   state: AiState,
   recordsKey: string,
   hasHistory: boolean,
   now: number,
 ): boolean {
-  if (state.insightsAt === null) return hasHistory;
-  if (entriesSinceInsights(state).length > 0) return true;
-  if (state.answers.some((answer) => !answer.inInsights)) return true;
-  if (state.deletedSinceInsights.length > 0) return true;
-  if (state.challenge?.status === "reviewing") return true;
-  // Slips, wins and the feed time also change the picture: recount once a day when they did.
-  return dayKey(state.insightsAt) !== dayKey(now) && recordsKey !== state.insightsRecordsKey;
+  if (state.deepAt === null) return hasHistory;
+  const fresh = entriesSinceDeep(state).length;
+  const changed =
+    fresh > 0 ||
+    state.answers.some((answer) => !answer.inMemory) ||
+    state.deletedSinceDeep.length > 0 ||
+    recordsKey !== state.deepRecordsKey;
+  if (!changed) return false;
+  const days = (now - state.deepAt) / DAY_MS;
+  const age = state.memorySince === null ? Infinity : (now - state.memorySince) / DAY_MS;
+  // The first memory is often built from one entry: the day after, it is redone once.
+  if (age < 2 && days >= 1 && fresh >= 3) return true;
+  if (age < YOUNG_MEMORY_DAYS) return days >= YOUNG_INTERVAL_DAYS;
+  return days >= DEEP_INTERVAL_DAYS || (fresh >= DEEP_EARLY_ENTRIES && days >= YOUNG_INTERVAL_DAYS);
+}
+
+/** A prepared question is shown when none is waiting and the last one was a few days ago. */
+export const questionDue = (state: AiState, now: number) =>
+  state.question === null &&
+  state.questionQueue.length > 0 &&
+  (state.lastQuestionAt === null || now - state.lastQuestionAt >= QUESTION_COOLDOWN_DAYS * DAY_MS);
+
+/** When the last experiment was offered — for the once-a-week rhythm. */
+export const lastChallengeAt = (state: AiState) =>
+  state.challenge?.proposedAt ?? state.pastChallenges[0]?.proposedAt ?? null;
+
+export function canProposeChallenge(state: AiState, now: number) {
+  const last = lastChallengeAt(state);
+  return (
+    (state.challenge === null ||
+      state.challenge.status === "done" ||
+      state.challenge.status === "declined") &&
+    (last === null || now - last >= CHALLENGE_COOLDOWN_DAYS * DAY_MS)
+  );
 }
 
 /** The day an accepted experiment ends. */
 export const challengeEndDay = (startDay: string, durationDays: number) =>
   addDays(startDay, Math.max(1, durationDays) - 1);
 
-/** An active experiment whose last day is over is ready for its review. */
+/** An experiment whose last day is over (or one left waiting for a review) gets its result. */
 export const challengeFinished = (challenge: AiChallenge | null, today: string) =>
-  challenge?.status === "active" && challenge.endDay !== null && challenge.endDay < today;
+  challenge?.status === "reviewing" ||
+  (challenge?.status === "active" && challenge.endDay !== null && challenge.endDay < today);

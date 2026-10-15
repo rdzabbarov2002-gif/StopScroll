@@ -1,7 +1,8 @@
 /**
- * The AI coach's data. Everything here is written by ChatGPT (analyses, memory, analytics,
- * forecasts, questions, experiments) or is the user's own input — it is stored on the device
- * only, apart from the main app state, under its own keys (src/ai/storage.ts).
+ * The AI coach's data. ChatGPT writes the analysis of each entry and the long-term memory;
+ * the analytics and today's forecast shown on screen are built on the device from that memory
+ * and the user's own records (src/ai/analytics.ts, src/ai/forecast.ts). Everything is stored on
+ * the device only, apart from the main app state, under its own keys (src/ai/storage.ts).
  */
 
 /** "Чем закончилось" — optional, chosen by the user when saving an entry. */
@@ -14,10 +15,13 @@ export interface EntryAnalysis {
   emotion: string | null;
   context: string | null;
   behavior: string | null;
-  explanation: string;
+  /** A non-obvious observation (a link to the memory); null when there is nothing beyond the text. */
+  explanation: string | null;
   missing: string | null;
   /** Normalized tags, counted locally over the whole history. */
   tags: string[];
+  /** The entry in one short line — what the deep analysis gets instead of the full text. */
+  gist: string | null;
   analyzedAt: number;
 }
 
@@ -32,32 +36,8 @@ export interface AiEntry {
   status: EntryStatus;
   attempts: number;
   analysis: EntryAnalysis | null;
-  /** Already sent with an analytics update — entries go to ChatGPT in full only once. */
-  inInsights: boolean;
-}
-
-export interface MemoryNote {
-  period: string;
-  note: string;
-}
-
-export interface Milestone {
-  date: string;
-  note: string;
-}
-
-export interface MemoryHypothesis {
-  text: string;
-  status: "proposed" | "supported" | "weakened";
-}
-
-/** The model's own compact, long-term memory about the user, updated with every analysis. */
-export interface AiMemory {
-  summary: string;
-  timeline: MemoryNote[];
-  milestones: Milestone[];
-  hypotheses: MemoryHypothesis[];
-  openQuestions: string[];
+  /** Already taken into the long-term memory by a deep analysis — it is never sent again. */
+  inMemory: boolean;
 }
 
 export interface TitledNote {
@@ -65,6 +45,55 @@ export interface TitledNote {
   note: string;
 }
 
+export type ChallengeFocus = "morning" | "day" | "evening" | "night" | "all";
+export type TipTime = Exclude<ChallengeFocus, "all"> | "any";
+
+/** A dangerous period: on a weekday (0 — Monday) and/or between hours, or after some event. */
+export interface DangerZone {
+  title: string;
+  note: string;
+  weekday: number | null;
+  from: number | null;
+  to: number | null;
+}
+
+export interface MemoryHypothesis {
+  /** Stable across analyses, so the votes from single entries add up. */
+  id: string;
+  text: string;
+  status: "proposed" | "supported" | "weakened";
+  /** Entries that supported / contradicted it (counted on the device from each entry analysis). */
+  support: number;
+  against: number;
+}
+
+/**
+ * The model's long-term memory about the user — the only thing ChatGPT "remembers". It is
+ * rebuilt by the rare deep analysis and is what every later request gets instead of the history.
+ */
+export interface AiMemory {
+  profile: string;
+  /** Main causes and situations of slips. */
+  triggers: TitledNote[];
+  emotions: TitledNote[];
+  dangerZones: DangerZone[];
+  strengths: string[];
+  weaknesses: string[];
+  /** Personal advice; today's forecast picks the one that fits the time of the danger. */
+  tips: { text: string; when: TipTime }[];
+  /** Dated important events and changes. */
+  events: { date: string; note: string }[];
+  /** How the habit changes over the long run. */
+  changes: string[];
+  improvements: string[];
+  worsenings: string[];
+  hypotheses: MemoryHypothesis[];
+  /** The last overall conclusion — the next analysis builds on it. */
+  conclusion: string;
+  openQuestions: string[];
+}
+
+/** What the AI tab shows: the memory's conclusions plus numbers counted on the device. */
 export interface AiAnalytics {
   causes: { title: string; share: number | null; note: string }[];
   situations: TitledNote[];
@@ -77,6 +106,7 @@ export interface AiAnalytics {
   hypotheses: { text: string; confidence: "low" | "medium" | "high" }[];
   warnings: string[];
   selfComparison: string[];
+  /** Long-term memory: dated events, long-run changes and records. */
   longTerm: string[];
   numbers: { headline: string; equivalents: string[] } | null;
   conclusion: string;
@@ -85,6 +115,7 @@ export interface AiAnalytics {
 
 export type RiskLevel = "low" | "medium" | "high";
 
+/** Today's forecast — computed on the device from the history and the memory. */
 export interface AiForecast {
   probability: number | null;
   level: RiskLevel | null;
@@ -94,17 +125,20 @@ export interface AiForecast {
   passed: string | null;
   advice: string | null;
   basis: string;
-  validUntil: string | null;
-  /** Local day the forecast is for, and when it was made. */
+  /** Local day the forecast is for, and when it was computed. */
   day: string;
   createdAt: number;
 }
 
-export interface AiQuestion {
-  id: string;
+/** A question the deep analysis prepared; shown one at a time, a few days apart. */
+export interface QueuedQuestion {
   text: string;
   kind: "yes_no" | "choice";
   options: string[];
+}
+
+export interface AiQuestion extends QueuedQuestion {
+  id: string;
   askedAt: number;
 }
 
@@ -113,11 +147,9 @@ export interface AiAnswer {
   question: string;
   answer: string;
   answeredAt: number;
-  /** Already taken into account by an analytics update. */
-  inInsights: boolean;
+  /** Already taken into the memory by a deep analysis. */
+  inMemory: boolean;
 }
-
-export type ChallengeFocus = "morning" | "day" | "evening" | "night" | "all";
 
 export type ChallengeStatus = "proposed" | "active" | "reviewing" | "done" | "declined";
 
@@ -138,6 +170,7 @@ export interface AiChallenge {
   endDay: string | null;
   /** Day key → whether the user managed it that day. */
   checkins: Record<string, boolean>;
+  /** The result: days before vs during, counted on the device when the experiment ends. */
   review: string | null;
 }
 
@@ -155,18 +188,20 @@ export interface AiState {
   consent: boolean | null;
   entries: AiEntry[];
   memory: AiMemory | null;
-  analytics: AiAnalytics | null;
-  forecast: AiForecast | null;
+  /** When the last deep analysis was made, and when the first one was (the memory's age). */
+  deepAt: number | null;
+  memorySince: number | null;
+  /** Fingerprint of the app records the last deep analysis saw. */
+  deepRecordsKey: string | null;
   question: AiQuestion | null;
+  questionQueue: QueuedQuestion[];
+  /** Questions asked lately, so the next analysis doesn't repeat them. */
+  askedRecently: string[];
   answers: AiAnswer[];
-  /** When the last question was asked (cooldown: questions come at most every few days). */
+  /** When the last question was shown (questions come at most every few days). */
   lastQuestionAt: number | null;
   challenge: AiChallenge | null;
   pastChallenges: AiChallenge[];
-  insightsAt: number | null;
-  /** Entries the user deleted after ChatGPT saw them: the next update forgets what relied on them. */
-  deletedSinceInsights: DeletedEntry[];
-  /** Fingerprint of the app records the last analytics/forecast saw. */
-  insightsRecordsKey: string | null;
-  forecastRecordsKey: string | null;
+  /** Entries the user deleted after ChatGPT saw them: the next analysis forgets what relied on them. */
+  deletedSinceDeep: DeletedEntry[];
 }

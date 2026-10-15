@@ -1,14 +1,14 @@
 /**
  * JSON Schemas for OpenAI Structured Outputs (strict mode): every property is required,
- * optional values are nullable, no additional properties. The app validates the same shapes
- * again on its side, so a malformed answer never reaches the screen.
+ * optional values are nullable, no additional properties. List lengths are capped with
+ * maxItems — every output token is paid for. The app validates the same shapes again on its
+ * side, so a malformed answer never reaches the screen.
  */
 
 const str = { type: "string" } as const;
-/** 24-hour time, "21:30". */
-const CLOCK = "^([01][0-9]|2[0-3]):[0-5][0-9]$";
 const nullableStr = { type: ["string", "null"] } as const;
-const strings = { type: "array", items: str } as const;
+const strings = (maxItems: number) => ({ type: "array", items: str, maxItems }) as const;
+const nullableHour = { type: ["integer", "null"], minimum: 0, maximum: 23 } as const;
 
 const object = (properties: Record<string, unknown>) => ({
   type: "object",
@@ -17,191 +17,97 @@ const object = (properties: Record<string, unknown>) => ({
   additionalProperties: false,
 });
 
-export const ENTRY_SCHEMA = object({
-  enough: {
-    type: "boolean",
-    description: "Хватает ли в тексте информации, чтобы определить причину.",
-  },
-  cause: { ...nullableStr, description: "Основная причина, 2–6 слов. null, если не ясно." },
-  emotion: {
-    ...nullableStr,
-    description: "Эмоциональное состояние, 1–4 слова. null, если не ясно.",
-  },
-  context: { ...nullableStr, description: "Контекст: где, когда, после чего. null, если не ясно." },
-  behavior: {
-    ...nullableStr,
-    description:
-      "Тип поведения, например: автоматическое открытие, бегство от эмоции, отдых, откладывание дела. null, если не ясно.",
-  },
-  explanation: {
-    ...str,
-    description:
-      "1–2 предложения: почему так выглядит. Если информации мало — честно скажите, чего не хватает.",
-  },
-  missing: { ...nullableStr, description: "Чего не хватает для уверенного вывода, или null." },
-  tags: {
-    ...strings,
-    description:
-      "1–4 коротких тега-существительных в нижнем регистре для подсчёта причин (например: усталость, работа, конфликт, скука, автопилот, бессонница). Используйте уже существующие теги, если подходят.",
-  },
+const list = (item: Record<string, unknown>, maxItems: number) => ({
+  type: "array",
+  items: object(item),
+  maxItems,
 });
 
-const forecastProperties = {
-  probability: {
-    type: ["integer", "null"],
-    description:
-      "Вероятность (0–100), что сегодня до конца дня лента будет открыта или случится срыв. null, если данных мало.",
-  },
-  level: { anyOf: [{ type: "string", enum: ["low", "medium", "high"] }, { type: "null" }] },
-  headline: {
-    ...str,
-    description:
-      "Короткий вывод одним предложением, не повторяя число вероятности (оно показывается отдельно крупно), например: «Вечер, скорее всего, будет непростым.» Если данных мало — честно скажите, что прогноз пока предварительный.",
-  },
-  reasons: {
-    ...strings,
-    description: "2–4 причины, каждая опирается на конкретные факты из истории пользователя.",
-  },
-  window: object({
-    until: {
-      ...nullableStr,
-      pattern: CLOCK,
-      description: "До какого времени (ЧЧ:ММ) длится опасный период сегодня.",
-    },
-    message: {
-      ...nullableStr,
-      description:
-        "Например: «Если удастся не открыть ленту до 22:00, шанс спокойного дня заметно вырастет.»",
-    },
-  }),
-  passed: {
-    ...nullableStr,
-    description:
-      "Если опасный период сегодня уже прошёл без срыва — сообщение об этом, иначе null.",
-  },
-  advice: { ...nullableStr, description: "Один конкретный шаг на сегодня, исходя из истории." },
-  basis: { ...str, description: "На чём основан прогноз (коротко, с числами)." },
-  validUntil: {
-    ...nullableStr,
-    pattern: CLOCK,
-    description: "До какого времени сегодня (ЧЧ:ММ) прогноз остаётся актуальным.",
-  },
-};
+const titled = (maxItems: number) => list({ title: str, note: str }, maxItems);
 
-export const FORECAST_SCHEMA = object(forecastProperties);
+export const ENTRY_SCHEMA = object({
+  results: list(
+    {
+      n: { type: "integer" },
+      enough: { type: "boolean" },
+      cause: { ...nullableStr, description: "2–6 слов" },
+      emotion: { ...nullableStr, description: "1–4 слова" },
+      context: { ...nullableStr, description: "где, когда, после чего" },
+      behavior: {
+        ...nullableStr,
+        description:
+          "например: автоматическое открытие, бегство от эмоции, отдых, откладывание дела",
+      },
+      insight: nullableStr,
+      missing: nullableStr,
+      tags: strings(3),
+      gist: str,
+      votes: list({ id: str, effect: { type: "string", enum: ["support", "against"] } }, 6),
+    },
+    5,
+  ),
+});
 
-const titled = object({ title: str, note: str });
+const PART_OF_DAY = { type: "string", enum: ["morning", "day", "evening", "night", "any"] };
 
-export const INSIGHTS_SCHEMA = object({
-  memory: object({
-    summary: {
-      ...str,
-      description: "Сжатый портрет привычек пользователя до 900 символов: главное, что известно.",
+export const DEEP_SCHEMA = object({
+  profile: str,
+  triggers: titled(5),
+  emotions: titled(4),
+  dangerZones: list(
+    {
+      title: str,
+      note: str,
+      weekday: { type: ["integer", "null"], minimum: 0, maximum: 6 },
+      from: nullableHour,
+      to: nullableHour,
     },
-    timeline: {
-      type: "array",
-      items: object({ period: str, note: str }),
-      description:
-        "Датированные долгосрочные наблюдения (period — ГГГГ-ММ или диапазон). Не удаляйте старые, объединяйте. До 24 пунктов.",
+    4,
+  ),
+  strengths: strings(3),
+  weaknesses: strings(3),
+  tips: list({ text: str, when: PART_OF_DAY }, 4),
+  events: list({ date: str, note: str }, 12),
+  changes: strings(4),
+  improvements: strings(3),
+  worsenings: strings(3),
+  hypotheses: list(
+    {
+      id: nullableStr,
+      text: str,
+      status: { type: "string", enum: ["proposed", "supported", "weakened"] },
     },
-    milestones: {
-      type: "array",
-      items: object({ date: str, note: str }),
-      description: "Рекорды и важные события с датами. До 12 пунктов.",
+    6,
+  ),
+  conclusion: str,
+  openQuestions: strings(3),
+  questions: list(
+    {
+      text: str,
+      kind: { type: "string", enum: ["yes_no", "choice"] },
+      options: {
+        ...strings(6),
+        description: "для choice — 3–6 коротких вариантов; для yes_no — пусто",
+      },
     },
-    hypotheses: {
-      type: "array",
-      items: object({
-        text: str,
-        status: { type: "string", enum: ["proposed", "supported", "weakened"] },
-      }),
-      description: "Гипотезы и их статус по мере накопления данных. До 8.",
-    },
-    openQuestions: {
-      ...strings,
-      description: "Что пока неизвестно и помогло бы анализу. До 4.",
-    },
-  }),
-  analytics: object({
-    causes: {
-      type: "array",
-      items: object({
-        title: str,
-        share: {
-          type: ["integer", "null"],
-          description: "Доля в процентах, если её можно посчитать.",
-        },
-        note: str,
-      }),
-      description: "Самые частые причины открытия ленты, до 5.",
-    },
-    situations: { type: "array", items: titled, description: "Повторяющиеся ситуации, до 5." },
-    emotions: { type: "array", items: titled, description: "Эмоциональные состояния, до 5." },
-    times: { type: "array", items: titled, description: "Опасное время суток, до 3." },
-    weekdays: { type: "array", items: titled, description: "Дни недели, до 3." },
-    improvements: { ...strings, description: "Положительные изменения, до 4." },
-    worsenings: { ...strings, description: "Отрицательные изменения, до 4." },
-    habitChanges: { ...strings, description: "Как меняются привычки со временем, до 4." },
-    hypotheses: {
-      type: "array",
-      items: object({
-        text: str,
-        confidence: { type: "string", enum: ["low", "medium", "high"] },
-      }),
-      description: "Осторожные гипотезы, не выдаваемые за факт, до 4.",
-    },
-    warnings: { ...strings, description: "Предупреждения об опасных периодах, до 3." },
-    selfComparison: { ...strings, description: "Сравнение только с собственной историей, до 3." },
-    longTerm: { ...strings, description: "Что изменилось за долгий срок (по памяти), до 3." },
-    numbers: {
-      anyOf: [
-        object({
-          headline: { ...str, description: "Например: «Вы вернули почти четыре часа.»" },
-          equivalents: { ...strings, description: "2–4 понятных эквивалента этого времени." },
-        }),
-        { type: "null" },
-      ],
-    },
-    conclusion: { ...str, description: "Общий вывод, 2–3 предложения." },
-    dataNote: {
-      ...nullableStr,
-      description: "Честное замечание, если для каких-то выводов данных пока мало.",
-    },
-  }),
-  forecast: FORECAST_SCHEMA,
-  question: {
-    anyOf: [
-      object({
-        text: str,
-        kind: { type: "string", enum: ["yes_no", "choice"] },
-        options: { ...strings, description: "Для choice — 3–6 вариантов; для yes_no — пусто." },
-        reason: { ...str, description: "Зачем этот вопрос нужен анализу (для журнала)." },
-      }),
-      { type: "null" },
-    ],
-  },
+    2,
+  ),
   challenge: {
     anyOf: [
       object({
         title: str,
-        description: { ...str, description: "Что сделать, одним-двумя предложениями." },
-        durationDays: { type: "integer", description: "1–7 дней." },
+        description: str,
+        durationDays: { type: "integer", minimum: 1, maximum: 7 },
         focus: {
           type: "string",
           enum: ["morning", "day", "evening", "night", "all"],
-          description:
-            "Часть дня, к которой относится эксперимент: morning 5–12, day 12–17, evening 17–23, night 23–5, all — весь день.",
+          description: "morning 5–12, day 12–17, evening 17–23, night 23–5",
         },
-        expectation: { ...str, description: "Что ожидаем увидеть, осторожно." },
+        expectation: str,
       }),
       { type: "null" },
     ],
   },
-  challengeReview: {
-    ...nullableStr,
-    description:
-      "Если facts.challenge.status = reviewing — обязательно итог эксперимента по цифрам до/во время (если разницы не видно или данных мало — честно скажите это). Иначе null.",
-  },
 });
 
-export const PHRASE_SCHEMA = object({ texts: strings });
+export const PHRASE_SCHEMA = object({ texts: strings(12) });

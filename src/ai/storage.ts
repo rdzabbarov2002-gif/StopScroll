@@ -1,21 +1,22 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import {
-  parseAnalytics,
   parseChallenge,
   parseEntryAnalysis,
-  parseForecast,
   parseMemory,
   parseQuestion,
+  parseQuestions,
+  titled,
 } from "./parse";
-import type { AiAnswer, AiEntry, AiState, EntryOutcome, EntryStatus } from "./types";
+import type { AiAnswer, AiEntry, AiMemory, AiState, EntryOutcome, EntryStatus } from "./types";
 
 /**
  * The AI coach keeps its data apart from the main state:
- * - `@stopscroll/ai/v1` — consent, memory, analytics, forecast, question, experiments;
+ * - `@stopscroll/ai/v1` — consent, memory, questions, experiments;
  * - `@stopscroll/ai/entries/YYYY-MM` — the entries of one month.
  * Splitting by month keeps every stored value small (Android reads at most ~2 MB per value),
  * so the whole history can be kept without a cap on the number of entries.
+ * Data saved by the earlier version of the coach is read and converted here.
  */
 export const AI_META_KEY = "@stopscroll/ai/v1";
 const ENTRIES_PREFIX = "@stopscroll/ai/entries/";
@@ -31,17 +32,17 @@ export function createInitialAiState(): AiState {
     consent: null,
     entries: [],
     memory: null,
-    analytics: null,
-    forecast: null,
+    deepAt: null,
+    memorySince: null,
+    deepRecordsKey: null,
     question: null,
+    questionQueue: [],
+    askedRecently: [],
     answers: [],
     lastQuestionAt: null,
     challenge: null,
     pastChallenges: [],
-    insightsAt: null,
-    deletedSinceInsights: [],
-    insightsRecordsKey: null,
-    forecastRecordsKey: null,
+    deletedSinceDeep: [],
   };
 }
 
@@ -73,7 +74,8 @@ export function sanitizeEntry(value: unknown): AiEntry | null {
     attempts:
       typeof value.attempts === "number" && value.attempts >= 0 ? Math.floor(value.attempts) : 0,
     analysis,
-    inInsights: value.inInsights === true && analysis !== null,
+    // `inInsights` — the earlier version's name for the same flag.
+    inMemory: (value.inMemory === true || value.inInsights === true) && analysis !== null,
   };
 }
 
@@ -92,7 +94,41 @@ function sanitizeAnswer(value: unknown): AiAnswer | null {
     question: question.slice(0, 200),
     answer: answer.slice(0, 60),
     answeredAt: value.answeredAt,
-    inInsights: value.inInsights === true,
+    inMemory: value.inMemory === true || value.inInsights === true,
+  };
+}
+
+/**
+ * The earlier version kept ChatGPT's analytics next to a smaller memory: its conclusions move
+ * into the new memory, so nothing learned is lost before the next deep analysis.
+ */
+function withOldAnalytics(memory: AiMemory | null, analytics: unknown): AiMemory | null {
+  if (!memory || memory.conclusion || !isRecord(analytics)) return memory;
+  const strings = (value: unknown, limit: number) =>
+    (Array.isArray(value) ? value : [])
+      .filter((item): item is string => typeof item === "string" && item.trim() !== "")
+      .map((item) => item.trim().slice(0, 400))
+      .slice(0, limit);
+  const notes = (value: unknown, limit: number) =>
+    (Array.isArray(value) ? value : [])
+      .map(titled)
+      .filter((item): item is NonNullable<typeof item> => item !== null)
+      .slice(0, limit);
+  return {
+    ...memory,
+    conclusion: typeof analytics.conclusion === "string" ? analytics.conclusion.slice(0, 800) : "",
+    triggers: notes(analytics.situations, 5),
+    emotions: notes(analytics.emotions, 4),
+    dangerZones: strings(analytics.warnings, 3).map((note) => ({
+      title: note.slice(0, 120),
+      note,
+      weekday: null,
+      from: null,
+      to: null,
+    })),
+    improvements: strings(analytics.improvements, 3),
+    worsenings: strings(analytics.worsenings, 3),
+    changes: strings(analytics.habitChanges, 4),
   };
 }
 
@@ -100,20 +136,30 @@ function sanitizeAnswer(value: unknown): AiAnswer | null {
 export function sanitizeAiMeta(value: unknown): Omit<AiState, "entries"> {
   const base = createInitialAiState();
   if (!isRecord(value)) return base;
-  const forecast = isRecord(value.forecast)
-    ? parseForecast(
-        value.forecast,
-        String(value.forecast.day ?? ""),
-        Number(value.forecast.createdAt ?? 0),
-      )
-    : null;
   const challenge = parseChallenge(value.challenge, "", 0);
+  const deepAt = isTimestamp(value.deepAt)
+    ? value.deepAt
+    : isTimestamp(value.insightsAt)
+      ? value.insightsAt
+      : null;
+  const deleted = Array.isArray(value.deletedSinceDeep)
+    ? value.deletedSinceDeep
+    : Array.isArray(value.deletedSinceInsights)
+      ? value.deletedSinceInsights
+      : [];
+  const recordsKey = value.deepRecordsKey ?? value.insightsRecordsKey;
   return {
     consent: typeof value.consent === "boolean" ? value.consent : null,
-    memory: parseMemory(value.memory),
-    analytics: parseAnalytics(value.analytics),
-    forecast: forecast && forecast.day && forecast.createdAt ? forecast : null,
+    memory: withOldAnalytics(parseMemory(value.memory), value.analytics),
+    deepAt,
+    memorySince: isTimestamp(value.memorySince) ? value.memorySince : deepAt,
+    deepRecordsKey: typeof recordsKey === "string" ? recordsKey : null,
     question: parseQuestion(value.question, "", 0),
+    questionQueue: parseQuestions(value.questionQueue),
+    askedRecently: (Array.isArray(value.askedRecently) ? value.askedRecently : [])
+      .filter((item): item is string => typeof item === "string")
+      .map((item) => item.slice(0, 200))
+      .slice(0, 8),
     answers: (Array.isArray(value.answers) ? value.answers : [])
       .map(sanitizeAnswer)
       .filter((answer): answer is AiAnswer => answer !== null)
@@ -124,11 +170,7 @@ export function sanitizeAiMeta(value: unknown): Omit<AiState, "entries"> {
       .map((item) => parseChallenge(item, "", 0))
       .filter((item): item is NonNullable<typeof item> => item !== null && Boolean(item.id))
       .slice(0, MAX_PAST_CHALLENGES),
-    insightsAt: isTimestamp(value.insightsAt) ? value.insightsAt : null,
-    deletedSinceInsights: (Array.isArray(value.deletedSinceInsights)
-      ? value.deletedSinceInsights
-      : []
-    )
+    deletedSinceDeep: deleted
       .filter(
         (item): item is { date: string; time: string; cause: unknown } =>
           isRecord(item) && typeof item.date === "string" && typeof item.time === "string",
@@ -139,10 +181,6 @@ export function sanitizeAiMeta(value: unknown): Omit<AiState, "entries"> {
         time: item.time.slice(0, 5),
         cause: typeof item.cause === "string" ? item.cause.slice(0, 120) : null,
       })),
-    insightsRecordsKey:
-      typeof value.insightsRecordsKey === "string" ? value.insightsRecordsKey : null,
-    forecastRecordsKey:
-      typeof value.forecastRecordsKey === "string" ? value.forecastRecordsKey : null,
   };
 }
 

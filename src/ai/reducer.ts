@@ -1,16 +1,15 @@
 import { dayKey } from "../utils/date";
+import type { EntryVote } from "./parse";
 import { MAX_ENTRY_LENGTH, createInitialAiState } from "./storage";
 import { MAX_ENTRY_ATTEMPTS, challengeEndDay } from "./schedule";
 import type {
-  AiAnalytics,
   AiAnswer,
   AiChallenge,
   AiEntry,
-  AiForecast,
   AiMemory,
-  AiQuestion,
   AiState,
   EntryAnalysis,
+  QueuedQuestion,
 } from "./types";
 
 export type AiAction =
@@ -18,34 +17,33 @@ export type AiAction =
   | { type: "setConsent"; consent: boolean }
   | { type: "addEntry"; entry: AiEntry }
   | { type: "deleteEntry"; id: string }
-  | { type: "entryAnalyzed"; id: string; analysis: EntryAnalysis }
+  /** `votes` — what the entry says about the memory's hypotheses (none for a reused analysis). */
+  | { type: "entryAnalyzed"; id: string; analysis: EntryAnalysis; votes: EntryVote[] }
   /** `countAttempt` is false for passing trouble (no network, timeout, busy service). */
   | { type: "entryFailed"; id: string; countAttempt: boolean }
   | { type: "retryEntry"; id: string }
   | { type: "retryFailed" }
   | {
-      type: "insightsUpdated";
-      /** When the request was built — what changed after it goes into the next update. */
+      type: "deepUpdated";
+      /** When the request was built — what changed after it goes into the next analysis. */
       at: number;
       recordsKey: string;
       sentEntryIds: string[];
       sentAnswerIds: string[];
-      /** How many of `deletedSinceInsights` went with this update. */
+      /** How many of `deletedSinceDeep` went with this analysis. */
       sentDeleted: number;
-      memory: AiMemory | null;
-      analytics: AiAnalytics;
-      forecast: AiForecast | null;
-      question: AiQuestion | null;
+      memory: AiMemory;
+      questions: QueuedQuestion[];
       challenge: AiChallenge | null;
-      challengeReview: string | null;
     }
-  | { type: "forecastUpdated"; forecast: AiForecast; recordsKey: string }
+  | { type: "showQuestion"; at: number }
   | { type: "answerQuestion"; answer: string; at: number }
   | { type: "dismissQuestion" }
   | { type: "acceptChallenge"; today: string; at: number }
   | { type: "declineChallenge" }
   | { type: "checkinChallenge"; day: string; done: boolean }
-  | { type: "finishChallenge" }
+  /** The experiment is over: its result, counted on the device. */
+  | { type: "finishChallenge"; review: string }
   | { type: "reset" };
 
 const MAX_ANSWERS = 60;
@@ -65,6 +63,21 @@ const archive = (state: AiState): Pick<AiState, "challenge" | "pastChallenges"> 
       }
     : { challenge: state.challenge, pastChallenges: state.pastChallenges };
 
+/** Each entry's votes add up on the hypotheses between deep analyses (one vote per entry). */
+function applyVotes(memory: AiMemory | null, votes: readonly EntryVote[]): AiMemory | null {
+  if (!memory || votes.length === 0) return memory;
+  const effect = new Map(votes.map((vote) => [vote.id, vote.effect]));
+  return {
+    ...memory,
+    hypotheses: memory.hypotheses.map((item) => {
+      const vote = effect.get(item.id);
+      if (vote === "support") return { ...item, support: item.support + 1 };
+      if (vote === "against") return { ...item, against: item.against + 1 };
+      return item;
+    }),
+  };
+}
+
 export function aiReducer(state: AiState, action: AiAction): AiState {
   switch (action.type) {
     case "hydrate":
@@ -80,7 +93,7 @@ export function aiReducer(state: AiState, action: AiAction): AiState {
           {
             ...action.entry,
             text: action.entry.text.slice(0, MAX_ENTRY_LENGTH),
-            inInsights: false,
+            inMemory: false,
           },
           ...state.entries,
         ],
@@ -94,26 +107,31 @@ export function aiReducer(state: AiState, action: AiAction): AiState {
       return {
         ...state,
         entries: state.entries.filter((entry) => entry.id !== action.id),
-        // ChatGPT already saw it: tell the next update to drop conclusions that rested on it.
-        deletedSinceInsights: removed.inInsights
+        // The memory already took it in: tell the next analysis to drop what rested on it.
+        deletedSinceDeep: removed.inMemory
           ? [
-              ...state.deletedSinceInsights,
+              ...state.deletedSinceDeep,
               {
                 date: dayKey(removed.timestamp),
                 time: `${pad(date.getHours())}:${pad(date.getMinutes())}`,
                 cause: removed.analysis?.cause ?? null,
               },
             ].slice(-50)
-          : state.deletedSinceInsights,
+          : state.deletedSinceDeep,
       };
     }
 
-    case "entryAnalyzed":
-      return updateEntry(state, action.id, (entry) => ({
+    case "entryAnalyzed": {
+      if (!state.entries.some((entry) => entry.id === action.id && entry.analysis === null)) {
+        return state;
+      }
+      const next = updateEntry(state, action.id, (entry) => ({
         ...entry,
         status: "done",
         analysis: action.analysis,
       }));
+      return { ...next, memory: applyVotes(state.memory, action.votes) };
+    }
 
     case "entryFailed":
       if (!action.countAttempt) return state;
@@ -140,36 +158,25 @@ export function aiReducer(state: AiState, action: AiAction): AiState {
         attempts: 0,
       }));
 
-    case "insightsUpdated": {
+    case "deepUpdated": {
       const sentEntries = new Set(action.sentEntryIds);
       const sentAnswers = new Set(action.sentAnswerIds);
       let next: AiState = {
         ...state,
         entries: state.entries.map((entry) =>
-          sentEntries.has(entry.id) && !entry.inInsights ? { ...entry, inInsights: true } : entry,
+          sentEntries.has(entry.id) && !entry.inMemory ? { ...entry, inMemory: true } : entry,
         ),
         answers: state.answers.map((answer) =>
-          sentAnswers.has(answer.questionId) ? { ...answer, inInsights: true } : answer,
+          sentAnswers.has(answer.questionId) ? { ...answer, inMemory: true } : answer,
         ),
-        memory: action.memory ?? state.memory,
-        analytics: action.analytics,
-        forecast: action.forecast ?? state.forecast,
-        forecastRecordsKey: action.forecast ? action.recordsKey : state.forecastRecordsKey,
-        insightsAt: action.at,
-        insightsRecordsKey: action.recordsKey,
-        deletedSinceInsights: state.deletedSinceInsights.slice(action.sentDeleted),
+        memory: action.memory,
+        deepAt: action.at,
+        memorySince: state.memorySince ?? action.at,
+        deepRecordsKey: action.recordsKey,
+        deletedSinceDeep: state.deletedSinceDeep.slice(action.sentDeleted),
+        // New questions replace the old queue; none — the queue stays as it was.
+        questionQueue: action.questions.length ? action.questions : state.questionQueue,
       };
-      // A question only when none is waiting for an answer.
-      if (action.question && !state.question) {
-        next = { ...next, question: action.question, lastQuestionAt: action.at };
-      }
-      // The review is asked for once: without one, the experiment is simply closed.
-      if (next.challenge?.status === "reviewing") {
-        next = {
-          ...next,
-          challenge: { ...next.challenge, status: "done", review: action.challengeReview },
-        };
-      }
       if (
         action.challenge &&
         (!next.challenge || ["done", "declined"].includes(next.challenge.status))
@@ -179,8 +186,17 @@ export function aiReducer(state: AiState, action: AiAction): AiState {
       return next;
     }
 
-    case "forecastUpdated":
-      return { ...state, forecast: action.forecast, forecastRecordsKey: action.recordsKey };
+    case "showQuestion": {
+      const [first, ...rest] = state.questionQueue;
+      if (state.question || !first) return state;
+      return {
+        ...state,
+        question: { ...first, id: `q-${action.at}`, askedAt: action.at },
+        questionQueue: rest,
+        lastQuestionAt: action.at,
+        askedRecently: [first.text, ...state.askedRecently].slice(0, 8),
+      };
+    }
 
     case "answerQuestion": {
       if (!state.question) return state;
@@ -189,7 +205,7 @@ export function aiReducer(state: AiState, action: AiAction): AiState {
         question: state.question.text,
         answer: action.answer.slice(0, 60),
         answeredAt: action.at,
-        inInsights: false,
+        inMemory: false,
       };
       return {
         ...state,
@@ -233,8 +249,8 @@ export function aiReducer(state: AiState, action: AiAction): AiState {
     }
 
     case "finishChallenge":
-      return state.challenge?.status === "active"
-        ? { ...state, challenge: { ...state.challenge, status: "reviewing" } }
+      return state.challenge?.status === "active" || state.challenge?.status === "reviewing"
+        ? { ...state, challenge: { ...state.challenge, status: "done", review: action.review } }
         : state;
 
     case "reset":
@@ -245,7 +261,3 @@ export function aiReducer(state: AiState, action: AiAction): AiState {
       return state;
   }
 }
-
-/** When the last experiment was offered — for the once-a-week rhythm. */
-export const lastChallengeAt = (state: AiState) =>
-  state.challenge?.proposedAt ?? state.pastChallenges[0]?.proposedAt ?? null;

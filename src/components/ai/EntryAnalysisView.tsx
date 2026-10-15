@@ -6,7 +6,7 @@ import { useThemeColors } from "../../utils/theme";
 import type { IconName } from "../../utils/types";
 import { AppText } from "../AppText";
 
-/** ChatGPT's reading of one entry: cause, state, situation, behavior and why. */
+/** ChatGPT's reading of one entry: cause, state, situation, behavior and, if any, what it links to. */
 export function EntryAnalysisView({ analysis }: { analysis: EntryAnalysis }) {
   const { colors } = useThemeColors();
   const rows: [string, string | null, IconName][] = [
@@ -28,9 +28,11 @@ export function EntryAnalysisView({ analysis }: { analysis: EntryAnalysis }) {
           </AppText>
         </View>
       ))}
-      <AppText variant="caption" tone="muted" className="leading-[21px]">
-        {analysis.explanation}
-      </AppText>
+      {analysis.explanation ? (
+        <AppText variant="caption" tone="muted" className="leading-[21px]">
+          {analysis.explanation}
+        </AppText>
+      ) : null}
       {!analysis.enough ? (
         <View className="flex-row items-start gap-2.5 rounded-2xl bg-amber-50 p-3 dark:bg-amber-950">
           <Ionicons name="information-circle" size={18} color={colors.warningStrong} />

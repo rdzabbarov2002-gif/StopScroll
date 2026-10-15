@@ -22,7 +22,7 @@ const OUTCOMES: { id: EntryOutcome; label: string }[] = [
 
 /**
  * "Что произошло перед тем, как захотелось открыть ленту?" — free text in the user's own words.
- * Saved at once; then ChatGPT reads it and the whole analytics is recalculated.
+ * Saved at once; then ChatGPT reads it, and the analytics on the device takes it in right away.
  */
 export function ImpulseEntryCard() {
   const { colors } = useThemeColors();

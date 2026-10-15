@@ -92,7 +92,7 @@ describe("sanitizePersistedState", () => {
       baselineMinutes: DEFAULT_SETTINGS.baselineMinutes,
       mainApp: DEFAULT_SETTINGS.mainApp,
       reportReminder: false,
-      coachPhrasing: true,
+      coachPhrasing: DEFAULT_SETTINGS.coachPhrasing,
     });
     expect(state.settings).not.toHaveProperty("gateApps");
     expect(state.scrollLog).toEqual({ "2026-10-03": 95, "2026-10-04": MAX_SCROLL_MINUTES });

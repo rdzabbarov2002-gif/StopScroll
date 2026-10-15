@@ -22,8 +22,9 @@ import { useThemeColors } from "../utils/theme";
 import { useNow } from "../utils/useNow";
 
 /**
- * The AI tab: not a chat — a ready analysis of the user's behavior, recalculated by ChatGPT
- * after every new entry: today's forecast, patterns, changes, hypotheses, the weekly experiment.
+ * The AI tab: not a chat — a ready analysis of the user's behavior: today's forecast, patterns,
+ * changes, hypotheses, the weekly experiment. ChatGPT's long-term memory supplies the
+ * conclusions; the numbers are counted on the device and are always current.
  */
 export function AiScreen(_props: RootTabScreenProps<"AI">) {
   const ai = useAi();
@@ -86,7 +87,7 @@ function Connected({ now }: { now: number }) {
       ) : null}
       {lastReview ? <ChallengeCard challenge={lastReview} readOnly /> : null}
       {ai.analytics ? (
-        <AnalyticsView analytics={ai.analytics} memory={ai.memory} />
+        <AnalyticsView analytics={ai.analytics} />
       ) : (
         <Card className="gap-2">
           <CardLabel icon="hourglass" label="Анализ готовится" color={colors.indigo} />
@@ -139,7 +140,7 @@ function DemoPreview({ now }: { now: number }) {
       </View>
       <AiForecastCard forecast={sample.forecast} />
       <ChallengeCard challenge={sample.challenge} readOnly />
-      <AnalyticsView analytics={sample.analytics} memory={sample.memory} />
+      <AnalyticsView analytics={sample.analytics} />
     </>
   );
 }
