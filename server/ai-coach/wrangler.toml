@@ -1,0 +1,20 @@
+name = "stopscroll-ai-coach"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Secrets (never commit them):
+#   npx wrangler@4 secret put OPENAI_API_KEY
+#   npx wrangler@4 secret put APP_TOKEN        # optional, same value as EXPO_PUBLIC_AI_TOKEN
+#
+# Optional settings:
+# [vars]
+# OPENAI_MODEL = "gpt-5.4-mini"              # any model with Structured Outputs support
+# OPENAI_REASONING_EFFORT = "low"            # "off" for models without reasoning
+# ALLOWED_ORIGIN = "https://your-web-app.example"
+#
+# Recommended: limit requests per install (Workers Rate Limiting API).
+# [[ratelimits]]
+# name = "RATE_LIMITER"
+# namespace_id = "1001"
+# simple = { limit = 30, period = 60 }

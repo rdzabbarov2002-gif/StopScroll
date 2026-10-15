@@ -14,6 +14,7 @@ import { ListGroup, ListRow } from "../components/ListGroup";
 import { Screen } from "../components/Screen";
 import { Stepper } from "../components/Stepper";
 import { ThemePicker } from "../components/ThemePicker";
+import { useAi } from "../context/AiContext";
 import { useApp } from "../context/AppContext";
 import { usePro } from "../context/ProContext";
 import type { RootStackScreenProps } from "../navigation/types";
@@ -28,6 +29,7 @@ import { useThemeColors } from "../utils/theme";
 
 export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">) {
   const { colors } = useThemeColors();
+  const ai = useAi();
   const app = useApp();
   const pro = usePro();
   const [confirmReset, setConfirmReset] = useState(false);
@@ -162,7 +164,7 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
         footer={
           reminderMessage ??
           (COACH_VOICE_AVAILABLE
-            ? "В воскресенье в 19:00 коуч разберёт неделю и пришлёт уведомление. Живые формулировки: выводы коуча (без заметок и записей) переписываются на сервере StopScroll — факты и цифры остаются прежними."
+            ? "В воскресенье в 19:00 коуч разберёт неделю и пришлёт уведомление. Живые формулировки: выводы коуча (без заметок и записей) переписывает ChatGPT — факты и цифры остаются прежними. Работают, если разрешён AI-анализ."
             : "В воскресенье в 19:00 коуч разберёт неделю и пришлёт уведомление, что отчёт готов.")
         }
       >
@@ -195,6 +197,8 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
           />
         ) : null}
       </ListGroup>
+
+      <AiSettings />
 
       <AppText variant="overline" tone="subtle" className="px-1 pt-3" accessibilityRole="header">
         Главная лента
@@ -280,6 +284,7 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
               className="flex-1"
               onPress={() => {
                 app.resetProgress();
+                ai.resetAi();
                 haptics.success();
                 setConfirmReset(false);
               }}
@@ -295,5 +300,89 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
       </Card>
       <LegalLinks className="pt-2" />
     </Screen>
+  );
+}
+
+/** The AI coach: permission to send entries to ChatGPT, and forgetting everything it learned. */
+function AiSettings() {
+  const { colors } = useThemeColors();
+  const ai = useAi();
+  const [confirming, setConfirming] = useState(false);
+  if (!ai.configured) {
+    return (
+      <ListGroup
+        header="AI-коуч"
+        footer="В этой сборке AI-анализ не подключён: записи остаются на телефоне."
+      >
+        <ListRow
+          icon="sparkles"
+          iconColor={colors.textSubtle}
+          title="ChatGPT"
+          value="Не подключён"
+        />
+      </ListGroup>
+    );
+  }
+  return (
+    <ListGroup
+      header="AI-коуч"
+      footer="Записи, ответы и статистика привычек отправляются в OpenAI (ChatGPT) через сервер StopScroll только с вашего разрешения. Память коуча хранится на телефоне."
+    >
+      <ListRow
+        icon="sparkles"
+        iconColor={colors.indigo}
+        title="Анализ в ChatGPT"
+        right={
+          <Switch
+            value={ai.consent === true}
+            onValueChange={ai.setConsent}
+            trackColor={{ true: colors.successBright, false: colors.ringTrack }}
+            accessibilityLabel="Разрешить анализ записей в ChatGPT"
+          />
+        }
+      />
+      {confirming ? (
+        <ListRow
+          icon="trash"
+          iconColor={colors.danger}
+          title="Стереть записи и память коуча?"
+          destructive
+          right={
+            <View className="flex-row gap-3">
+              <Pressable
+                onPress={() => setConfirming(false)}
+                accessibilityRole="button"
+                hitSlop={8}
+              >
+                <AppText variant="label" tone="primary">
+                  Отмена
+                </AppText>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  ai.resetAi();
+                  haptics.success();
+                  setConfirming(false);
+                }}
+                accessibilityRole="button"
+                hitSlop={8}
+              >
+                <AppText variant="label" className="text-rose-500 dark:text-rose-400">
+                  Стереть
+                </AppText>
+              </Pressable>
+            </View>
+          }
+        />
+      ) : (
+        <ListRow
+          icon="trash"
+          iconColor={colors.danger}
+          title="Удалить данные AI-коуча"
+          destructive
+          onPress={() => setConfirming(true)}
+        />
+      )}
+    </ListGroup>
   );
 }

@@ -1,6 +1,7 @@
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 
 import { FloatingTabBar } from "../components/FloatingTabBar";
+import { AiScreen } from "../screens/AiScreen";
 import { HomeScreen } from "../screens/HomeScreen";
 import { JournalScreen } from "../screens/JournalScreen";
 import { ReplacementsScreen } from "../screens/ReplacementsScreen";
@@ -16,6 +17,7 @@ export function RootTabs() {
       screenOptions={{ headerShown: false }}
     >
       <Tab.Screen name="Home" component={HomeScreen} options={{ title: "Главная" }} />
+      <Tab.Screen name="AI" component={AiScreen} options={{ title: "AI" }} />
       <Tab.Screen
         name="Replacements"
         component={ReplacementsScreen}

@@ -152,9 +152,6 @@ export const TRIGGERS: readonly TriggerOption[] = [
   },
 ];
 
-/** The three quick cards on the home screen. */
-export const QUICK_TRIGGER_IDS: readonly TriggerId[] = ["boredom", "fatigue", "stress"];
-
 /** Order of the answers in the coach's "Что произошло?" after a slip. */
 export const REFLECTION_TRIGGERS: readonly TriggerId[] = [
   "boredom",

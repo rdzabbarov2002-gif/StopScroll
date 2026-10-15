@@ -18,13 +18,14 @@ export const FLOATING_TAB_BAR_SPACE = BAR_HEIGHT + 40;
 
 const ICONS: Record<string, { active: IconName; inactive: IconName }> = {
   Home: { active: "home", inactive: "home-outline" },
+  AI: { active: "sparkles", inactive: "sparkles-outline" },
   Replacements: { active: "swap-horizontal", inactive: "swap-horizontal" },
   Stats: { active: "stats-chart", inactive: "stats-chart-outline" },
   Journal: { active: "book", inactive: "book-outline" },
 };
 
 /**
- * The iOS 26 style floating tab bar: a rounded "glass" pill with the four sections, and a
+ * The iOS 26 style floating tab bar: a rounded "glass" pill with the sections, and a
  * separate round button on the right that starts the SOS pause from anywhere.
  */
 export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
@@ -81,6 +82,7 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
           }}
         >
           {state.routes.map((route, index) => {
+            const crowded = state.routes.length > 4;
             const focused = state.index === index;
             const { options } = descriptors[route.key]!;
             const label = typeof options.title === "string" ? options.title : route.name;
@@ -115,7 +117,8 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
                   adjustsFontSizeToFit
                   minimumFontScale={0.8}
                   className="text-[10.5px] font-semibold"
-                  style={{ color }}
+                  // Five sections leave ~55 pt each; the web can't shrink text to fit by itself.
+                  style={[{ color }, crowded ? { fontSize: 9.5, letterSpacing: -0.3 } : null]}
                 >
                   {label}
                 </AppText>

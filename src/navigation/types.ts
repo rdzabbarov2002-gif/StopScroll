@@ -15,6 +15,8 @@ export type ProFeature =
 
 export type RootTabParamList = {
   Home: undefined;
+  /** The AI coach's analytics: forecast, patterns, hypotheses, experiments. */
+  AI: undefined;
   Replacements: { category?: ReplacementCategory } | undefined;
   Stats: undefined;
   /** `handoffAt` makes every hand-over from the SOS screen re-prefill the form. */

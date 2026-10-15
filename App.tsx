@@ -9,6 +9,7 @@ import { ActivityIndicator, Appearance, Platform, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AchievementCenter } from "./src/components/achievements/AchievementCenter";
+import { AiProvider } from "./src/context/AiContext";
 import { AppProvider, useApp } from "./src/context/AppContext";
 import { ProProvider } from "./src/context/ProContext";
 import { linking, navigationRef } from "./src/navigation/linking";
@@ -101,7 +102,9 @@ export default function App() {
     <SafeAreaProvider>
       <AppProvider>
         <ProProvider>
-          <AppShell />
+          <AiProvider>
+            <AppShell />
+          </AiProvider>
         </ProProvider>
       </AppProvider>
     </SafeAreaProvider>

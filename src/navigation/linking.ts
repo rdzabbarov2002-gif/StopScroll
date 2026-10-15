@@ -15,6 +15,7 @@ export const linking: LinkingOptions<RootStackParamList> = {
       Main: {
         screens: {
           Home: "home",
+          AI: "ai",
           Replacements: "replacements",
           Stats: "stats",
           Journal: "journal",

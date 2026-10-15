@@ -27,6 +27,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: node scripts/build-web-preview.js "/${{ github.event.repository.name }}"
+        env:
+          # Optional: the deployed server/ai-coach Worker (repository Settings → Secrets and
+          # variables → Actions → Variables). Without it the AI tab shows a labeled sample.
+          EXPO_PUBLIC_AI_URL: ${{ vars.AI_URL }}
+          EXPO_PUBLIC_AI_TOKEN: ${{ vars.AI_TOKEN }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

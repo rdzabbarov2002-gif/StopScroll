@@ -7,17 +7,20 @@ import { AppText } from "../components/AppText";
 import { Card } from "../components/Card";
 import { CardLabel, DurationValue, KeyValue, Separator } from "../components/CardLabel";
 import { ColumnChart, type ColumnDatum } from "../components/charts/ColumnChart";
-import { Chip } from "../components/Chip";
+import { AiForecastCard } from "../components/ai/AiForecastCard";
+import { AiHighlightsCard } from "../components/ai/AiHighlightsCard";
+import { ImpulseEntryCard } from "../components/ai/ImpulseEntryCard";
 import { BriefingCard } from "../components/coach/BriefingCard";
 import { InsightsCard } from "../components/coach/InsightsCard";
 import { IconButton } from "../components/IconButton";
 import { Screen } from "../components/Screen";
 import { buildBriefing } from "../coach";
+import { useAi } from "../context/AiContext";
 import { useApp } from "../context/AppContext";
 import { usePro } from "../context/ProContext";
 import type { RootTabScreenProps } from "../navigation/types";
 import { ACHIEVEMENTS, achievementTitle, getAchievement } from "../utils/achievements";
-import { QUICK_TRIGGER_IDS, getCategory, getTrigger } from "../utils/catalog";
+import { getCategory } from "../utils/catalog";
 import {
   DAY_FORMS,
   WEEKDAYS_SHORT,
@@ -30,7 +33,6 @@ import {
   pluralize,
   weekdayIndex,
 } from "../utils/date";
-import { haptics } from "../utils/haptics";
 import {
   compareScroll,
   getBestStreak,
@@ -78,6 +80,8 @@ export function HomeScreen({ navigation }: RootTabScreenProps<"Home">) {
     if (app.hydrated) recordBriefing({ day, risk, advice: adviceId });
   }, [app.hydrated, day, risk, adviceId, recordBriefing]);
   const dailyPick = briefing.replacement.replacement;
+  const ai = useAi();
+  const aiForecast = ai.enabled && ai.forecast?.day === app.todayKey ? ai.forecast : null;
 
   const openStats = () => navigation.navigate("Stats");
 
@@ -110,9 +114,18 @@ export function HomeScreen({ navigation }: RootTabScreenProps<"Home">) {
         />
       </View>
 
-      <BriefingCard briefing={briefing} />
-
-      <InsightsCard insights={briefing.insights} />
+      {/* With the AI coach connected, ChatGPT's forecast leads; otherwise the on-device coach. */}
+      {aiForecast ? (
+        <>
+          <AiForecastCard forecast={aiForecast} compact />
+          <AiHighlightsCard />
+        </>
+      ) : (
+        <>
+          <BriefingCard briefing={briefing} />
+          <InsightsCard insights={briefing.insights} />
+        </>
+      )}
 
       <PressableCard onPress={openStats} label="Время в ленте, открыть статистику">
         <CardLabel icon="phone-portrait" label="Время в ленте" color={colors.primary} chevron />
@@ -143,29 +156,7 @@ export function HomeScreen({ navigation }: RootTabScreenProps<"Home">) {
         </View>
       </PressableCard>
 
-      <Card>
-        <CardLabel icon="pause-circle" label="Быстрая пауза" color={colors.primary} />
-        <AppText variant="statement" className="mt-2">
-          Что тянет в ленту прямо сейчас?
-        </AppText>
-        <View className="mt-3.5 flex-row gap-2">
-          {QUICK_TRIGGER_IDS.map((id) => {
-            const trigger = getTrigger(id);
-            return (
-              <Chip
-                key={id}
-                label={trigger.label}
-                selected={false}
-                className="flex-1 justify-center px-2"
-                onPress={() => {
-                  haptics.light();
-                  navigation.navigate("Intercept", { trigger: id });
-                }}
-              />
-            );
-          })}
-        </View>
-      </Card>
+      <ImpulseEntryCard />
 
       <PressableCard onPress={openStats} label="Лимит и серия, открыть статистику">
         <CardLabel icon="calendar" label="Лимит" color={colors.warningStrong} chevron />

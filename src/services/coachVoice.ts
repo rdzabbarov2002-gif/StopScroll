@@ -1,21 +1,22 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useReducer } from "react";
 
+import { AI_CONFIGURED, postAi } from "../ai/client";
 import { tidy } from "../coach/language";
 import { isFaithfulPhrasing } from "../coach/phrasing";
+import { useAi } from "../context/AiContext";
 import { useApp } from "../context/AppContext";
 
 /**
- * Optional "живые формулировки": the coach's sentences — already built from the user's records —
- * are sent to the app's own server (server/coach-voice), which only rewords them. The facts never
- * come from there: every reworded sentence is checked against the original and dropped if any
- * number, time or weekday differs. Notes and raw records are never sent.
+ * Optional "живые формулировки" for the on-device coach: its sentences — already built from the
+ * user's records — are sent to the app's server (server/ai-coach), where ChatGPT only rewords them.
+ * Every reworded sentence is checked against the original and dropped if any number, time or
+ * weekday differs. Notes and raw records are never sent.
  *
- * Off unless EXPO_PUBLIC_COACH_VOICE_URL is set at build time, and the user can switch it off.
+ * Works only when the AI server is configured (EXPO_PUBLIC_AI_URL), the user allowed sending
+ * data to ChatGPT, and the setting is on.
  */
-const ENDPOINT = process.env.EXPO_PUBLIC_COACH_VOICE_URL?.trim() || null;
-const TOKEN = process.env.EXPO_PUBLIC_COACH_VOICE_TOKEN?.trim() || null;
-export const COACH_VOICE_AVAILABLE = ENDPOINT !== null;
+export const COACH_VOICE_AVAILABLE = AI_CONFIGURED;
 
 const CACHE_KEY = "stopscroll.coachVoice.v1";
 const MAX_CACHE = 80;
@@ -54,17 +55,8 @@ function saveCache(map: Map<string, string>) {
 }
 
 async function requestPhrasing(texts: string[]): Promise<unknown[] | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const response = await fetch(ENDPOINT!, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...(TOKEN ? { "X-App-Token": TOKEN } : {}) },
-      body: JSON.stringify({ texts }),
-      signal: controller.signal,
-    });
-    if (!response.ok) return null;
-    const body: unknown = await response.json();
+    const body = await postAi("/phrase", { texts }, TIMEOUT_MS);
     const result =
       body && typeof body === "object" && "texts" in body
         ? (body as { texts: unknown }).texts
@@ -72,8 +64,6 @@ async function requestPhrasing(texts: string[]): Promise<unknown[] | null> {
     return Array.isArray(result) && result.length === texts.length ? result : null;
   } catch {
     return null;
-  } finally {
-    clearTimeout(timer);
   }
 }
 
@@ -105,7 +95,8 @@ async function phrase(texts: readonly string[]): Promise<boolean> {
  */
 export function useCoachVoice(texts: readonly string[]): readonly string[] {
   const { settings } = useApp();
-  const enabled = COACH_VOICE_AVAILABLE && settings.coachPhrasing;
+  const { consent } = useAi();
+  const enabled = COACH_VOICE_AVAILABLE && consent === true && settings.coachPhrasing;
   const [, refresh] = useReducer((value: number) => value + 1, 0);
   const key = texts.join("\u0000");
 
