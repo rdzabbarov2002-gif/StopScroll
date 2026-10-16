@@ -1,0 +1,6 @@
+{
+  "note": "USD per 1M tokens, standard tier. Source: developers.openai.com model pages (gpt-5.4-nano, gpt-5.4-mini), checked 2026-10-16; gpt-5.5 from third-party trackers — verify before relying on it.",
+  "gpt-5.4-nano": { "input": 0.2, "cached": 0.02, "output": 1.25 },
+  "gpt-5.4-mini": { "input": 0.75, "cached": 0.075, "output": 4.5 },
+  "gpt-5.5": { "input": 5, "cached": 0.5, "output": 30 }
+}
