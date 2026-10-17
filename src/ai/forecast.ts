@@ -1,17 +1,8 @@
-import {
-  DAY_WORD_FORMS,
-  SLIP_FORMS,
-  capitalize,
-  count,
-  genitiveNumber,
-  minutes,
-  clock as hourClock,
-  weekday,
-} from "../coach/language";
-import { DAY_FORMS, addDays } from "../utils/date";
+import { m } from "../i18n";
+import { addDays, formatMinutesInline } from "../utils/date";
+import { footprint, isActive, strength, votesByBelief, weight } from "./evidence";
 import {
   type Day,
-  type PartOfDay,
   type Timeline,
   dangerWindow,
   hourOf,
@@ -24,7 +15,7 @@ import {
   streaks,
   urgeHours,
 } from "./facts";
-import type { AiForecast, AiMemory, RiskLevel } from "./types";
+import type { AiForecast, AiMemory, Belief, RiskLevel } from "./types";
 
 /**
  * Today's forecast, computed on the device — instantly, after every record, without a request.
@@ -36,12 +27,10 @@ import type { AiForecast, AiMemory, RiskLevel } from "./types";
 /** Days with records in the last four weeks before the forecast gives a number. */
 export const FORECAST_MIN_DAYS = 5;
 
-const PART: Record<PartOfDay, { adverb: string; hard: string }> = {
-  morning: { adverb: "утром", hard: "Утро, скорее всего, будет непростым." },
-  day: { adverb: "днём", hard: "День, скорее всего, будет непростым." },
-  evening: { adverb: "вечером", hard: "Вечер, скорее всего, будет непростым." },
-  night: { adverb: "ночью", hard: "Ночь, скорее всего, будет непростой." },
-};
+const minutes = (value: number) => formatMinutesInline(value);
+const pad = (value: number) => String(value).padStart(2, "0");
+/** "21:00" */
+const hourClock = (hour: number) => `${pad(((hour % 24) + 24) % 24)}:00`;
 
 export const levelOf = (probability: number): RiskLevel =>
   probability >= 65 ? "high" : probability >= 35 ? "medium" : "low";
@@ -52,8 +41,24 @@ interface Reason {
   text: string;
 }
 
+/** Active beliefs of a kind the records don't contradict, strongest first. */
+function ranked(memory: AiMemory | null, t: Timeline, kind: Belief["kind"]): Belief[] {
+  if (!memory) return [];
+  const votes = votesByBelief(t.input.entries);
+  return memory.beliefs
+    .filter((belief) => belief.kind === kind && isActive(belief))
+    .map((belief) => {
+      const print = footprint(belief, t);
+      return { belief, print, rank: weight(belief, strength(belief, votes.get(belief.id), print)) };
+    })
+    .filter((item) => item.print.verdict !== "failing")
+    .sort((a, b) => b.rank - a.rank)
+    .map((item) => item.belief);
+}
+
 export function buildForecast(t: Timeline, memory: AiMemory | null): AiForecast | null {
   if (!t.all.some(isObserved)) return null;
+  const f = m().ai.forecast;
   const today = t.todayRecord;
   const nowMinute = minuteOfDay(t.now);
   const recent = observedSince(t, addDays(t.today, -28));
@@ -76,7 +81,7 @@ export function buildForecast(t: Timeline, memory: AiMemory | null): AiForecast 
   const lostInWindow = lossTimes(today).some((timestamp) => inWindow(hourOf(timestamp)));
   const passed =
     window !== null && !wraps && nowMinute >= windowEnd && !lostInWindow
-      ? `Опасное время ${hourClock(window.from)}–${hourClock(window.to)} уже позади, и сегодня оно прошло спокойно.`
+      ? f.passed(hourClock(window.from), hourClock(window.to))
       : null;
 
   const lostToday = lossTimes(today).length > 0;
@@ -105,46 +110,46 @@ export function buildForecast(t: Timeline, memory: AiMemory | null): AiForecast 
 
   const reasons: Reason[] = [];
   // ChatGPT's memory first: a dangerous period it noticed that applies to today.
-  const zone = memory?.dangerZones.find(
-    (item) =>
+  const zone = ranked(memory, t, "zone").find((belief) => {
+    const item = belief.zone;
+    return (
+      item !== null &&
       (item.weekday === today.weekday || (item.weekday === null && item.from !== null)) &&
-      (item.to === null || item.from === null || item.to < item.from || item.to * 60 > nowMinute),
-  );
-  if (zone) reasons.push({ up: true, text: zone.note || zone.title });
+      (item.to === null || item.from === null || item.to < item.from || item.to * 60 > nowMinute)
+    );
+  });
+  if (zone) reasons.push({ up: true, text: zone.note || zone.text });
 
   if (overToday) {
     reasons.push({
       up: true,
-      text: `Сегодня лимит уже исчерпан: ${minutes(today.feed!)} из ${minutes(t.limit)}.`,
+      text: f.overLimit(minutes(today.feed!), minutes(t.limit)),
     });
   } else if (lostToday) {
     reasons.push({
       up: true,
-      text: today.slips.length
-        ? "Сегодня уже был срыв — в такие дни импульсы обычно сильнее."
-        : "Сегодня лента уже была открыта — в такие дни импульсы обычно сильнее.",
+      text: today.slips.length ? f.slipToday : f.openedToday,
     });
   }
 
   if (window && ahead) {
     reasons.push({
       up: true,
-      text: `${window.count} из ${window.total} срывов и записей за два месяца — между ${hourClock(window.from)} и ${hourClock(window.to)}.`,
+      text: f.window(window.count, window.total, hourClock(window.from), hourClock(window.to)),
     });
   }
 
   if (sameDay.length >= 3) {
     const hard = sameDay.filter((day) => isHard(day, t.limit)).length;
-    const of = `из последних ${genitiveNumber(sameDay.length)}`;
     if (hard / sameDay.length >= 0.5) {
       reasons.push({
         up: true,
-        text: `${hard} ${of} ${weekday(today.weekday, "genitivePlural")} были трудными.`,
+        text: f.weekdayHard(hard, sameDay.length, today.weekday),
       });
     } else if (hard / sameDay.length <= 0.2) {
       reasons.push({
         up: false,
-        text: `${capitalize(weekday(today.weekday, "accusative"))} обычно спокойно: трудных дней — ${hard} ${of}.`,
+        text: f.weekdayCalm(hard, sameDay.length, today.weekday),
       });
     }
   }
@@ -161,33 +166,33 @@ export function buildForecast(t: Timeline, memory: AiMemory | null): AiForecast 
     if (after.length >= 4 && hardAfter / after.length >= 0.5) {
       reasons.push({
         up: true,
-        text: `Вчера был трудный день, а после таких дней следующий бывает трудным в ${hardAfter} из ${after.length} случаев.`,
+        text: f.afterHardUsuallyHard(hardAfter, after.length),
       });
     } else if (after.length >= 4) {
       reasons.push({
         up: false,
-        text: `Вчера был трудный день, но обычно вы быстро возвращаетесь: после таких дней трудным бывает ${hardAfter} из ${after.length}.`,
+        text: f.afterHardUsuallyFine(hardAfter, after.length),
       });
     } else {
-      reasons.push({ up: true, text: "Вчера был трудный день." });
+      reasons.push({ up: true, text: f.afterHard });
     }
   }
 
   if (lastThreeSlips >= 2) {
     reasons.push({
       up: true,
-      text: `За последние три дня было ${count(lastThreeSlips, SLIP_FORMS)} — импульсы сейчас сильнее обычного.`,
+      text: f.recentSlips(lastThreeSlips),
     });
   }
   if (streak >= 3) {
     reasons.push({
       up: false,
-      text: `${capitalize(count(streak, DAY_WORD_FORMS))} подряд вы держитесь в пределах лимита.`,
+      text: f.streak(streak),
     });
   }
   const lastWeek = observedSince(t, addDays(t.today, -7));
   if (lastWeek.length >= 4 && lastWeek.every((day) => lossTimes(day).length === 0)) {
-    reasons.push({ up: false, text: "За последнюю неделю лента ни разу не победила." });
+    reasons.push({ up: false, text: f.calmWeek });
   }
 
   const ordered =
@@ -201,25 +206,25 @@ export function buildForecast(t: Timeline, memory: AiMemory | null): AiForecast 
   const rest = lostToday || overToday;
   const headline =
     probability === null
-      ? "Прогноз пока предварительный: истории ещё мало."
+      ? f.preliminary
       : passed && level !== "high"
-        ? "Самое трудное время сегодня позади."
+        ? f.passedHeadline
         : level === "high"
-          ? PART[part].hard
+          ? f.hardPart[part]
           : level === "medium"
-            ? `${rest ? "Остаток дня" : "День"} может быть непростым${window && ahead ? ` — особенно ${PART[part].adverb}` : ""}.`
+            ? f.medium(rest, window && ahead ? part : null)
             : rest
-              ? "Похоже, остаток дня пройдёт спокойнее."
-              : "Похоже, день будет спокойным.";
+              ? f.lowRest
+              : f.low;
 
-  // Personal advice from the memory, for the time that matters today.
-  const tips = memory?.tips ?? [];
+  // Personal advice from the memory, for the time that matters today: a tip that has helped in
+  // an experiment comes first; one that failed and never helped is not offered again.
+  const tips = ranked(memory, t, "tip")
+    .filter((belief) => !(belief.trials.failed > 0 && belief.trials.helped === 0))
+    .sort((a, b) => b.trials.helped - b.trials.failed - (a.trials.helped - a.trials.failed));
   const tip = tips.find((item) => item.when === part) ?? tips.find((item) => item.when === "any");
   const advice =
-    tip?.text ??
-    (window && ahead
-      ? `Решите заранее, чем займёте время с ${hourClock(window.from)} до ${hourClock(window.to)} вместо ленты.`
-      : null);
+    tip?.text ?? (window && ahead ? f.plan(hourClock(window.from), hourClock(window.to)) : null);
 
   return {
     probability,
@@ -228,22 +233,20 @@ export function buildForecast(t: Timeline, memory: AiMemory | null): AiForecast 
     reasons: texts.length
       ? texts
       : probability === null
-        ? [
-            `Для прогноза нужно хотя бы ${FORECAST_MIN_DAYS} дней с записями за четыре недели — пока их ${recent.length}.`,
-          ]
-        : ["Явных сигналов риска сегодня нет."],
+        ? [f.needDays(FORECAST_MIN_DAYS, recent.length)]
+        : [f.noSignals],
     window: {
       until: window && ahead ? hourClock(window.to) : null,
       message:
         window && ahead && probability !== null
           ? rest
-            ? `Если удастся больше не открывать ленту до ${hourClock(window.to)}, остаток дня пройдёт спокойнее.`
-            : `Если удастся не открыть ленту до ${hourClock(window.to)}, шанс спокойного дня заметно вырастет.`
+            ? f.windowRest(hourClock(window.to))
+            : f.windowDay(hourClock(window.to))
           : null,
     },
     passed,
     advice,
-    basis: `история за ${count(t.all.filter(isObserved).length, DAY_FORMS)}`,
+    basis: f.basis(t.all.filter(isObserved).length),
     day: t.today,
     createdAt: t.now,
   };

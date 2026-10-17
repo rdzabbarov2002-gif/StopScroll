@@ -2,6 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import type { ReactNode } from "react";
 import { View } from "react-native";
 
+import { m, useT } from "../i18n";
 import { useThemeColors } from "../utils/theme";
 import type { IconName } from "../utils/types";
 import { AppText } from "./AppText";
@@ -88,14 +89,15 @@ export function Separator({ className }: { className?: string }) {
 
 /** Splits minutes into number/unit pairs, so "2 ч 30 мин" renders with big numbers and small units. */
 export function durationParts(totalMinutes: number): { value: string; unit: string }[] {
+  const { minute, hour } = m().common.duration;
   const minutes = Math.max(0, Math.round(totalMinutes));
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
-  if (hours === 0) return [{ value: String(rest), unit: "мин" }];
-  if (rest === 0) return [{ value: String(hours), unit: "ч" }];
+  if (hours === 0) return [{ value: String(rest), unit: minute }];
+  if (rest === 0) return [{ value: String(hours), unit: hour }];
   return [
-    { value: String(hours), unit: "ч" },
-    { value: String(rest), unit: "мин" },
+    { value: String(hours), unit: hour },
+    { value: String(rest), unit: minute },
   ];
 }
 
@@ -111,12 +113,13 @@ export function DurationValue({
   color: string;
   emptyText?: string;
 }) {
+  const t = useT();
   const parts = minutes === null ? null : durationParts(minutes);
   return (
     <View
       className="flex-1 gap-0.5"
       accessible
-      accessibilityLabel={`${label}: ${parts ? parts.map((part) => `${part.value} ${part.unit}`).join(" ") : "нет данных"}`}
+      accessibilityLabel={`${label}: ${parts ? parts.map((part) => `${part.value} ${part.unit}`).join(" ") : t.common.noData}`}
     >
       <View className="flex-row items-center gap-1.5">
         <View className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />

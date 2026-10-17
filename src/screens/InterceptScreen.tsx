@@ -14,6 +14,7 @@ import { Screen } from "../components/Screen";
 import { WinCelebration } from "../components/WinCelebration";
 import { useApp } from "../context/AppContext";
 import { usePro } from "../context/ProContext";
+import { plural, useT } from "../i18n";
 import type { RootStackScreenProps } from "../navigation/types";
 import {
   EXERCISES,
@@ -24,7 +25,7 @@ import {
   type Exercise,
 } from "../utils/catalog";
 import { cn } from "../utils/cn";
-import { formatMinutes, pluralize } from "../utils/date";
+import { formatMinutes } from "../utils/date";
 import { haptics } from "../utils/haptics";
 import { isLocked, suggestReplacements } from "../utils/replacements";
 import { useThemeColors } from "../utils/theme";
@@ -32,13 +33,13 @@ import type { ExerciseId, TriggerId, WinEntry } from "../utils/types";
 
 type Stage = "pause" | "decide" | "won";
 
-const SECOND_FORMS = ["секунда", "секунды", "секунд"] as const;
-
 const TOTAL_MS = INTERCEPT_SECONDS * 1000;
 const TICK_MS = 200;
 
 export function InterceptScreen({ navigation, route }: RootStackScreenProps<"Intercept">) {
   const themeColors = useThemeColors();
+  const t = useT();
+  const text = t.replacements.intercept;
   const app = useApp();
   const { isPro } = usePro();
   const [trigger, setTrigger] = useState<TriggerId | undefined>(route.params?.trigger);
@@ -103,22 +104,20 @@ export function InterceptScreen({ navigation, route }: RootStackScreenProps<"Int
       <Screen>
         <View className="flex-row items-center justify-between px-1">
           <AppText variant="overline" tone="subtle">
-            Пауза пройдена
+            {text.passed}
           </AppText>
-          <IconButton icon="close" onPress={close} accessibilityLabel="Закрыть" />
+          <IconButton icon="close" onPress={close} accessibilityLabel={t.replacements.close} />
         </View>
 
         <View className="gap-2 px-1">
           <AppText variant="title" accessibilityRole="header">
-            Импульс ослаб?
+            {text.title}
           </AppText>
-          <AppText tone="muted">
-            Вы дали префронтальной коре время включиться. Теперь выбор за вами, а не за алгоритмом.
-          </AppText>
+          <AppText tone="muted">{text.text}</AppText>
         </View>
 
         <Card className="gap-3">
-          <AppText variant="heading">Что запустило импульс?</AppText>
+          <AppText variant="heading">{text.whatTriggered}</AppText>
           <View className="flex-row flex-wrap gap-2">
             {TRIGGERS.map((item) => (
               <Chip
@@ -137,9 +136,7 @@ export function InterceptScreen({ navigation, route }: RootStackScreenProps<"Int
 
         <View className="gap-3">
           <AppText variant="overline" tone="subtle" className="px-1 pt-2">
-            {trigger
-              ? `Замены, когда ${getTrigger(trigger).label.toLowerCase()}`
-              : "Замените ленту на 1–3 минуты"}
+            {trigger ? text.suggestionsFor[trigger] : text.suggestionsAny}
           </AppText>
           {suggestions.map((item) => (
             <ReplacementCard
@@ -158,7 +155,7 @@ export function InterceptScreen({ navigation, route }: RootStackScreenProps<"Int
 
         <View className="gap-2">
           <Button
-            label={`Я переключился · +${formatMinutes(app.settings.sessionMinutes)}`}
+            label={text.switched(formatMinutes(app.settings.sessionMinutes))}
             icon="checkmark-circle"
             variant="success"
             size="lg"
@@ -170,7 +167,7 @@ export function InterceptScreen({ navigation, route }: RootStackScreenProps<"Int
             }}
           />
           <Button
-            label="Ещё 15 секунд"
+            label={text.more}
             icon="refresh"
             variant="secondary"
             onPress={() => {
@@ -179,7 +176,7 @@ export function InterceptScreen({ navigation, route }: RootStackScreenProps<"Int
             }}
           />
           <Button
-            label="Лента победила — записать срыв"
+            label={text.logSlip}
             variant="ghost"
             onPress={() =>
               navigation.popTo("Main", {
@@ -207,9 +204,9 @@ export function InterceptScreen({ navigation, route }: RootStackScreenProps<"Int
             </View>
           ) : null}
         </View>
-        <AppText variant="heading">Пауза</AppText>
+        <AppText variant="heading">{text.pause}</AppText>
         <View className="flex-1 items-end">
-          <IconButton icon="close" onPress={close} accessibilityLabel="Закрыть паузу" />
+          <IconButton icon="close" onPress={close} accessibilityLabel={text.closePause} />
         </View>
       </View>
 
@@ -218,10 +215,10 @@ export function InterceptScreen({ navigation, route }: RootStackScreenProps<"Int
           className="text-center text-[28px] font-bold leading-[34px] tracking-tight"
           accessibilityRole="header"
         >
-          15 секунд тишины
+          {text.heading}
         </AppText>
         <AppText variant="caption" tone="muted" className="text-center">
-          Импульс похож на волну. Дайте ей пройти — телефон подождёт.
+          {text.wave}
         </AppText>
       </View>
 
@@ -264,12 +261,13 @@ function ExerciseChip({
   onPress: () => void;
 }) {
   const { colors } = useThemeColors();
+  const t = useT();
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected }}
-      accessibilityLabel={`${exercise.title}${locked ? ", доступно в Pro" : ""}`}
+      accessibilityLabel={`${exercise.title}${locked ? t.replacements.a11y.locked : ""}`}
       className={cn(
         "h-9 flex-row items-center gap-1.5 rounded-full px-3.5 active:opacity-80",
         selected ? "bg-brand-600 dark:bg-brand-500" : "bg-card dark:bg-ink-900",
@@ -320,6 +318,8 @@ function PausePhase({
   onDone: () => void;
 }) {
   const { colors, isDark } = useThemeColors();
+  const t = useT();
+  const text = t.replacements.intercept;
   const [elapsedMs, setElapsedMs] = useState(0);
   const [scale] = useState(() => new Animated.Value(MIN_SCALE));
   const onDoneRef = useRef(onDone);
@@ -392,7 +392,7 @@ function PausePhase({
         className="items-center justify-center"
         accessible
         accessibilityLiveRegion="polite"
-        accessibilityLabel={`${phase.label}. Осталось ${secondsLeft} секунд`}
+        accessibilityLabel={text.phaseA11y(phase.label, secondsLeft)}
       >
         {[0.86, 0.72, 0.58].map((size, index) => (
           <View
@@ -446,7 +446,7 @@ function PausePhase({
             {secondsLeft}
           </AppText>
           <AppText variant="label" tone="subtle">
-            {pluralize(secondsLeft, SECOND_FORMS)}
+            {plural(secondsLeft, t.replacements.units.seconds)}
           </AppText>
         </View>
       </View>
@@ -454,7 +454,7 @@ function PausePhase({
       <Card className="w-full gap-2">
         <View className="flex-row items-center justify-between gap-3">
           <AppText variant="label" tone="primary" className="shrink" numberOfLines={1}>
-            {exercise.title} · шаг {prompt.index + 1} из {exercise.prompts.length}
+            {exercise.title} · {text.step(prompt.index + 1, exercise.prompts.length)}
           </AppText>
           <View className="flex-row items-center gap-1">
             {exercise.prompts.map((item, index) => (

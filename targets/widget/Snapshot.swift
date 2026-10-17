@@ -10,6 +10,9 @@ struct Snapshot: Codable {
     let category: String
   }
 
+  /// The app's language code ("ru", "en", "tr", "de", "fr"). Snapshots saved before the app spoke
+  /// other languages have none — read it as `lang`.
+  let language: String?
   /// The local day ("YYYY-MM-DD") the "today" numbers belong to.
   let day: String
   let savedToday: Int
@@ -21,6 +24,9 @@ struct Snapshot: Codable {
   /// Logged feed minutes today; nil when today isn't logged yet.
   let scrolledToday: Int?
   let replacements: [Replacement]
+
+  /// The language to draw this snapshot in: Russian for snapshots older than the field.
+  var lang: Lang { language.flatMap(Lang.init(rawValue:)) ?? .ru }
 
   static let appGroup = "group.app.stopscroll.mobile"
   static let key = "widget.snapshot"
@@ -50,11 +56,18 @@ struct Snapshot: Codable {
       saved: 0, wins: 0, streak: day == yesterday ? streakTomorrow : 0, scrolled: nil, limit: limit)
   }
 
-  /// Shown only in the widget gallery before the app has ever written real numbers.
-  static let gallery = Snapshot(
-    day: dayKey(Date()), savedToday: 45, winsToday: 3, streak: 5, streakTomorrow: 5, limit: 60,
-    scrolledToday: 40,
-    replacements: [Replacement(id: "squats", title: "15 приседаний", minutes: 1, category: "body")])
+  /// Shown only in the widget gallery before the app has ever written real numbers, in the
+  /// device's language.
+  static var gallery: Snapshot {
+    let lang = Lang.device
+    return Snapshot(
+      language: lang.rawValue, day: dayKey(Date()), savedToday: 45, winsToday: 3, streak: 5,
+      streakTomorrow: 5, limit: 60, scrolledToday: 40,
+      replacements: [
+        Replacement(
+          id: "squats", title: Strings(lang: lang).galleryReplacement, minutes: 1, category: "body")
+      ])
+  }
 }
 
 struct DayValues {
@@ -68,26 +81,4 @@ struct DayValues {
   var left: Int? { scrolled.map { limit - $0 } }
 }
 
-/// Russian plural form: plural(5, ("день", "дня", "дней")) → "дней".
-func plural(_ count: Int, _ forms: (String, String, String)) -> String {
-  let n = abs(count) % 100
-  let last = n % 10
-  if n > 10 && n < 20 { return forms.2 }
-  if last > 1 && last < 5 { return forms.1 }
-  if last == 1 { return forms.0 }
-  return forms.2
-}
-
-/// "45 мин", "1 ч 20 мин" split into number/unit pairs for big rounded numbers.
-func durationParts(_ minutes: Int) -> [(String, String)] {
-  let total = max(0, minutes)
-  let hours = total / 60
-  let rest = total % 60
-  if hours == 0 { return [("\(rest)", "мин")] }
-  if rest == 0 { return [("\(hours)", "ч")] }
-  return [("\(hours)", "ч"), ("\(rest)", "мин")]
-}
-
-func durationText(_ minutes: Int) -> String {
-  durationParts(minutes).map { "\($0.0) \($0.1)" }.joined(separator: " ")
-}
+// Plural forms and durations depend on the language: see Strings.swift.

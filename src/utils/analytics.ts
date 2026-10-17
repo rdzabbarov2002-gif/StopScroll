@@ -1,3 +1,4 @@
+import { m } from "../i18n";
 import { FEED_APPS, TIME_OF_DAY_LABELS, TRIGGERS, getTrigger } from "./catalog";
 import { MS_PER_DAY, formatHourRange, getTimeOfDay, weekdayIndex } from "./date";
 import type { FeedApp, SlipEntry, TimeOfDay, TriggerId, WinEntry } from "./types";
@@ -7,15 +8,22 @@ export const MIN_SLIPS_FOR_PATTERNS = 3;
 
 const RECENT_DAYS = 30;
 
-export const WEEKDAY_PHRASES = [
-  "по понедельникам",
-  "по вторникам",
-  "по средам",
-  "по четвергам",
-  "по пятницам",
-  "по субботам",
-  "по воскресеньям",
-] as const;
+type WeekdayPhrases = readonly [string, string, string, string, string, string, string];
+
+/**
+ * "по пятницам", Monday first, in the current language. The items are read on access, so the
+ * list follows a language change although it is created once at import.
+ */
+export const WEEKDAY_PHRASES: WeekdayPhrases = (() => {
+  const list: string[] = [];
+  for (let index = 0; index < 7; index += 1) {
+    Object.defineProperty(list, index, {
+      enumerable: true,
+      get: () => m().journal.patterns.weekdayPhrases[index],
+    });
+  }
+  return list as unknown as WeekdayPhrases;
+})();
 
 export interface TriggerStat {
   id: TriggerId;
@@ -139,7 +147,10 @@ export function computePatterns(
     .sort((a, b) => b.slips + b.resisted - (a.slips + a.resisted));
 
   const impulses = resisted + slipsRecent;
-  const hasEnough = slips.length >= MIN_SLIPS_FOR_PATTERNS && topTrigger && topTimeOfDay;
+  const focus =
+    slips.length >= MIN_SLIPS_FOR_PATTERNS && topTrigger && topTimeOfDay
+      ? { trigger: topTrigger, time: topTimeOfDay }
+      : null;
 
   return {
     totalSlips: slips.length,
@@ -156,13 +167,22 @@ export function computePatterns(
     topTimeOfDay,
     topApp,
     triggerBreakdown,
-    summary: hasEnough
-      ? `Чаще всего срывы случаются ${TIME_OF_DAY_LABELS[topTimeOfDay].phrase} ${getTrigger(topTrigger).reason}.`
-      : null,
-    detail:
-      hasEnough && peakHour !== null && peakWeekday !== null
-        ? `Пиковый час — ${formatHourRange(peakHour)}. Труднее всего ${WEEKDAY_PHRASES[peakWeekday]}.`
-        : null,
-    advice: hasEnough ? getTrigger(topTrigger).advice : null,
+    // The sentences are read on access, so they follow a language change without recomputing.
+    get summary() {
+      return focus
+        ? m().journal.patterns.summary(
+            TIME_OF_DAY_LABELS[focus.time].phrase,
+            getTrigger(focus.trigger).reason,
+          )
+        : null;
+    },
+    get detail() {
+      return focus && peakHour !== null && peakWeekday !== null
+        ? m().journal.patterns.detail(formatHourRange(peakHour), peakWeekday)
+        : null;
+    },
+    get advice() {
+      return focus ? getTrigger(focus.trigger).advice : null;
+    },
   };
 }

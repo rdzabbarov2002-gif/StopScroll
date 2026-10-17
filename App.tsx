@@ -13,7 +13,9 @@ import { AiProvider } from "./src/context/AiContext";
 import { AppProvider, useApp } from "./src/context/AppContext";
 import { ProProvider } from "./src/context/ProContext";
 import { linking, navigationRef } from "./src/navigation/linking";
+import { rememberedNavigation } from "./src/navigation/restore";
 import { RootNavigator } from "./src/navigation/RootNavigator";
+import { LanguageScreen } from "./src/screens/LanguageScreen";
 import { NativeSync } from "./src/services/NativeSync";
 import { useThemeColors } from "./src/utils/theme";
 
@@ -37,7 +39,7 @@ function ThemeSync() {
 }
 
 function AppShell() {
-  const { hydrated, onboarded } = useApp();
+  const { hydrated, onboarded, language } = useApp();
   const { isDark, colors } = useThemeColors();
 
   const navigationTheme = useMemo<Theme>(() => {
@@ -61,12 +63,21 @@ function AppShell() {
     SystemUI.setBackgroundColorAsync(colors.background).catch(() => undefined);
   }, [colors.background]);
 
+  // A new language re-creates every screen (texts outside React hooks are read during render);
+  // the user stays where they were.
+  const restore = useMemo(() => (language ? rememberedNavigation() : undefined), [language]);
+
   return (
     <>
       <ThemeSync />
       <StatusBar style={isDark ? "light" : "dark"} />
-      {hydrated ? (
+      {hydrated && !language ? (
+        // The very first launch: nothing else is reachable until a language is chosen.
+        <LanguageScreen />
+      ) : hydrated ? (
         <NavigationContainer
+          key={language ?? "none"}
+          initialState={restore}
           ref={navigationRef}
           theme={navigationTheme}
           // Deep links (the pause, widgets, the Sunday report) exist only in the native apps;

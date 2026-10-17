@@ -1,3 +1,4 @@
+import { m, type Messages, type PluralForms } from "../i18n";
 import type {
   ExerciseId,
   FeedApp,
@@ -32,124 +33,47 @@ export interface TriggerOption {
   advice: string;
 }
 
+/** A trigger whose texts are read from the current language's messages on every access. */
+function defineTrigger(id: TriggerId, icon: IconName, tone: TriggerTone): TriggerOption {
+  const text = () => m().catalog.triggers[id];
+  return {
+    id,
+    icon,
+    tone,
+    get label() {
+      return text().label;
+    },
+    get hint() {
+      return text().hint;
+    },
+    get ask() {
+      return text().ask;
+    },
+    get noun() {
+      return text().noun;
+    },
+    get because() {
+      return text().because;
+    },
+    get reason() {
+      return text().reason;
+    },
+    get advice() {
+      return text().advice;
+    },
+  };
+}
+
 export const TRIGGERS: readonly TriggerOption[] = [
-  {
-    id: "boredom",
-    label: "Скука",
-    icon: "hourglass-outline",
-    hint: "Хочется новизны",
-    ask: "Было скучно",
-    noun: "скука",
-    because: "от скуки",
-    tone: "amber",
-    reason: "от скуки",
-    advice:
-      "Скука — это голод по новизне, а лента кормит его пустыми калориями. Держите под рукой одну «живую» новизну: книгу, задачку, новый маршрут.",
-  },
-  {
-    id: "fatigue",
-    label: "Усталость",
-    icon: "battery-dead-outline",
-    hint: "Нет сил ни на что",
-    ask: "Не было сил",
-    noun: "усталость",
-    because: "из-за усталости",
-    tone: "sky",
-    reason: "из-за усталости",
-    advice:
-      "Уставший мозг выбирает самое лёгкое. Лента не восстанавливает — она добивает. Попробуйте 3 минуты с закрытыми глазами или стакан воды и окно.",
-  },
-  {
-    id: "stress",
-    label: "Стресс",
-    icon: "thunderstorm-outline",
-    hint: "Хочется сбежать",
-    ask: "Было тревожно",
-    noun: "стресс",
-    because: "из-за стресса",
-    tone: "rose",
-    reason: "из-за стресса",
-    advice:
-      "Лента обещает побег, но после неё тревога возвращается сильнее. Сначала тело: длинный выдох, движение, холодная вода — потом решения.",
-  },
-  {
-    id: "loneliness",
-    label: "Одиночество",
-    icon: "person-outline",
-    hint: "Не хватает людей",
-    ask: "Было одиноко",
-    noun: "одиночество",
-    because: "из-за одиночества",
-    tone: "violet",
-    reason: "из-за одиночества",
-    advice:
-      "Чужие жизни в ленте не заменят контакт. Одно короткое сообщение живому человеку даёт больше, чем час видео.",
-  },
-  {
-    id: "procrastination",
-    label: "Прокрастинация",
-    icon: "time-outline",
-    hint: "Откладываю дело",
-    ask: "Не хотелось браться за дело",
-    noun: "откладывание дел",
-    because: "из-за откладывания дел",
-    tone: "teal",
-    reason: "когда вы откладываете дела",
-    advice:
-      "Лента — самый удобный способ не начинать. Уменьшите задачу до шага на 2 минуты и сделайте только его.",
-  },
-  {
-    id: "autopilot",
-    label: "Автопилот",
-    icon: "repeat-outline",
-    hint: "Рука сама открыла",
-    ask: "Открылось само, на автомате",
-    noun: "автопилот",
-    because: "на автопилоте",
-    tone: "slate",
-    reason: "на автопилоте",
-    advice:
-      "Привычка срабатывает раньше мысли. Уберите приложения с первого экрана и положите телефон экраном вниз — трение ломает автопилот.",
-  },
-  {
-    id: "relax",
-    label: "Отдых",
-    icon: "cafe-outline",
-    hint: "Хочется расслабиться",
-    ask: "Хотелось расслабиться",
-    noun: "желание отдохнуть",
-    because: "из-за желания отдохнуть",
-    tone: "teal",
-    reason: "когда хочется расслабиться",
-    advice:
-      "Лента обещает отдых, но редко его даёт. Выберите отдых, после которого правда легче: душ, музыка с закрытыми глазами, пять минут растяжки.",
-  },
-  {
-    id: "sleepless",
-    label: "Бессонница",
-    icon: "moon-outline",
-    hint: "Не получается уснуть",
-    ask: "Не получалось уснуть",
-    noun: "бессонница",
-    because: "из-за бессонницы",
-    tone: "violet",
-    reason: "когда не получается уснуть",
-    advice:
-      "Яркий экран будит мозг ещё сильнее. Если не спится, приглушите свет и почитайте бумажную книгу минут десять, а телефон заряжайте вне спальни.",
-  },
-  {
-    id: "other",
-    label: "Другое",
-    icon: "ellipsis-horizontal-circle-outline",
-    hint: "Своя причина",
-    ask: "Другое",
-    noun: "другие причины",
-    because: "по другим причинам",
-    tone: "slate",
-    reason: "по разным причинам",
-    advice:
-      "Пара слов о том, что было перед срывом, помогает заметить, что повторяется. Запишите их — дальше станет понятнее.",
-  },
+  defineTrigger("boredom", "hourglass-outline", "amber"),
+  defineTrigger("fatigue", "battery-dead-outline", "sky"),
+  defineTrigger("stress", "thunderstorm-outline", "rose"),
+  defineTrigger("loneliness", "person-outline", "violet"),
+  defineTrigger("procrastination", "time-outline", "teal"),
+  defineTrigger("autopilot", "repeat-outline", "slate"),
+  defineTrigger("relax", "cafe-outline", "teal"),
+  defineTrigger("sleepless", "moon-outline", "violet"),
+  defineTrigger("other", "ellipsis-horizontal-circle-outline", "slate"),
 ];
 
 /** Order of the answers in the coach's "Что произошло?" after a slip. */
@@ -177,7 +101,13 @@ export const FEED_APPS: readonly { id: FeedApp; label: string; icon: IconName }[
   { id: "tiktok", label: "TikTok", icon: "logo-tiktok" },
   { id: "reels", label: "Reels", icon: "logo-instagram" },
   { id: "shorts", label: "Shorts", icon: "logo-youtube" },
-  { id: "other", label: "Другое", icon: "phone-portrait-outline" },
+  {
+    id: "other",
+    icon: "phone-portrait-outline",
+    get label() {
+      return m().catalog.feedApps.other;
+    },
+  },
 ];
 
 export function getFeedApp(id: FeedApp) {
@@ -188,328 +118,209 @@ export function getFeedApp(id: FeedApp) {
 // Micro-replacements
 // ---------------------------------------------------------------------------
 
+function defineCategory(id: ReplacementCategory, icon: IconName) {
+  return {
+    id,
+    icon,
+    get label() {
+      return m().catalog.categories[id].label;
+    },
+    get description() {
+      return m().catalog.categories[id].description;
+    },
+  };
+}
+
 export const CATEGORIES: readonly {
   id: ReplacementCategory;
   label: string;
   icon: IconName;
   description: string;
 }[] = [
-  { id: "body", label: "Тело", icon: "body-outline", description: "Движение за 1–3 минуты" },
-  { id: "mind", label: "Ум", icon: "bulb-outline", description: "Задачи, которые включают голову" },
-  {
-    id: "facts",
-    label: "Факты",
-    icon: "library-outline",
-    description: "Короткая полезная новизна",
-  },
+  defineCategory("body", "body-outline"),
+  defineCategory("mind", "bulb-outline"),
+  defineCategory("facts", "library-outline"),
 ];
 
 export function getCategory(id: ReplacementCategory) {
   return CATEGORIES.find((category) => category.id === id) ?? CATEGORIES[0]!;
 }
 
+type ItemId = keyof Messages["catalog"]["items"];
+
+/** A built-in replacement; its title, description and steps come from the current language. */
+function defineReplacement(
+  data: Omit<Replacement, "id" | "title" | "description" | "steps"> & { id: ItemId },
+): Replacement {
+  const text = () => m().catalog.items[data.id];
+  return {
+    ...data,
+    get title() {
+      return text().title;
+    },
+    get description() {
+      return text().description;
+    },
+    get steps() {
+      return text().steps;
+    },
+  };
+}
+
 export const REPLACEMENTS: readonly Replacement[] = [
   // --- Body -----------------------------------------------------------------
-  {
+  defineReplacement({
     id: "squats",
-    title: "15 приседаний",
-    description: "Быстрый прилив крови к мозгу и честный дофамин от сделанного.",
-    steps: [
-      "Встаньте, стопы на ширине плеч.",
-      "Сделайте 15 медленных приседаний, спина прямая.",
-      "В конце сделайте глубокий вдох и заметьте, как стало теплее.",
-    ],
     minutes: 1,
     category: "body",
     icon: "fitness-outline",
     triggers: ["boredom", "fatigue", "procrastination"],
-  },
-  {
+  }),
+  defineReplacement({
     id: "neck-shoulders",
-    title: "Разминка шеи и плеч",
-    description: "Снимает зажим, который копится от взгляда в телефон.",
-    steps: [
-      "Медленно наклоните голову к правому плечу, затем к левому — по 3 раза.",
-      "Сделайте 10 кругов плечами назад.",
-      "Сцепите руки за спиной и раскройте грудь на 3 вдоха.",
-    ],
     minutes: 2,
     category: "body",
     icon: "accessibility-outline",
     triggers: ["fatigue", "stress", "relax"],
-  },
-  {
+  }),
+  defineReplacement({
     id: "eyes-20-20",
-    title: "Отдых для глаз 20-20-20",
-    description: "Экран держит фокус на 30 см. Дайте глазам дальний план.",
-    steps: [
-      "Подойдите к окну или найдите самую дальнюю точку в комнате.",
-      "Смотрите на неё 20 секунд, не моргая через силу.",
-      "Закройте глаза ладонями на 20 секунд, затем медленно моргните 10 раз.",
-    ],
     minutes: 1,
     category: "body",
     icon: "eye-outline",
     triggers: ["fatigue", "autopilot"],
-  },
-  {
+  }),
+  defineReplacement({
     id: "cold-water",
-    title: "Холодная вода",
-    description: "Умывание и стакан воды — быстрый сброс для нервной системы.",
-    steps: [
-      "Умойтесь холодной водой или подержите запястья под струёй 30 секунд.",
-      "Медленно выпейте стакан воды.",
-      "Отметьте, что изменилось в теле.",
-    ],
     minutes: 1,
     category: "body",
     icon: "water-outline",
     triggers: ["stress", "fatigue", "autopilot"],
-  },
-  {
+  }),
+  defineReplacement({
     id: "walk-3",
-    title: "Три минуты ходьбы",
-    description: "Движение без цели — лучший перезапуск внимания.",
-    steps: [
-      "Оставьте телефон на столе.",
-      "Пройдитесь по квартире, офису или лестнице три минуты.",
-      "Замечайте по пути три новых детали.",
-    ],
     minutes: 3,
     category: "body",
     icon: "walk-outline",
     triggers: ["boredom", "autopilot", "procrastination"],
-  },
-  {
+  }),
+  defineReplacement({
     id: "tidy-surface",
-    title: "Порядок на одной поверхности",
-    description: "Маленькая завершённая задача даёт ощущение контроля.",
-    steps: [
-      "Выберите одну поверхность: стол, полку, подоконник.",
-      "Уберите с неё всё лишнее за 3 минуты.",
-      "Посмотрите на результат — это ваша победа.",
-    ],
     minutes: 3,
     category: "body",
     icon: "color-wand-outline",
     triggers: ["procrastination", "boredom"],
-  },
-  {
+  }),
+  defineReplacement({
     id: "plank",
-    title: "Планка 45 секунд",
-    description: "Короткое усилие, которое переключает с тревоги на тело.",
-    steps: [
-      "Встаньте в планку на предплечьях, тело — прямая линия.",
-      "Держите 45 секунд, дышите ровно.",
-      "Отдохните 15 секунд лёжа, расслабив всё тело.",
-    ],
     minutes: 1,
     category: "body",
     icon: "barbell-outline",
     premium: true,
     triggers: ["stress", "boredom"],
-  },
-  {
+  }),
+  defineReplacement({
     id: "shake-off",
-    title: "Стряхнуть напряжение",
-    description: "Так животные сбрасывают стресс после опасности.",
-    steps: [
-      "Встаньте и потрясите кистями рук 20 секунд.",
-      "Добавьте плечи, затем ноги — ещё 30 секунд.",
-      "Замрите и сделайте три медленных выдоха.",
-    ],
     minutes: 1,
     category: "body",
     icon: "pulse-outline",
     premium: true,
     triggers: ["stress"],
-  },
-  {
+  }),
+  defineReplacement({
     id: "muscle-relax",
-    title: "Мышечная релаксация",
-    description: "Напряжение и расслабление по очереди — глубокий отдых за 3 минуты.",
-    steps: [
-      "Сожмите кулаки на 5 секунд, затем резко расслабьте.",
-      "Повторите для плеч, лица, живота и ног.",
-      "В конце полежите или посидите 30 секунд, ощущая тяжесть тела.",
-    ],
     minutes: 3,
     category: "body",
     icon: "bed-outline",
     premium: true,
     triggers: ["stress", "fatigue", "relax", "sleepless"],
-  },
+  }),
 
   // --- Mind -----------------------------------------------------------------
-  {
+  defineReplacement({
     id: "serial-sevens",
-    title: "Счёт от 100 по 7",
-    description: "Нагружает префронтальную кору и обрывает автоматический импульс.",
-    steps: [
-      "Отнимайте по 7 от 100 в уме: 93, 86, 79…",
-      "Ошиблись — начните с последнего верного числа.",
-      "Дойдите до числа меньше 10.",
-    ],
     minutes: 1,
     category: "mind",
     icon: "calculator-outline",
     triggers: ["autopilot", "boredom"],
-  },
-  {
+  }),
+  defineReplacement({
     id: "two-minute-step",
-    title: "Шаг на 2 минуты",
-    description: "Вместо ленты — самый маленький шаг отложенного дела.",
-    steps: [
-      "Вспомните дело, которое откладываете.",
-      "Найдите в нём шаг, который займёт 2 минуты: открыть файл, написать первую строку.",
-      "Сделайте только его. Продолжать необязательно.",
-    ],
     minutes: 2,
     category: "mind",
     icon: "rocket-outline",
     triggers: ["procrastination"],
-  },
-  {
+  }),
+  defineReplacement({
     id: "gratitude",
-    title: "Три хороших вещи",
-    description: "Переводит внимание с нехватки на то, что уже есть.",
-    steps: [
-      "Вспомните три хороших момента за сегодня — даже мелких.",
-      "Для каждого ответьте: почему это случилось?",
-      "Запишите одну фразу, если есть бумага.",
-    ],
     minutes: 2,
     category: "mind",
     icon: "heart-outline",
     triggers: ["loneliness", "stress", "relax"],
-  },
-  {
+  }),
+  defineReplacement({
     id: "message-human",
-    title: "Написать живому человеку",
-    description: "Настоящий контакт вместо бесконечной чужой жизни.",
-    steps: [
-      "Выберите человека, с которым давно не говорили.",
-      "Напишите ему одно тёплое сообщение или вопрос.",
-      "Закройте мессенджер, не дожидаясь ответа.",
-    ],
     minutes: 2,
     category: "mind",
     icon: "chatbubbles-outline",
     triggers: ["loneliness", "boredom"],
-  },
-  {
+  }),
+  defineReplacement({
     id: "brain-dump",
-    title: "Выгрузка мыслей",
-    description: "Тревога тише, когда мысли на бумаге, а не в голове.",
-    steps: [
-      "Возьмите лист или заметки.",
-      "Пишите всё, что крутится в голове, 2 минуты без остановки.",
-      "Подчеркните одну вещь, которую можно сделать сегодня.",
-    ],
     minutes: 2,
     category: "mind",
     icon: "create-outline",
     premium: true,
     triggers: ["stress", "procrastination", "sleepless"],
-  },
-  {
+  }),
+  defineReplacement({
     id: "alphabet-game",
-    title: "Алфавитная игра",
-    description: "Лёгкая умственная задача, которая утоляет голод по новизне.",
-    steps: [
-      "Выберите тему: города, животные, блюда.",
-      "Назовите по слову на каждую букву алфавита.",
-      "Застряли — пропустите букву и вернитесь к ней в конце.",
-    ],
     minutes: 3,
     category: "mind",
     icon: "text-outline",
     premium: true,
     triggers: ["boredom", "autopilot"],
-  },
-  {
+  }),
+  defineReplacement({
     id: "evening-plan",
-    title: "Визуализация вечера",
-    description: "Мозг охотнее отпускает ленту, когда видит план получше.",
-    steps: [
-      "Закройте глаза.",
-      "Представьте, как вы проведёте ближайший час без ленты, в деталях.",
-      "Выберите первое действие и откройте глаза.",
-    ],
     minutes: 2,
     category: "mind",
     icon: "sparkles-outline",
     premium: true,
     triggers: ["fatigue", "procrastination", "sleepless"],
-  },
+  }),
 
   // --- Facts ----------------------------------------------------------------
-  {
+  defineReplacement({
     id: "facts-brain",
-    title: "Мозг и привычки",
-    description: "Как устроена тяга к ленте — и почему её можно переучить.",
-    steps: [
-      "Дофамин больше связан с ожиданием награды, чем с самим удовольствием. Поэтому бесконечная лента цепляет сильнее, чем любое конкретное видео.",
-      "Короткие видео работают как игровой автомат: награда приходит непредсказуемо, и мозг продолжает «дёргать рычаг».",
-      "Импульс похож на волну: он нарастает и спадает. Даже короткая пауза прерывает автоматическое действие и даёт шанс выбрать иначе.",
-      "Эмоциональные системы мозга реагируют быстрее, чем префронтальная кора — «директор», отвечающий за самоконтроль. Пауза даёт ей время догнать импульс.",
-      "Новая привычка закрепляется повторением в одном и том же контексте. Одна и та же замена в одной ситуации работает лучше разнообразия.",
-    ],
     minutes: 1,
     category: "facts",
     icon: "git-network-outline",
     triggers: ["boredom", "autopilot"],
-  },
-  {
+  }),
+  defineReplacement({
     id: "facts-nature",
-    title: "Удивительная природа",
-    description: "Немного живой новизны вместо ленты.",
-    steps: [
-      "Осьминог пробует мир «на вкус» присосками: рецепторы на щупальцах различают вкусы.",
-      "Деревья в лесу могут обмениваться веществами через грибные сети, оплетающие их корни.",
-      "Сердце колибри может биться больше 1000 раз в минуту.",
-      "Морские выдры держатся за лапы во сне, чтобы течение не разнесло их в разные стороны.",
-      "Пчёлы сообщают друг другу направление к цветам с помощью «виляющего танца».",
-    ],
     minutes: 1,
     category: "facts",
     icon: "leaf-outline",
     triggers: ["boredom", "stress"],
-  },
-  {
+  }),
+  defineReplacement({
     id: "facts-space",
-    title: "Космос за минуту",
-    description: "Масштаб, на фоне которого лента выглядит мелко.",
-    steps: [
-      "Свет Солнца идёт до Земли около 8 минут — мы всегда видим его чуть в прошлом.",
-      "На Венере сутки длиннее года: она вращается медленнее, чем облетает Солнце.",
-      "В наблюдаемой Вселенной звёзд больше, чем песчинок на всех пляжах Земли.",
-      "Следы астронавтов на Луне могут сохраняться миллионы лет — там нет ветра.",
-      "Нейтронная звезда так плотна, что чайная ложка её вещества весила бы миллиарды тонн.",
-    ],
     minutes: 1,
     category: "facts",
     icon: "planet-outline",
     premium: true,
     triggers: ["boredom", "loneliness"],
-  },
-  {
+  }),
+  defineReplacement({
     id: "facts-history",
-    title: "История в деталях",
-    description: "Короткие истории, которые хочется пересказать.",
-    steps: [
-      "Клеопатра жила ближе по времени к высадке на Луну, чем к строительству пирамиды Хеопса.",
-      "Оксфордский университет старше государства ацтеков.",
-      "Самая короткая война в истории — англо-занзибарская 1896 года — длилась меньше часа.",
-      "В Древнем Риме был свой «фастфуд» — уличные термополии с горячей едой.",
-      "Слово «робот» впервые прозвучало в пьесе Карела Чапека 1920 года, а придумал его брат писателя — Йозеф.",
-    ],
     minutes: 1,
     category: "facts",
     icon: "school-outline",
     premium: true,
     triggers: ["boredom", "procrastination"],
-  },
+  }),
 ];
 
 export const CATEGORY_ICONS: Record<ReplacementCategory, IconName> = {
@@ -543,69 +354,82 @@ export interface Exercise {
   prompts: readonly { text: string; seconds: number }[];
 }
 
+type BreathId = keyof Messages["catalog"]["breath"];
+
+/** A breathing phase whose label is read in the current language. */
+function breathPhase(id: BreathId, seconds: number, scale: number): BreathPhase {
+  return {
+    seconds,
+    scale,
+    get label() {
+      return m().catalog.breath[id];
+    },
+  };
+}
+
 const SLOW_BREATH: readonly BreathPhase[] = [
-  { label: "Вдох", seconds: 2, scale: 1 },
-  { label: "Выдох", seconds: 3, scale: 0.6 },
+  breathPhase("inhale", 2, 1),
+  breathPhase("exhale", 3, 0.6),
 ];
 
+/**
+ * An SOS exercise; its title, subtitle and prompts come from the current language. `prompts`
+ * gives the seconds of each prompt, in the order of the messages' prompts.
+ */
+function defineExercise(
+  data: Omit<Exercise, "title" | "subtitle" | "prompts"> & { prompts: readonly number[] },
+): Exercise {
+  const text = () => m().catalog.exercises[data.id];
+  return {
+    ...data,
+    get title() {
+      return text().title;
+    },
+    get subtitle() {
+      return text().subtitle;
+    },
+    prompts: data.prompts.map((seconds, index) => ({
+      seconds,
+      get text() {
+        return text().prompts[index] ?? "";
+      },
+    })),
+  };
+}
+
 export const EXERCISES: readonly Exercise[] = [
-  {
+  defineExercise({
     id: "breath-ground",
-    title: "Дыхание и заземление",
-    subtitle: "Длинный выдох + техника 3-2-1",
     icon: "leaf-outline",
     breath: SLOW_BREATH,
-    prompts: [
-      { text: "Назовите про себя 3 предмета, которые видите прямо сейчас", seconds: 5 },
-      { text: "Почувствуйте 2 точки опоры: стопы на полу и спину", seconds: 5 },
-      { text: "Сделайте 1 длинный выдох и опустите плечи", seconds: 5 },
-    ],
-  },
-  {
+    prompts: [5, 5, 5],
+  }),
+  defineExercise({
     id: "box-breath",
-    title: "Квадратное дыхание",
-    subtitle: "Ровный ритм для сильного стресса",
     icon: "square-outline",
     premium: true,
     breath: [
-      { label: "Вдох", seconds: 4, scale: 1 },
-      { label: "Задержка", seconds: 4, scale: 1 },
-      { label: "Выдох", seconds: 4, scale: 0.6 },
-      { label: "Пауза", seconds: 3, scale: 0.6 },
+      breathPhase("inhale", 4, 1),
+      breathPhase("hold", 4, 1),
+      breathPhase("exhale", 4, 0.6),
+      breathPhase("rest", 3, 0.6),
     ],
-    prompts: [
-      { text: "Вдох через нос — считайте до четырёх", seconds: 4 },
-      { text: "Задержите дыхание, не напрягаясь", seconds: 4 },
-      { text: "Медленный выдох через рот", seconds: 4 },
-      { text: "Пауза. Заметьте тишину внутри", seconds: 3 },
-    ],
-  },
-  {
+    prompts: [4, 4, 4, 3],
+  }),
+  defineExercise({
     id: "serial-sevens",
-    title: "Счёт от 100 по 7",
-    subtitle: "Включает «директора» мозга",
     icon: "calculator-outline",
     premium: true,
     breath: SLOW_BREATH,
-    prompts: [
-      { text: "Посчитайте в уме: 100 − 7 = ?", seconds: 5 },
-      { text: "Верно, 93. Дальше: 93 − 7 = ?", seconds: 5 },
-      { text: "Это 86. И ещё: 86 − 7 = ?", seconds: 5 },
-    ],
-  },
-  {
+    prompts: [5, 5, 5],
+  }),
+  defineExercise({
     id: "intent-check",
-    title: "Три честных вопроса",
-    subtitle: "Осознанность вместо автопилота",
     icon: "help-circle-outline",
     premium: true,
     breath: SLOW_BREATH,
-    prompts: [
-      { text: "Что я чувствую прямо сейчас — одним словом?", seconds: 5 },
-      { text: "Что я на самом деле хочу получить от ленты?", seconds: 5 },
-      { text: "Что даст мне это чувство без телефона?", seconds: 5 },
-    ],
-  },
+    prompts: [5, 5, 5],
+  }),
 ];
 
 export function getExercise(id: ExerciseId): Exercise {
@@ -621,64 +445,71 @@ export interface Equivalent {
   icon: IconName;
   /** Minutes that make up one unit. */
   unitMinutes: number;
+  /** The word after the number in the current language: countOf(2, unit) → "2 книги". */
+  unit: PluralForms;
+  /**
+   * The same words as a triple for `formatQuantity`: [one, few, many] in Russian,
+   * [singular, plural, plural] in the other languages.
+   */
   forms: readonly [string, string, string];
   caption: string;
   premium?: boolean;
 }
 
+type EquivalentId = keyof Messages["catalog"]["equivalents"];
+
+/** A saved-time equivalent whose words and caption are read in the current language. */
+function defineEquivalent(
+  id: EquivalentId,
+  icon: IconName,
+  unitMinutes: number,
+  premium?: boolean,
+): Equivalent {
+  const text = () => m().catalog.equivalents[id];
+  return {
+    id,
+    icon,
+    unitMinutes,
+    ...(premium ? { premium } : {}),
+    get unit() {
+      return text().unit;
+    },
+    get forms() {
+      const unit: PluralForms = text().unit;
+      return [unit.one, unit.few ?? unit.other, unit.many ?? unit.other] as const;
+    },
+    get caption() {
+      return text().caption;
+    },
+  };
+}
+
 export const EQUIVALENTS: readonly Equivalent[] = [
-  {
-    id: "books",
-    icon: "book-outline",
-    unitMinutes: 300,
-    forms: ["книга", "книги", "книг"],
-    caption: "средняя книга ≈ 5 часов чтения",
-  },
-  {
-    id: "sleep",
-    icon: "moon-outline",
-    unitMinutes: 60,
-    forms: ["час сна", "часа сна", "часов сна"],
-    caption: "время, которое можно вернуть сну",
-  },
-  {
-    id: "walks",
-    icon: "walk-outline",
-    unitMinutes: 30,
-    forms: ["прогулка", "прогулки", "прогулок"],
-    caption: "по 30 минут на свежем воздухе",
-  },
-  {
-    id: "workouts",
-    icon: "barbell-outline",
-    unitMinutes: 45,
-    forms: ["тренировка", "тренировки", "тренировок"],
-    caption: "по 45 минут",
-    premium: true,
-  },
-  {
-    id: "language",
-    icon: "language-outline",
-    unitMinutes: 20,
-    forms: ["урок языка", "урока языка", "уроков языка"],
-    caption: "по 20 минут",
-    premium: true,
-  },
-  {
-    id: "calls",
-    icon: "call-outline",
-    unitMinutes: 15,
-    forms: ["разговор", "разговора", "разговоров"],
-    caption: "с близкими, по 15 минут",
-    premium: true,
-  },
+  defineEquivalent("books", "book-outline", 300),
+  defineEquivalent("sleep", "moon-outline", 60),
+  defineEquivalent("walks", "walk-outline", 30),
+  defineEquivalent("workouts", "barbell-outline", 45, true),
+  defineEquivalent("language", "language-outline", 20, true),
+  defineEquivalent("calls", "call-outline", 15, true),
 ];
 
+/** A part of the day: `label` names it, `phrase` is the adverb of time used in sentences. */
+function defineTimeOfDay(id: TimeOfDay): { label: string; phrase: string } {
+  return {
+    get label() {
+      return m().catalog.timeOfDay[id].label;
+    },
+    get phrase() {
+      return m().catalog.timeOfDay[id].phrase;
+    },
+  };
+}
+
 export const TIME_OF_DAY_LABELS: Record<TimeOfDay, { label: string; phrase: string }> = {
-  morning: { label: "Утро", phrase: "по утрам" },
-  afternoon: { label: "День", phrase: "днём" },
-  evening: { label: "Вечер", phrase: "по вечерам" },
-  night: { label: "Ночь", phrase: "ночью" },
+  morning: defineTimeOfDay("morning"),
+  afternoon: defineTimeOfDay("afternoon"),
+  evening: defineTimeOfDay("evening"),
+  night: defineTimeOfDay("night"),
 };
 
 /** Preset values for the scroll-time logger and onboarding. */

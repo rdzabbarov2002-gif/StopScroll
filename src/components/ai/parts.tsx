@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, View } from "react-native";
 
 import type { RiskLevel } from "../../ai/types";
 import { useAi } from "../../context/AiContext";
+import { getLanguageInfo, useLanguage, useT, type Messages } from "../../i18n";
 import { formatTime } from "../../utils/date";
 import { useThemeColors, type ThemeColors } from "../../utils/theme";
 import type { IconName } from "../../utils/types";
@@ -41,13 +42,10 @@ export function levelColor(
         : colors.textSubtle;
 }
 
-const TASK_TEXT = {
-  entry: "ChatGPT разбирает запись…",
-  deep: "ChatGPT обновляет аналитику по всей истории…",
-} as const;
-
 /** What the AI coach is doing right now, or when it last updated. */
 export function SyncLine() {
+  const t = useT();
+  const language = useLanguage();
   const { colors } = useThemeColors();
   const ai = useAi();
   if (ai.sync.status === "working" && ai.sync.task) {
@@ -55,7 +53,7 @@ export function SyncLine() {
       <View className="flex-row items-center gap-2" accessibilityLiveRegion="polite">
         <ActivityIndicator size="small" color={colors.primary} />
         <AppText variant="caption" tone="muted" className="text-[14px]">
-          {TASK_TEXT[ai.sync.task]}
+          {t.ai.sync[ai.sync.task]}
         </AppText>
       </View>
     );
@@ -74,7 +72,7 @@ export function SyncLine() {
           className="rounded-full bg-brand-50 px-3 py-1 active:opacity-70 dark:bg-brand-900"
         >
           <AppText variant="label" tone="primary" className="text-[14px]">
-            Повторить
+            {t.ai.sync.retry}
           </AppText>
         </Pressable>
       </View>
@@ -83,16 +81,21 @@ export function SyncLine() {
   if (!ai.updatedAt) return null;
   return (
     <AppText variant="caption" tone="subtle" className="text-[14px]">
-      Аналитика обновлена {formatUpdated(ai.updatedAt)}
+      {t.ai.sync.updated(formatUpdated(ai.updatedAt, t, getLanguageInfo(language).locale))}
     </AppText>
   );
 }
 
-function formatUpdated(timestamp: number) {
+function formatUpdated(timestamp: number, t: Messages, locale: string) {
   const date = new Date(timestamp);
   const today = new Date();
-  const sameDay = date.toDateString() === today.toDateString();
-  return sameDay
-    ? `сегодня в ${formatTime(timestamp)}`
-    : `${date.toLocaleDateString("ru-RU", { day: "numeric", month: "long" })} в ${formatTime(timestamp)}`;
+  const time = formatTime(timestamp);
+  if (date.toDateString() === today.toDateString()) return t.ai.sync.today(time);
+  let day: string;
+  try {
+    day = date.toLocaleDateString(locale, { day: "numeric", month: "long" });
+  } catch {
+    day = t.common.date.day(date.getDate(), date.getMonth());
+  }
+  return t.ai.sync.onDate(day, time);
 }

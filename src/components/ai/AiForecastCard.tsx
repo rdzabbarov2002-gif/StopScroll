@@ -3,6 +3,7 @@ import { useNavigation } from "@react-navigation/native";
 import { Pressable, View } from "react-native";
 
 import type { AiForecast } from "../../ai/types";
+import { useT } from "../../i18n";
 import { formatTime } from "../../utils/date";
 import { useThemeColors } from "../../utils/theme";
 import { AppText } from "../AppText";
@@ -19,6 +20,7 @@ export function AiForecastCard({
   forecast: AiForecast;
   compact?: boolean;
 }) {
+  const t = useT();
   const { colors } = useThemeColors();
   const navigation = useNavigation();
   const color = levelColor(colors, forecast.level, forecast.probability);
@@ -26,19 +28,19 @@ export function AiForecastCard({
 
   return (
     <Card className="gap-3.5">
-      <CardLabel icon="pulse" label="Прогноз на сегодня" color={color} />
+      <CardLabel icon="pulse" label={t.ai.forecast.title} color={color} />
       {forecast.probability !== null ? (
         <View
           className="gap-2"
           accessible
-          accessibilityLabel={`Вероятность открытия ленты сегодня: ${forecast.probability} процентов`}
+          accessibilityLabel={t.ai.forecast.probabilityA11y(forecast.probability)}
         >
           <View className="flex-row items-baseline gap-2">
             <AppText rounded className="text-[44px] font-bold leading-[50px]" style={{ color }}>
               {forecast.probability}%
             </AppText>
             <AppText variant="caption" tone="muted" className="flex-1">
-              вероятность открытия ленты сегодня
+              {t.ai.forecast.probabilityCaption}
             </AppText>
           </View>
           <ProgressBar progress={forecast.probability / 100} color={color} />
@@ -60,7 +62,7 @@ export function AiForecastCard({
       {forecast.advice ? (
         <View className="gap-1">
           <AppText variant="label" tone="primary">
-            Что поможет сегодня
+            {t.ai.forecast.helps}
           </AppText>
           <AppText className="text-[16px] leading-[22px]">{forecast.advice}</AppText>
         </View>
@@ -68,7 +70,7 @@ export function AiForecastCard({
       <Separator />
       <View className="flex-row items-center justify-between gap-3">
         <AppText variant="caption" tone="subtle" className="flex-1 text-[13px]">
-          Обновлено в {formatTime(forecast.createdAt)}
+          {t.ai.forecast.updatedAt(formatTime(forecast.createdAt))}
           {forecast.basis ? ` · ${forecast.basis}` : ""}
         </AppText>
         {compact ? (
@@ -79,7 +81,7 @@ export function AiForecastCard({
             className="flex-row items-center gap-0.5 active:opacity-70"
           >
             <AppText variant="label" tone="primary" className="text-[14px]">
-              Аналитика
+              {t.ai.forecast.analytics}
             </AppText>
             <Ionicons name="chevron-forward" size={15} color={colors.primary} />
           </Pressable>

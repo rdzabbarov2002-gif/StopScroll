@@ -1,3 +1,4 @@
+import { m } from "../i18n";
 import type { ProFeature } from "../navigation/types";
 import { EQUIVALENTS, EXERCISES, REPLACEMENTS } from "./catalog";
 import type { IconName } from "./types";
@@ -20,67 +21,90 @@ export interface PlanRow {
 }
 
 export const PLAN_ROWS: readonly PlanRow[] = [
-  { icon: "pause-outline", label: "SOS-пауза", free: true, pro: true },
+  {
+    icon: "pause-outline",
+    get label() {
+      return m().paywall.rows.sos;
+    },
+    free: true,
+    pro: true,
+  },
   {
     icon: "leaf-outline",
-    label: "Упражнения паузы",
+    get label() {
+      return m().paywall.rows.exercises;
+    },
     free: String(freeExercises),
     pro: String(EXERCISES.length),
   },
   {
     icon: "swap-horizontal-outline",
-    label: "Замены",
+    get label() {
+      return m().paywall.rows.replacements;
+    },
     free: String(freeReplacements),
-    pro: `${REPLACEMENTS.length} + свои`,
+    get pro() {
+      return m().paywall.rows.replacementsPro(REPLACEMENTS.length);
+    },
   },
   {
     icon: "stats-chart-outline",
-    label: "Динамика",
-    free: `${FREE_TREND_DAYS} дн.`,
-    pro: `${PRO_TREND_DAYS} дн.`,
+    get label() {
+      return m().paywall.rows.trend;
+    },
+    get free() {
+      return m().paywall.rows.days(FREE_TREND_DAYS);
+    },
+    get pro() {
+      return m().paywall.rows.days(PRO_TREND_DAYS);
+    },
   },
   {
     icon: "calendar-outline",
-    label: "Тепловая карта",
-    free: `${FREE_HEATMAP_WEEKS} нед.`,
-    pro: `${PRO_HEATMAP_WEEKS} нед.`,
+    get label() {
+      return m().paywall.rows.heatmap;
+    },
+    get free() {
+      return m().paywall.rows.weeks(FREE_HEATMAP_WEEKS);
+    },
+    get pro() {
+      return m().paywall.rows.weeks(PRO_HEATMAP_WEEKS);
+    },
   },
   {
     icon: "hourglass-outline",
-    label: "Конвертер времени",
+    get label() {
+      return m().paywall.rows.converter;
+    },
     free: String(freeEquivalents),
     pro: String(EQUIVALENTS.length),
   },
-  { icon: "analytics-outline", label: "Закономерности", free: false, pro: true },
+  {
+    icon: "analytics-outline",
+    get label() {
+      return m().paywall.rows.patterns;
+    },
+    free: false,
+    pro: true,
+  },
 ];
 
+/** A paywall headline whose texts are read in the current language on access. */
+const headline = (feature: ProFeature | "default") => ({
+  get title() {
+    return m().paywall.headlines[feature].title;
+  },
+  get text() {
+    return m().paywall.headlines[feature].text;
+  },
+});
+
 export const PAYWALL_HEADLINES: Record<ProFeature | "default", { title: string; text: string }> = {
-  default: {
-    title: "Верните себе время у алгоритмов",
-    text: "Все упражнения, полный каталог замен, свои привычки и глубокая аналитика.",
-  },
-  exercises: {
-    title: "Все упражнения для SOS-паузы",
-    text: "Квадратное дыхание, счёт от 100 и честные вопросы — разные ключи к разным импульсам.",
-  },
-  replacements: {
-    title: "Полный каталог микро-замен",
-    text: "Больше движений, задач для ума и коротких фактов — здоровый дофамин на любой случай.",
-  },
-  custom: {
-    title: "Свои замены и привычки",
-    text: "Добавьте то, что работает именно для вас: гитара, отжимания, страница книги.",
-  },
-  analytics: {
-    title: "Глубокая аналитика паттернов",
-    text: "Узнайте, в какой час и в какой день недели лента побеждает чаще всего — и подготовьтесь заранее.",
-  },
-  history: {
-    title: "Вся история прогресса",
-    text: "Динамика за 30 дней и тепловая карта на 16 недель — видно, как меняется привычка.",
-  },
-  converter: {
-    title: "Полный конвертер времени",
-    text: "Тренировки, уроки языка и разговоры с близкими, которые вы выиграли у ленты.",
-  },
+  default: headline("default"),
+  exercises: headline("exercises"),
+  replacements: headline("replacements"),
+  custom: headline("custom"),
+  analytics: headline("analytics"),
+  history: headline("history"),
+  converter: headline("converter"),
 };

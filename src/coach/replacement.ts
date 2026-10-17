@@ -1,9 +1,9 @@
+import { m } from "../i18n";
 import { REPLACEMENTS, getTrigger } from "../utils/catalog";
 import { MS_PER_HOUR } from "../utils/date";
 import { isLocked } from "../utils/replacements";
 import type { Replacement } from "../utils/types";
 import { type History, slipSoonAfter, slipsWithin, winsWithin } from "./history";
-import { TIME_FORMS, count } from "./language";
 import { findTopReason } from "./patterns";
 
 export interface ReplacementPick {
@@ -46,12 +46,13 @@ export function pickReplacement(
   }
 
   if (best) {
+    const t = m().coach.replacement;
     const why =
       best.helped >= 2
-        ? `Уже ${count(best.helped, TIME_FORMS)} после неё обходилось без срывов.`
+        ? t.helped(best.helped)
         : best.matches
-          ? `Подходит, когда причина — ${getTrigger(reason!.trigger).noun}: у тебя так бывает чаще всего.`
-          : "После неё в последний раз обошлось без срыва.";
+          ? t.matches(getTrigger(reason!.trigger))
+          : t.lastTime;
     return { replacement: best.item, why };
   }
 

@@ -1,3 +1,4 @@
+import { isLanguage } from "../i18n/languages";
 import { CATEGORIES, EXERCISES, FEED_APPS, MAX_SCROLL_MINUTES, TRIGGERS } from "./catalog";
 import { DAY_KEY_PATTERN } from "./date";
 import type {
@@ -64,6 +65,7 @@ export function createInitialState(): PersistedState {
   return {
     version: 1,
     onboarded: false,
+    language: null,
     settings: { ...DEFAULT_SETTINGS },
     scrollLog: {},
     wins: [],
@@ -285,6 +287,7 @@ export function sanitizePersistedState(raw: unknown): PersistedState {
   return {
     version: 1,
     onboarded: raw.onboarded === true,
+    language: isLanguage(raw.language) ? raw.language : null,
     settings: sanitizeSettings(raw.settings),
     scrollLog: sanitizeScrollLog(raw.scrollLog),
     wins: sanitizeList(raw.wins, sanitizeWin, (item) => item.timestamp, MAX_WINS),

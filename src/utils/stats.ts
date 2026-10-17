@@ -1,5 +1,7 @@
+import { selectPlural } from "../i18n/plural";
+import { getLanguage } from "../i18n/store";
 import { EQUIVALENTS, type Equivalent } from "./catalog";
-import { addDays, dayKey, formatDecimal, pluralize, weekdayIndex } from "./date";
+import { addDays, dayKey, formatDecimal, weekdayIndex } from "./date";
 import { MAX_SCROLL_DAYS } from "./persistedState";
 import type { WinArchive, WinEntry } from "./types";
 
@@ -211,9 +213,19 @@ export interface EquivalentValue {
   progress: number;
 }
 
+/**
+ * "1,5 книги", "12 прогулок"; "1.5 books". `forms` are the current language's words:
+ * [one, few, many] in Russian, [singular, plural, plural] in the other languages.
+ */
 export function formatQuantity(value: number, forms: readonly [string, string, string]): string {
-  // Russian uses the genitive singular after a fraction: "1,5 книги", "0,3 часа сна".
-  const word = Number.isInteger(value) ? pluralize(value, forms) : forms[1];
+  // Russian uses the genitive singular after a fraction: "1,5 книги", "0,3 часа сна" — the
+  // `other` form. French keeps the singular below 2: "1,5 livre".
+  const word = selectPlural(getLanguage(), value, {
+    one: forms[0],
+    few: forms[1],
+    many: forms[2],
+    other: forms[1],
+  });
   return `${formatDecimal(value)} ${word}`;
 }
 

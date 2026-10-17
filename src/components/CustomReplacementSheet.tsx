@@ -2,7 +2,9 @@ import { useState } from "react";
 import { TextInput, View } from "react-native";
 
 import { useApp } from "../context/AppContext";
+import { useT } from "../i18n";
 import { CATEGORIES } from "../utils/catalog";
+import { formatMinutes } from "../utils/date";
 import { haptics } from "../utils/haptics";
 import { MAX_DESCRIPTION_LENGTH, MAX_TITLE_LENGTH } from "../utils/persistedState";
 import { useThemeColors } from "../utils/theme";
@@ -23,6 +25,7 @@ const INPUT =
 /** Pro: the user's own 1–3 minute replacement or healthy habit. */
 export function CustomReplacementSheet({ visible, onClose }: CustomReplacementSheetProps) {
   const { colors } = useThemeColors();
+  const text = useT().replacements.custom;
   const { addCustomReplacement } = useApp();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -41,43 +44,38 @@ export function CustomReplacementSheet({ visible, onClose }: CustomReplacementSh
   };
 
   return (
-    <BottomSheet
-      visible={visible}
-      onClose={onClose}
-      title="Своя замена"
-      subtitle="То, что работает именно для вас: гитара, отжимания, страница книги."
-    >
+    <BottomSheet visible={visible} onClose={onClose} title={text.title} subtitle={text.subtitle}>
       <View className="gap-5 pb-2">
         <View className="gap-2">
-          <AppText variant="label">Название</AppText>
+          <AppText variant="label">{text.name}</AppText>
           <TextInput
             value={title}
             onChangeText={setTitle}
-            placeholder="Например: 10 отжиманий"
+            placeholder={text.namePlaceholder}
             placeholderTextColor={colors.textSubtle}
             maxLength={MAX_TITLE_LENGTH}
             className={INPUT}
-            accessibilityLabel="Название замены"
+            accessibilityLabel={text.nameA11y}
           />
         </View>
 
         <View className="gap-2">
-          <AppText variant="label">Как выполнить</AppText>
+          <AppText variant="label">{text.how}</AppText>
           <TextInput
             value={description}
             onChangeText={setDescription}
-            placeholder="Необязательно: пара слов-подсказок"
+            placeholder={text.howPlaceholder}
             placeholderTextColor={colors.textSubtle}
             maxLength={MAX_DESCRIPTION_LENGTH}
             multiline
             className={`${INPUT} min-h-[80px]`}
             style={{ textAlignVertical: "top" }}
-            accessibilityLabel="Описание замены, необязательно"
+            accessibilityLabel={text.howA11y}
           />
         </View>
 
         <View className="gap-2">
-          <AppText variant="label">Тип</AppText>
+          <AppText variant="label">{text.type}</AppText>
           <View className="flex-row flex-wrap gap-2">
             {CATEGORIES.map((item) => (
               <Chip
@@ -92,12 +90,12 @@ export function CustomReplacementSheet({ visible, onClose }: CustomReplacementSh
         </View>
 
         <View className="gap-2">
-          <AppText variant="label">Длительность</AppText>
+          <AppText variant="label">{text.duration}</AppText>
           <View className="flex-row gap-2">
             {[1, 2, 3].map((value) => (
               <Chip
                 key={value}
-                label={`${value} мин`}
+                label={formatMinutes(value)}
                 selected={minutes === value}
                 onPress={() => setMinutes(value)}
               />
@@ -106,7 +104,7 @@ export function CustomReplacementSheet({ visible, onClose }: CustomReplacementSh
         </View>
 
         <Button
-          label="Сохранить замену"
+          label={text.save}
           icon="add-circle-outline"
           size="lg"
           disabled={!canSave}

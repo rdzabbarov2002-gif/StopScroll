@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import { getLanguage, m } from "../i18n";
 import { createId } from "../utils/persistedState";
 
 /**
@@ -48,7 +49,8 @@ export async function postAi(path: string, body: unknown, timeoutMs: number): Pr
         "X-Install-Id": await getInstallId(),
         ...(TOKEN ? { "X-App-Token": TOKEN } : {}),
       },
-      body: JSON.stringify(body),
+      // Every answer — analysis, questions, forecasts, advice — comes in the app's language.
+      body: JSON.stringify({ ...(body as object), language: getLanguage() }),
       signal: controller.signal,
     });
   } catch {
@@ -68,11 +70,5 @@ export async function postAi(path: string, body: unknown, timeoutMs: number): Pr
   }
 }
 
-export const AI_ERROR_TEXT: Record<AiErrorKind, string> = {
-  offline: "Нет соединения с интернетом. Анализ продолжится, когда сеть появится.",
-  timeout: "ChatGPT отвечает слишком долго. Попробуем ещё раз чуть позже.",
-  busy: "Сервис сейчас перегружен. Попробуем ещё раз через пару минут.",
-  unavailable: "ChatGPT сейчас недоступен. Попробуем ещё раз через пару минут.",
-  server: "Сервер AI-коуча недоступен. Попробуем ещё раз позже.",
-  unusable: "Ответ ChatGPT не получилось разобрать. Попробуем ещё раз.",
-};
+/** What to tell the user about a failed request, in the app's current language. */
+export const aiErrorText = (kind: AiErrorKind) => m().ai.errors[kind];

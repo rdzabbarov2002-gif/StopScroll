@@ -1,23 +1,22 @@
 import { useState } from "react";
 import { View } from "react-native";
 
+import { useT } from "../../i18n";
 import type { Patterns } from "../../utils/analytics";
 import { getTrigger } from "../../utils/catalog";
-import { WEEKDAYS_SHORT, formatHourRange, pluralize } from "../../utils/date";
+import { WEEKDAYS_SHORT, formatHourRange } from "../../utils/date";
 import { useThemeColors } from "../../utils/theme";
 import { AppText } from "../AppText";
 import { Card } from "../Card";
 import { ColumnChart, type ColumnDatum } from "../charts/ColumnChart";
 
 const COUNT_STEPS = [2, 4, 6, 8, 10, 12, 16, 20, 30, 40, 50, 60, 80, 100];
-const SLIP_FORMS = ["срыв", "срыва", "срывов"] as const;
-
-const plural = (count: number) => pluralize(count, SLIP_FORMS);
 
 const formatCount = (value: number) => String(Math.round(value));
 
 /** Pro: slips by hour and weekday, and resisted vs slipped per trigger. */
 export function DeepAnalytics({ patterns }: { patterns: Patterns }) {
+  const t = useT().journal.deep;
   const [hour, setHour] = useState<string | null>(null);
   const [weekday, setWeekday] = useState<string | null>(null);
 
@@ -25,13 +24,13 @@ export function DeepAnalytics({ patterns }: { patterns: Patterns }) {
     key: String(index),
     value: count,
     label: index % 6 === 0 ? String(index).padStart(2, "0") : "",
-    a11y: `${formatHourRange(index)}: ${count} ${plural(count)}`,
+    a11y: t.columnA11y(formatHourRange(index), count),
   }));
   const weekdayData: ColumnDatum[] = patterns.byWeekday.map((count, index) => ({
     key: String(index),
     value: count,
     label: WEEKDAYS_SHORT[index],
-    a11y: `${WEEKDAYS_SHORT[index]}: ${count} ${plural(count)}`,
+    a11y: t.columnA11y(WEEKDAYS_SHORT[index]!, count),
   }));
 
   const hourKey = hour ?? (patterns.peakHour === null ? null : String(patterns.peakHour));
@@ -50,11 +49,11 @@ export function DeepAnalytics({ patterns }: { patterns: Patterns }) {
 
       <Card className="gap-3">
         <ChartHeader
-          title="Срывы по часам"
+          title={t.byHour}
           readout={
             hourKey === null
-              ? "Пока нет данных"
-              : `${formatHourRange(Number(hourKey))} · ${hourValue} ${plural(hourValue ?? 0)}`
+              ? t.noData
+              : t.readout(formatHourRange(Number(hourKey)), hourValue ?? 0)
           }
         />
         <ColumnChart
@@ -69,11 +68,11 @@ export function DeepAnalytics({ patterns }: { patterns: Patterns }) {
 
       <Card className="gap-3">
         <ChartHeader
-          title="Срывы по дням недели"
+          title={t.byWeekday}
           readout={
             weekdayKey === null
-              ? "Пока нет данных"
-              : `${WEEKDAYS_SHORT[Number(weekdayKey)]} · ${weekdayValue} ${plural(weekdayValue ?? 0)}`
+              ? t.noData
+              : t.readout(WEEKDAYS_SHORT[Number(weekdayKey)]!, weekdayValue ?? 0)
           }
         />
         <ColumnChart
@@ -106,6 +105,7 @@ function ChartHeader({ title, readout }: { title: string; readout: string }) {
 
 /** Two-series stacked bars: resisted (indigo) vs slipped (orange), with a legend. */
 function TriggerBreakdown({ patterns }: { patterns: Patterns }) {
+  const t = useT().journal.deep;
   const { chart } = useThemeColors();
   const rows = patterns.triggerBreakdown;
   const max = Math.max(1, ...rows.map((row) => row.slips + row.resisted));
@@ -114,16 +114,16 @@ function TriggerBreakdown({ patterns }: { patterns: Patterns }) {
     <Card className="gap-4">
       <View className="gap-2">
         <AppText variant="label" className="text-base">
-          Триггеры: удержались или сорвались
+          {t.triggers}
         </AppText>
         <View className="flex-row gap-4">
-          <LegendItem color={chart.series} label="Удержались" />
-          <LegendItem color={chart.slip} label="Срывы" />
+          <LegendItem color={chart.series} label={t.resisted} />
+          <LegendItem color={chart.slip} label={t.slips} />
         </View>
       </View>
       {rows.length === 0 ? (
         <AppText variant="caption" tone="muted">
-          Отмечайте причину в SOS-паузе и в дневнике — здесь появится разбивка.
+          {t.triggersEmpty}
         </AppText>
       ) : (
         rows.map((row) => {
@@ -133,7 +133,7 @@ function TriggerBreakdown({ patterns }: { patterns: Patterns }) {
               key={row.id}
               className="gap-1.5"
               accessible
-              accessibilityLabel={`${label}: удержались ${row.resisted}, срывов ${row.slips}`}
+              accessibilityLabel={t.triggerA11y(label, row.resisted, row.slips)}
             >
               <View className="flex-row items-center justify-between">
                 <AppText variant="caption">{label}</AppText>

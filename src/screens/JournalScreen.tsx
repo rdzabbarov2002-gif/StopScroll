@@ -15,15 +15,16 @@ import { ListGroup } from "../components/ListGroup";
 import { Screen } from "../components/Screen";
 import { useApp } from "../context/AppContext";
 import { usePro } from "../context/ProContext";
+import { useT } from "../i18n";
 import type { RootTabScreenProps } from "../navigation/types";
 import { computePatterns } from "../utils/analytics";
-import { ENTRY_FORMS, pluralize } from "../utils/date";
 import type { SlipEntry, TriggerId } from "../utils/types";
 import { useNow } from "../utils/useNow";
 
 const PAGE_SIZE = 15;
 
 export function JournalScreen({ route }: RootTabScreenProps<"Journal">) {
+  const t = useT().journal;
   const { slips, wins, deleteSlip } = useApp();
   const { isPro } = usePro();
   const now = useNow(60_000);
@@ -44,11 +45,10 @@ export function JournalScreen({ route }: RootTabScreenProps<"Journal">) {
     <Screen>
       <View className="gap-1 px-1 pb-1 pt-3">
         <AppText variant="title" accessibilityRole="header">
-          Дневник
+          {t.title}
         </AppText>
         <AppText variant="caption" tone="muted">
-          Запишите срыв за 10 секунд — без самокритики. Коуч спросит, что произошло, и со временем
-          покажет, что повторяется.
+          {t.intro}
         </AppText>
       </View>
 
@@ -64,34 +64,26 @@ export function JournalScreen({ route }: RootTabScreenProps<"Journal">) {
       <View className="gap-3">
         <View className="flex-row items-center gap-2 px-1 pt-2">
           <AppText variant="overline" tone="subtle" accessibilityRole="header">
-            Глубокая аналитика
+            {t.deepAnalytics}
           </AppText>
           {!isPro ? <ProBadge /> : null}
         </View>
         {isPro ? (
           <DeepAnalytics patterns={patterns} />
         ) : (
-          <LockedCard
-            feature="analytics"
-            title="Часы и дни недели, когда лента побеждает"
-            text="Графики срывов по часам и дням, а также разбор: где вы удерживаетесь, а где — нет."
-          />
+          <LockedCard feature="analytics" title={t.locked.title} text={t.locked.text} />
         )}
       </View>
 
       {slips.length === 0 ? (
-        <EmptyState
-          icon="journal-outline"
-          title="Записей пока нет"
-          text="И это отлично. Если лента всё же победит — отметьте это здесь, чтобы увидеть закономерности."
-        />
+        <EmptyState icon="journal-outline" title={t.empty.title} text={t.empty.text} />
       ) : (
         <View className="gap-3">
           <ListGroup
-            header="История срывов"
+            header={t.history}
             headerRight={
               <AppText variant="caption" tone="subtle" className="text-[13px]">
-                {slips.length} {pluralize(slips.length, ENTRY_FORMS)}
+                {t.entries(slips.length)}
               </AppText>
             }
           >
@@ -107,7 +99,7 @@ export function JournalScreen({ route }: RootTabScreenProps<"Journal">) {
           </ListGroup>
           {slips.length > visibleCount ? (
             <Button
-              label="Показать ещё"
+              label={t.showMore}
               variant="secondary"
               onPress={() => setVisibleCount((count) => count + PAGE_SIZE)}
             />

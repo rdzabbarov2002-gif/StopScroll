@@ -19,19 +19,17 @@ import { buildBriefing } from "../coach";
 import { useAi } from "../context/AiContext";
 import { useApp } from "../context/AppContext";
 import { usePro } from "../context/ProContext";
+import { plural, useT, type Messages } from "../i18n";
 import type { RootTabScreenProps } from "../navigation/types";
 import { ACHIEVEMENTS, achievementTitle, getAchievement } from "../utils/achievements";
 import { getCategory } from "../utils/catalog";
 import {
-  DAY_FORMS,
   WEEKDAYS_SHORT,
-  WIN_FORMS,
   formatLongDate,
   formatMinutes,
   formatWeekRange,
   formatMinutesCompact,
   formatMinutesInline,
-  pluralize,
   weekdayIndex,
 } from "../utils/date";
 import {
@@ -45,7 +43,10 @@ import { useThemeColors } from "../utils/theme";
 import { useNow } from "../utils/useNow";
 import { buildWeeklyReport, latestReportWeek, reportWeeks } from "../utils/weeklyReport";
 
+type HomeMessages = Messages["home"];
+
 export function HomeScreen({ navigation }: RootTabScreenProps<"Home">) {
+  const t = useT().home;
   const { colors, chart } = useThemeColors();
   const now = useNow(60_000);
   const app = useApp();
@@ -91,9 +92,10 @@ export function HomeScreen({ navigation }: RootTabScreenProps<"Home">) {
     key: point.key,
     value: point.minutes,
     label: WEEKDAYS_SHORT[weekdayIndex(point.key)],
-    a11y: `${WEEKDAYS_SHORT[weekdayIndex(point.key)]}: ${
-      point.minutes === null ? "нет записи" : formatMinutes(point.minutes)
-    }`,
+    a11y: t.dayValue(
+      WEEKDAYS_SHORT[weekdayIndex(point.key)],
+      point.minutes === null ? t.noEntry : formatMinutes(point.minutes),
+    ),
   }));
 
   return (
@@ -112,7 +114,7 @@ export function HomeScreen({ navigation }: RootTabScreenProps<"Home">) {
           tone="accent"
           className="mb-1 h-[38px] w-[38px]"
           onPress={() => navigation.navigate("Settings")}
-          accessibilityLabel="Настройки"
+          accessibilityLabel={t.settings}
         />
       </View>
 
@@ -129,21 +131,25 @@ export function HomeScreen({ navigation }: RootTabScreenProps<"Home">) {
         </>
       )}
 
-      <PressableCard onPress={openStats} label="Время в ленте, открыть статистику">
-        <CardLabel icon="phone-portrait" label="Время в ленте" color={colors.primary} chevron />
+      <PressableCard onPress={openStats} label={t.feed.a11y}>
+        <CardLabel icon="phone-portrait" label={t.feed.label} color={colors.primary} chevron />
         <AppText variant="statement" className="mt-2">
-          {feedStatement(comparison.today, comparison.yesterday, comparison.deltaPercent, limit)}
+          {feedStatement(t, comparison.today, comparison.yesterday, comparison.deltaPercent, limit)}
         </AppText>
         <Separator className="my-3.5" />
         <View className="flex-row gap-3">
-          <DurationValue label="Сегодня" minutes={comparison.today} color={colors.primary} />
-          <DurationValue label="Вчера" minutes={comparison.yesterday} color={colors.textSubtle} />
+          <DurationValue label={t.today} minutes={comparison.today} color={colors.primary} />
+          <DurationValue
+            label={t.yesterday}
+            minutes={comparison.yesterday}
+            color={colors.textSubtle}
+          />
         </View>
         <View className="mt-4">
           <ColumnChart
             data={weekData}
             highlightKey={app.todayKey}
-            reference={{ value: limit, label: `лимит ${formatMinutes(limit)}` }}
+            reference={{ value: limit, label: t.feed.limitLine(formatMinutes(limit)) }}
             formatTick={formatMinutesCompact}
             showYAxis={false}
             plotHeight={96}
@@ -160,23 +166,23 @@ export function HomeScreen({ navigation }: RootTabScreenProps<"Home">) {
 
       <ImpulseEntryCard />
 
-      <PressableCard onPress={openStats} label="Лимит и серия, открыть статистику">
-        <CardLabel icon="calendar" label="Лимит" color={colors.warningStrong} chevron />
+      <PressableCard onPress={openStats} label={t.limit.a11y}>
+        <CardLabel icon="calendar" label={t.limit.label} color={colors.warningStrong} chevron />
         <AppText variant="statement" className="mt-2">
-          {streakStatement(streak, comparison.today, limit)}
+          {streakStatement(t, streak, comparison.today, limit)}
         </AppText>
         <Separator className="my-3.5" />
         <View className="flex-row gap-3">
           <KeyValue
-            label="Серия"
+            label={t.limit.streak}
             value={String(streak)}
-            unit={pluralize(streak, DAY_FORMS)}
+            unit={plural(streak, t.limit.days)}
             color={colors.warningStrong}
           />
           <KeyValue
-            label="Рекорд"
+            label={t.limit.record}
             value={String(best)}
-            unit={pluralize(best, DAY_FORMS)}
+            unit={plural(best, t.limit.days)}
             color={colors.textSubtle}
           />
         </View>
@@ -193,17 +199,21 @@ export function HomeScreen({ navigation }: RootTabScreenProps<"Home">) {
         </View>
       </PressableCard>
 
-      <PressableCard onPress={openStats} label="Спасённое время, открыть статистику">
-        <CardLabel icon="leaf" label="Спасено" color={colors.success} chevron />
+      <PressableCard onPress={openStats} label={t.saved.a11y}>
+        <CardLabel icon="leaf" label={t.saved.label} color={colors.success} chevron />
         <AppText variant="statement" className="mt-2">
           {saved.todayWins > 0
-            ? `Сегодня вы вернули себе ${formatMinutesInline(saved.todayMinutes)} — ${saved.todayWins} ${pluralize(saved.todayWins, WIN_FORMS)} над импульсом.`
-            : "Каждая пауза возвращает вам время. Потянет в ленту — нажмите паузу."}
+            ? t.saved.today(formatMinutesInline(saved.todayMinutes), saved.todayWins)
+            : t.saved.empty}
         </AppText>
         <Separator className="my-3.5" />
         <View className="flex-row gap-3">
-          <DurationValue label="Сегодня" minutes={saved.todayMinutes} color={colors.success} />
-          <DurationValue label="Всего" minutes={saved.totalMinutes} color={colors.textSubtle} />
+          <DurationValue label={t.today} minutes={saved.todayMinutes} color={colors.success} />
+          <DurationValue
+            label={t.saved.total}
+            minutes={saved.totalMinutes}
+            color={colors.textSubtle}
+          />
         </View>
       </PressableCard>
 
@@ -211,9 +221,9 @@ export function HomeScreen({ navigation }: RootTabScreenProps<"Home">) {
 
       <PressableCard
         onPress={() => navigation.navigate("Replacement", { id: dailyPick.id })}
-        label={`Замена дня: ${dailyPick.title}`}
+        label={t.pick.a11y(dailyPick.title)}
       >
-        <CardLabel icon="sparkles" label="Замена дня" color={colors.indigo} chevron />
+        <CardLabel icon="sparkles" label={t.pick.label} color={colors.indigo} chevron />
         <AppText variant="statement" className="mt-2">
           {dailyPick.title}
         </AppText>
@@ -222,11 +232,11 @@ export function HomeScreen({ navigation }: RootTabScreenProps<"Home">) {
         </AppText>
         <View className="mt-3.5 flex-row items-center justify-between">
           <AppText variant="caption" tone="subtle">
-            {dailyPick.minutes} мин · {getCategory(dailyPick.category).label}
+            {formatMinutes(dailyPick.minutes)} · {getCategory(dailyPick.category).label}
           </AppText>
           <View className="h-9 justify-center rounded-full bg-brand-600 px-5 dark:bg-brand-500">
             <AppText variant="label" className="text-white dark:text-white">
-              Начать
+              {t.pick.start}
             </AppText>
           </View>
         </View>
@@ -237,6 +247,7 @@ export function HomeScreen({ navigation }: RootTabScreenProps<"Home">) {
 
 /** "Отчёт недели" and "Достижения" side by side. */
 function ProgressTiles({ now }: { now: number }) {
+  const t = useT().home.tiles;
   const { colors } = useThemeColors();
   const navigation = useNavigation();
   const app = useApp();
@@ -265,22 +276,20 @@ function ProgressTiles({ now }: { now: number }) {
       <Tile
         onPress={() => navigation.navigate("WeeklyReport")}
         icon="calendar"
-        label="Отчёт"
+        label={t.report}
         color={colors.primary}
-        title={hasReport ? (isNew ? "Новый отчёт" : formatWeekRange(latest)) : "В воскресенье"}
-        caption={hasReport ? `Спасено ${formatMinutes(saved)}` : "Коуч разберёт вашу неделю"}
+        title={hasReport ? (isNew ? t.newReport : formatWeekRange(latest)) : t.sunday}
+        caption={hasReport ? t.reportSaved(formatMinutes(saved)) : t.reportPromise}
         badge={isNew}
       />
       <Tile
         onPress={() => navigation.navigate("Achievements")}
         icon="trophy"
-        label="Достижения"
+        label={t.achievements}
         color={colors.warning}
-        title={`${earned.length} из ${ACHIEVEMENTS.length}`}
+        title={t.achievementsCount(earned.length, ACHIEVEMENTS.length)}
         caption={
-          lastEarned
-            ? achievementTitle(lastEarned, app.settings.mainApp)
-            : "Первое — после первой паузы"
+          lastEarned ? achievementTitle(lastEarned, app.settings.mainApp) : t.firstAchievement
         }
       />
     </View>
@@ -305,11 +314,12 @@ function Tile({
   badge?: boolean;
 }) {
   const { colors } = useThemeColors();
+  const t = useT().home.tiles;
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${label}: ${title}, ${caption}`}
+      accessibilityLabel={t.a11y(label, title, caption)}
       className="flex-1 gap-2 rounded-card bg-card p-4 active:opacity-80 dark:bg-ink-900"
     >
       <View className="flex-row items-center justify-between">
@@ -348,31 +358,33 @@ function Tile({
 }
 
 function feedStatement(
+  t: HomeMessages,
   today: number | null,
   yesterday: number | null,
   deltaPercent: number | null,
   limit: number,
 ): string {
-  if (today === null) return "Отметьте, сколько времени сегодня ушло на ленту.";
+  if (today === null) return t.feed.empty;
   if (deltaPercent === null || yesterday === null) {
     return today <= limit
-      ? `Сегодня в ленте ${formatMinutesInline(today)} — в пределах лимита.`
-      : `Сегодня в ленте ${formatMinutesInline(today)} — это выше лимита.`;
+      ? t.feed.withinLimit(formatMinutesInline(today))
+      : t.feed.overLimit(formatMinutesInline(today));
   }
-  if (deltaPercent < 0) {
-    return `Сегодня вы провели в ленте на ${Math.abs(deltaPercent)}% меньше, чем вчера.`;
-  }
-  if (deltaPercent > 0) return `Сегодня вы провели в ленте на ${deltaPercent}% больше, чем вчера.`;
-  return "Сегодня в ленте столько же времени, сколько вчера.";
+  if (deltaPercent < 0) return t.feed.less(Math.abs(deltaPercent));
+  if (deltaPercent > 0) return t.feed.more(deltaPercent);
+  return t.feed.same;
 }
 
-function streakStatement(streak: number, today: number | null, limit: number): string {
-  if (streak > 1) {
-    return `${streak} ${pluralize(streak, DAY_FORMS)} подряд вы держитесь в пределах лимита.`;
-  }
-  if (streak === 1) return "Первый день в пределах лимита. Завтра серия продолжится.";
-  if (today !== null && today > limit) return "Сегодня лимит превышен. Завтра — новая серия.";
-  return `Держитесь в пределах ${formatMinutesInline(limit)} в день — и здесь начнётся серия.`;
+function streakStatement(
+  t: HomeMessages,
+  streak: number,
+  today: number | null,
+  limit: number,
+): string {
+  if (streak > 1) return t.limit.streakDays(streak);
+  if (streak === 1) return t.limit.firstDay;
+  if (today !== null && today > limit) return t.limit.over;
+  return t.limit.start(formatMinutesInline(limit));
 }
 
 function PressableCard({
@@ -409,14 +421,16 @@ function DayDot({
   today: boolean;
 }) {
   const { colors } = useThemeColors();
+  const t = useT().home;
   const state = minutes === null ? "none" : minutes <= limit ? "ok" : "over";
   return (
     <View
       className="items-center gap-1.5"
       accessible
-      accessibilityLabel={`${label}: ${
-        state === "none" ? "нет записи" : state === "ok" ? "в пределах лимита" : "выше лимита"
-      }`}
+      accessibilityLabel={t.dayValue(
+        label,
+        state === "none" ? t.noEntry : state === "ok" ? t.limit.dayWithin : t.limit.dayOver,
+      )}
     >
       <View
         className="h-8 w-8 items-center justify-center rounded-full"

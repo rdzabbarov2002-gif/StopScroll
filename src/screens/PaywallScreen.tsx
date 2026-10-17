@@ -12,6 +12,7 @@ import { IconButton } from "../components/IconButton";
 import { LegalLinks } from "../components/LegalLinks";
 import { Screen } from "../components/Screen";
 import { usePro } from "../context/ProContext";
+import { useT } from "../i18n";
 import type { RootStackScreenProps } from "../navigation/types";
 import type { PlanView } from "../services/purchases";
 import { cn } from "../utils/cn";
@@ -21,6 +22,7 @@ import { PAYWALL_HEADLINES, PLAN_ROWS, type PlanRow } from "../utils/pro";
 import { useThemeColors } from "../utils/theme";
 
 export function PaywallScreen({ navigation, route }: RootStackScreenProps<"Paywall">) {
+  const t = useT();
   const { colors } = useThemeColors();
   const pro = usePro();
   const { loadPlans } = pro;
@@ -61,13 +63,13 @@ export function PaywallScreen({ navigation, route }: RootStackScreenProps<"Paywa
     setBusy(null);
     if (!result.ok) setMessage(result.message);
     else if (result.restored) haptics.success();
-    else setMessage("Активных покупок не найдено для этого аккаунта магазина.");
+    else setMessage(t.paywall.nothingToRestore);
   };
 
   return (
     <Screen>
       <View className="flex-row justify-end">
-        <IconButton icon="close" onPress={close} accessibilityLabel="Закрыть" />
+        <IconButton icon="close" onPress={close} accessibilityLabel={t.paywall.close} />
       </View>
 
       <View className="items-center gap-1.5 px-2 pb-2">
@@ -86,20 +88,20 @@ export function PaywallScreen({ navigation, route }: RootStackScreenProps<"Paywa
           className="text-center text-[28px] font-bold leading-[34px] tracking-tight"
           accessibilityRole="header"
         >
-          {pro.isPro ? "Pro уже с вами" : "StopScroll Pro"}
+          {pro.isPro ? t.paywall.activeTitle : t.paywall.title}
         </AppText>
         <AppText variant="heading" className="text-center">
-          {pro.isPro ? "Спасибо, что поддерживаете приложение!" : headline.title}
+          {pro.isPro ? t.paywall.thanks : headline.title}
         </AppText>
         <AppText variant="caption" tone="muted" className="text-center">
-          {pro.isPro ? "Все упражнения, замены и аналитика открыты." : headline.text}
+          {pro.isPro ? t.paywall.activeText : headline.text}
         </AppText>
       </View>
 
       <ComparisonTable />
 
       {pro.isPro ? (
-        <Button label="Готово" size="lg" icon="checkmark-circle" onPress={close} />
+        <Button label={t.paywall.done} size="lg" icon="checkmark-circle" onPress={close} />
       ) : pro.status === "loading" || pro.plansLoading ? (
         <View className="items-center py-6">
           <ActivityIndicator color={colors.primary} />
@@ -109,9 +111,9 @@ export function PaywallScreen({ navigation, route }: RootStackScreenProps<"Paywa
       ) : pro.plans.length === 0 ? (
         <Card tone="muted" className="gap-3">
           <AppText variant="caption" tone="muted">
-            {pro.plansError ?? "Не удалось загрузить тарифы."}
+            {pro.plansError ?? t.paywall.plansFailed}
           </AppText>
-          <Button label="Повторить" icon="refresh" variant="secondary" onPress={loadPlans} />
+          <Button label={t.paywall.retry} icon="refresh" variant="secondary" onPress={loadPlans} />
         </Card>
       ) : (
         <View className="gap-3">
@@ -129,7 +131,7 @@ export function PaywallScreen({ navigation, route }: RootStackScreenProps<"Paywa
             ))}
           </View>
           <Button
-            label={selected?.trial ? `Попробовать ${selected.trial}` : "Оформить Pro"}
+            label={selected?.trial ? t.paywall.tryTrial(selected.trial) : t.paywall.subscribe}
             size="lg"
             icon="sparkles"
             loading={busy === "purchase"}
@@ -154,7 +156,7 @@ export function PaywallScreen({ navigation, route }: RootStackScreenProps<"Paywa
 
       {!pro.isPro && pro.status === "ready" ? (
         <Button
-          label="Восстановить покупки"
+          label={t.paywall.restore}
           variant="ghost"
           loading={busy === "restore"}
           disabled={busy !== null}
@@ -164,9 +166,7 @@ export function PaywallScreen({ navigation, route }: RootStackScreenProps<"Paywa
 
       {!pro.isPro && selected && selected.pkg.packageType !== PACKAGE_TYPE.LIFETIME ? (
         <AppText variant="caption" tone="subtle" className="text-center text-xs leading-4">
-          Подписка «{selected.title}» за {selected.price} продлевается автоматически, пока вы её не
-          отмените. Отменить можно в любой момент в настройках App Store или Google Play — не
-          позднее чем за 24 часа до конца периода.
+          {t.paywall.renewal(selected.title, selected.price)}
         </AppText>
       ) : null}
 
@@ -176,15 +176,16 @@ export function PaywallScreen({ navigation, route }: RootStackScreenProps<"Paywa
 }
 
 function ComparisonTable() {
+  const t = useT();
   return (
     <Card className="p-0">
       <View className="flex-row items-center px-4 pb-2 pt-3.5">
         <View className="flex-1" />
         <AppText variant="label" tone="subtle" className="w-16 text-center text-[13px]">
-          Free
+          {t.paywall.table.free}
         </AppText>
         <AppText variant="label" tone="primary" className="w-24 text-center text-[13px]">
-          Pro
+          {t.paywall.table.pro}
         </AppText>
       </View>
       {PLAN_ROWS.map((row) => (
@@ -195,12 +196,13 @@ function ComparisonTable() {
 }
 
 function PlanRowView({ row }: { row: PlanRow }) {
+  const t = useT();
   const describe = (value: string | boolean) =>
-    value === true ? "есть" : value === false ? "нет" : value;
+    value === true ? t.paywall.table.yes : value === false ? t.paywall.table.no : value;
   return (
     <View
       accessible
-      accessibilityLabel={`${row.label}: бесплатно — ${describe(row.free)}, Pro — ${describe(row.pro)}`}
+      accessibilityLabel={t.paywall.table.row(row.label, describe(row.free), describe(row.pro))}
     >
       <Separator className="ml-4" />
       <View className="min-h-[46px] flex-row items-center px-4 py-2">
@@ -254,6 +256,7 @@ function PlanOption({
   selected: boolean;
   onPress: () => void;
 }) {
+  const t = useT();
   const { colors } = useThemeColors();
   return (
     <Pressable
@@ -270,7 +273,7 @@ function PlanOption({
       {plan.savings ? (
         <View className="absolute -top-2.5 right-3 rounded-full bg-brand-600 px-2 py-0.5 dark:bg-brand-500">
           <AppText variant="label" className="text-[12px] text-white dark:text-white">
-            −{plan.savings}%
+            {t.paywall.plans.savings(plan.savings)}
           </AppText>
         </View>
       ) : null}
@@ -298,9 +301,9 @@ function PlanOption({
       <AppText variant="caption" tone="subtle" className="text-[13px] leading-[17px]">
         {[plan.trial, plan.caption].filter(Boolean).join(" · ") ||
           (plan.pkg.packageType === PACKAGE_TYPE.MONTHLY
-            ? "в месяц"
+            ? t.paywall.plans.perMonth
             : plan.pkg.packageType === PACKAGE_TYPE.WEEKLY
-              ? "в неделю"
+              ? t.paywall.plans.perWeek
               : "")}
       </AppText>
     </Pressable>
@@ -308,26 +311,27 @@ function PlanOption({
 }
 
 function UnavailableNotice() {
+  const t = useT();
   const pro = usePro();
   return (
     <Card tone="muted" className="gap-3">
       <AppText variant="label">
         {DEMO_MODE
-          ? "Это демо-версия: оплата отключена"
+          ? t.paywall.unavailable.demoTitle
           : __DEV__
-            ? "Покупки не подключены в этой сборке"
-            : "Покупки временно недоступны"}
+            ? t.paywall.unavailable.devTitle
+            : t.paywall.unavailable.title}
       </AppText>
       <AppText variant="caption" tone="muted">
         {DEMO_MODE
-          ? "В приложении из App Store и Google Play здесь будут тарифы. Чтобы посмотреть Pro-функции, включите тестовый Pro."
+          ? t.paywall.unavailable.demoText
           : __DEV__
-            ? "Укажите ключи RevenueCat в .env.local (см. .env.example) и перезапустите сборку — тарифы появятся здесь автоматически."
-            : "Не удалось связаться с магазином. Попробуйте позже — все бесплатные функции продолжают работать."}
+            ? t.paywall.unavailable.devText
+            : t.paywall.unavailable.text}
       </AppText>
       {__DEV__ || DEMO_MODE ? (
         <Button
-          label={pro.devPro ? "Выключить тестовый Pro" : "Включить Pro для теста"}
+          label={pro.devPro ? t.paywall.unavailable.testProOff : t.paywall.unavailable.testProOn}
           icon="construct-outline"
           variant="secondary"
           onPress={() => pro.setDevPro(!pro.devPro)}

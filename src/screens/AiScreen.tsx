@@ -1,5 +1,4 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useMemo } from "react";
 import { View } from "react-native";
 
 import { demoSample } from "../ai/demoSample";
@@ -15,6 +14,7 @@ import { Card } from "../components/Card";
 import { CardLabel } from "../components/CardLabel";
 import { Screen } from "../components/Screen";
 import { useAi } from "../context/AiContext";
+import { useT } from "../i18n";
 import type { RootTabScreenProps } from "../navigation/types";
 import { addDays, dayKey } from "../utils/date";
 import { DEMO_MODE } from "../utils/demo";
@@ -27,6 +27,7 @@ import { useNow } from "../utils/useNow";
  * conclusions; the numbers are counted on the device and are always current.
  */
 export function AiScreen(_props: RootTabScreenProps<"AI">) {
+  const t = useT();
   const ai = useAi();
   const now = useNow(60_000);
 
@@ -34,10 +35,10 @@ export function AiScreen(_props: RootTabScreenProps<"AI">) {
     <Screen>
       <View className="gap-1 px-1 pb-1 pt-3">
         <AppText variant="overline" tone="subtle">
-          Персональная аналитика
+          {t.ai.screen.overline}
         </AppText>
         <AppText variant="title" accessibilityRole="header">
-          AI-коуч
+          {t.ai.screen.title}
         </AppText>
         {ai.enabled ? (
           <View className="pt-1">
@@ -64,6 +65,8 @@ export function AiScreen(_props: RootTabScreenProps<"AI">) {
 }
 
 function Connected({ now }: { now: number }) {
+  const t = useT();
+  const s = t.ai.screen;
   const { colors } = useThemeColors();
   const ai = useAi();
   const forecast = ai.forecast?.day === dayKey(now) ? ai.forecast : null;
@@ -90,15 +93,12 @@ function Connected({ now }: { now: number }) {
         <AnalyticsView analytics={ai.analytics} />
       ) : (
         <Card className="gap-2">
-          <CardLabel icon="hourglass" label="Анализ готовится" color={colors.indigo} />
+          <CardLabel icon="hourglass" label={s.preparing} color={colors.indigo} />
           <AppText variant="statement">
-            {ai.entries.length === 0
-              ? "Начните с записи на главной: что произошло перед тем, как захотелось открыть ленту."
-              : "ChatGPT изучает вашу историю — первые выводы появятся здесь сами."}
+            {ai.entries.length === 0 ? s.startEntry : s.studying}
           </AppText>
           <AppText variant="caption" tone="muted" className="leading-[20px]">
-            Чем больше записей, тем точнее закономерности и прогнозы. Ничего запускать вручную не
-            нужно.
+            {s.moreEntries}
           </AppText>
         </Card>
       )}
@@ -107,14 +107,15 @@ function Connected({ now }: { now: number }) {
 }
 
 function NotConnected() {
+  const t = useT();
+  const s = t.ai.screen;
   const { colors } = useThemeColors();
   return (
     <Card className="gap-2">
-      <CardLabel icon="cloud-offline" label="Не подключено" color={colors.textSubtle} />
-      <AppText variant="statement">AI-анализ в этой сборке не подключён.</AppText>
+      <CardLabel icon="cloud-offline" label={s.notConnected} color={colors.textSubtle} />
+      <AppText variant="statement">{s.notConnectedTitle}</AppText>
       <AppText variant="caption" tone="muted" className="leading-[20px]">
-        Записи сохраняются на телефоне. Когда приложение подключат к серверу AI-коуча, ChatGPT
-        разберёт всю накопленную историю.
+        {s.notConnectedText}
       </AppText>
     </Card>
   );
@@ -122,8 +123,10 @@ function NotConnected() {
 
 /** Web preview without a server: the screen's design on sample content, clearly labeled. */
 function DemoPreview({ now }: { now: number }) {
+  const t = useT();
   const { colors } = useThemeColors();
-  const sample = useMemo(() => demoSample(now), [now]);
+  // Rebuilt on every render: cheap, and it follows the app's language.
+  const sample = demoSample(now);
   return (
     <>
       <View className="flex-row items-start gap-3 rounded-card bg-amber-50 p-4 dark:bg-amber-950">
@@ -134,8 +137,7 @@ function DemoPreview({ now }: { now: number }) {
           style={{ marginTop: 1 }}
         />
         <AppText variant="caption" className="flex-1 leading-[20px]">
-          Это пример экрана. В веб-демо ChatGPT не подключён, поэтому тексты ниже — образец, а не
-          анализ ваших данных. В приложении их строит ChatGPT по вашей истории.
+          {t.ai.screen.demoNote}
         </AppText>
       </View>
       <AiForecastCard forecast={sample.forecast} />

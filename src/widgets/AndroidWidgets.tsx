@@ -7,7 +7,8 @@ import {
   type WidgetRepresentation,
 } from "react-native-android-widget";
 
-import { pluralize } from "../utils/date";
+import { m } from "../i18n";
+import { formatMinutes } from "../utils/date";
 import { palette } from "../utils/theme";
 import { widgetDay, widgetReplacement, type WidgetSnapshot } from "./snapshot";
 
@@ -46,22 +47,21 @@ function widgetColors(dark: boolean): WidgetColors {
   };
 }
 
+/** formatMinutes() split into number/unit pairs for the big numbers: "1 ч 20 мин". */
 function durationParts(minutes: number): { value: string; unit: string }[] {
+  const { minute, hour } = m().common.duration;
   const total = Math.max(0, Math.round(minutes));
   const hours = Math.floor(total / 60);
   const rest = total % 60;
-  if (hours === 0) return [{ value: String(rest), unit: "мин" }];
-  if (rest === 0) return [{ value: String(hours), unit: "ч" }];
+  if (hours === 0) return [{ value: String(rest), unit: minute }];
+  if (rest === 0) return [{ value: String(hours), unit: hour }];
   return [
-    { value: String(hours), unit: "ч" },
-    { value: String(rest), unit: "мин" },
+    { value: String(hours), unit: hour },
+    { value: String(rest), unit: minute },
   ];
 }
 
-const durationText = (minutes: number) =>
-  durationParts(minutes)
-    .map((part) => `${part.value} ${part.unit}`)
-    .join(" ");
+const durationText = formatMinutes;
 
 // ---------------------------------------------------------------------------
 // Building blocks
@@ -153,7 +153,7 @@ function Empty({ colors }: { colors: WidgetColors }) {
     <Card colors={colors} uri="stopscroll://home" label="StopScroll">
       <Label text="StopScroll" color={colors.brand} />
       <TextWidget
-        text="Откройте StopScroll, чтобы здесь появились ваши цифры."
+        text={m().widgets.empty}
         style={{ fontSize: 13, color: colors.muted }}
         maxLines={3}
       />
@@ -166,50 +166,36 @@ function Empty({ colors }: { colors: WidgetColors }) {
 // ---------------------------------------------------------------------------
 
 function TodayWidget({ snapshot, now, colors }: WidgetProps) {
+  const t = m().widgets.today;
   const day = widgetDay(snapshot, now);
   return (
-    <Card
-      colors={colors}
-      uri="stopscroll://home"
-      label={`Сегодня спасено ${durationText(day.saved)}`}
-    >
-      <Label text="Спасено" color={colors.success} />
+    <Card colors={colors} uri="stopscroll://home" label={t.a11y(durationText(day.saved))}>
+      <Label text={t.label} color={colors.success} />
       <FlexWidget style={{ flexDirection: "column", flexGap: 1 }}>
-        <Caption text="Сегодня" colors={colors} size={13} />
+        <Caption text={t.caption} colors={colors} size={13} />
         <Big parts={durationParts(day.saved)} color={colors.success} />
-        <Caption
-          text={
-            day.wins > 0
-              ? `${day.wins} ${pluralize(day.wins, ["победа", "победы", "побед"])} над лентой`
-              : "Пауза вернёт время"
-          }
-          colors={colors}
-        />
+        <Caption text={day.wins > 0 ? t.wins(day.wins) : t.noWins} colors={colors} />
       </FlexWidget>
     </Card>
   );
 }
 
 function StreakWidget({ snapshot, now, colors }: WidgetProps) {
+  const t = m().widgets.streak;
   const { streak } = widgetDay(snapshot, now);
   return (
-    <Card colors={colors} uri="stopscroll://stats" label={`Серия ${streak}`}>
-      <Label text="Серия" color={colors.warning} />
+    <Card colors={colors} uri="stopscroll://stats" label={t.a11y(streak)}>
+      <Label text={t.label} color={colors.warning} />
       <FlexWidget style={{ flexDirection: "column", flexGap: 1 }}>
-        <Big
-          parts={[{ value: String(streak), unit: pluralize(streak, ["день", "дня", "дней"]) }]}
-          color={colors.warning}
-        />
-        <Caption
-          text={streak > 0 ? "в пределах лимита" : "Начните серию сегодня"}
-          colors={colors}
-        />
+        <Big parts={[{ value: String(streak), unit: t.unit(streak) }]} color={colors.warning} />
+        <Caption text={streak > 0 ? t.active : t.start} colors={colors} />
       </FlexWidget>
     </Card>
   );
 }
 
 function LimitWidget({ snapshot, now, colors }: WidgetProps) {
+  const t = m().widgets.limit;
   const day = widgetDay(snapshot, now);
   const left = day.scrolled === null ? null : day.limit - day.scrolled;
   const color = left !== null && left < 0 ? colors.warning : colors.brand;
@@ -217,24 +203,18 @@ function LimitWidget({ snapshot, now, colors }: WidgetProps) {
     <Card
       colors={colors}
       uri="stopscroll://stats"
-      label={
-        left === null
-          ? "Лимит: время не отмечено"
-          : `Лимит: осталось ${durationText(Math.max(0, left))}`
-      }
+      label={left === null ? t.a11yUnlogged : t.a11yLeft(durationText(Math.max(0, left)))}
     >
-      <Label text="Лимит" color={color} />
+      <Label text={t.label} color={color} />
       <FlexWidget style={{ flexDirection: "column", flexGap: 1 }}>
         <Caption
-          text={left === null ? "Сегодня" : left >= 0 ? "Осталось" : "Сверх лимита"}
+          text={left === null ? t.today : left >= 0 ? t.left : t.over}
           colors={colors}
           size={13}
         />
         <Big parts={durationParts(left === null ? day.limit : Math.abs(left))} color={color} />
         <Caption
-          text={
-            left === null ? "Отметьте время за сегодня" : `из ${durationText(day.limit)} на сегодня`
-          }
+          text={left === null ? t.logPrompt : t.ofToday(durationText(day.limit))}
           colors={colors}
         />
       </FlexWidget>
@@ -257,6 +237,7 @@ function ringSvg(progress: number, color: HexColor, track: HexColor): string {
 }
 
 function DayRingWidget({ snapshot, now, colors }: WidgetProps) {
+  const t = m().widgets.ring;
   const day = widgetDay(snapshot, now);
   const used = day.scrolled ?? 0;
   const progress = day.limit > 0 ? Math.min(1, used / day.limit) : used > 0 ? 1 : 0;
@@ -266,7 +247,7 @@ function DayRingWidget({ snapshot, now, colors }: WidgetProps) {
     <Card
       colors={colors}
       uri="stopscroll://stats"
-      label={`Лента сегодня: ${day.scrolled === null ? "не отмечено" : durationText(used)} из ${durationText(day.limit)}`}
+      label={t.a11y(day.scrolled === null ? null : durationText(used), durationText(day.limit))}
     >
       <FlexWidget style={{ width: "match_parent", alignItems: "center" }}>
         <OverlapWidget style={{ width: RING_SIZE, height: RING_SIZE }}>
@@ -289,7 +270,7 @@ function DayRingWidget({ snapshot, now, colors }: WidgetProps) {
               maxLines={1}
             />
             <TextWidget
-              text={`из ${durationText(day.limit)}`}
+              text={t.of(durationText(day.limit))}
               style={{ fontSize: 10, color: colors.muted }}
               maxLines={1}
             />
@@ -298,9 +279,7 @@ function DayRingWidget({ snapshot, now, colors }: WidgetProps) {
       </FlexWidget>
       <FlexWidget style={{ width: "match_parent", alignItems: "center" }}>
         <TextWidget
-          text={
-            day.scrolled === null ? "Отметьте время" : over ? "Лимит превышен" : "Лента сегодня"
-          }
+          text={day.scrolled === null ? t.logPrompt : over ? t.over : t.feedToday}
           style={{ fontSize: 12, fontWeight: "700", color: over ? colors.warning : colors.muted }}
           maxLines={1}
         />
@@ -310,15 +289,16 @@ function DayRingWidget({ snapshot, now, colors }: WidgetProps) {
 }
 
 function ReplacementWidget({ snapshot, now, colors }: WidgetProps) {
+  const t = m().widgets.replacement;
   const item = widgetReplacement(snapshot, now);
   if (!item) return <Empty colors={colors} />;
   return (
     <Card
       colors={colors}
       uri={`stopscroll://replacement/${encodeURIComponent(item.id)}`}
-      label={`Вместо ленты: ${item.title}`}
+      label={t.a11y(item.title)}
     >
-      <Label text="Вместо ленты" color={colors.indigo} />
+      <Label text={t.label} color={colors.indigo} />
       <FlexWidget style={{ flexDirection: "column", flexGap: 2, width: "match_parent" }}>
         <TextWidget
           text={item.title}
@@ -326,7 +306,7 @@ function ReplacementWidget({ snapshot, now, colors }: WidgetProps) {
           maxLines={2}
           truncate="END"
         />
-        <Caption text={`${item.minutes} мин · новая каждые полчаса`} colors={colors} />
+        <Caption text={t.caption(durationText(item.minutes))} colors={colors} />
       </FlexWidget>
     </Card>
   );

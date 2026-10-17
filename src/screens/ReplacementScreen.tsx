@@ -13,6 +13,7 @@ import { Screen } from "../components/Screen";
 import { WinCelebration } from "../components/WinCelebration";
 import { useApp } from "../context/AppContext";
 import { usePro } from "../context/ProContext";
+import { useT } from "../i18n";
 import type { RootStackScreenProps } from "../navigation/types";
 import { getCategory } from "../utils/catalog";
 import { formatMinutes } from "../utils/date";
@@ -23,6 +24,8 @@ import type { WinEntry } from "../utils/types";
 
 export function ReplacementScreen({ navigation, route }: RootStackScreenProps<"Replacement">) {
   const { colors } = useThemeColors();
+  const t = useT();
+  const text = t.replacements.detail;
   const app = useApp();
   const { isPro } = usePro();
   const item = findReplacement(route.params.id, app.customReplacements);
@@ -36,12 +39,12 @@ export function ReplacementScreen({ navigation, route }: RootStackScreenProps<"R
     return (
       <Screen>
         <View className="flex-row justify-end">
-          <IconButton icon="close" onPress={close} accessibilityLabel="Закрыть" />
+          <IconButton icon="close" onPress={close} accessibilityLabel={t.replacements.close} />
         </View>
         <EmptyState
           icon="help-circle-outline"
-          title="Замена не найдена"
-          text="Возможно, вы её удалили."
+          title={text.notFoundTitle}
+          text={text.notFoundText}
         />
       </Screen>
     );
@@ -72,10 +75,10 @@ export function ReplacementScreen({ navigation, route }: RootStackScreenProps<"R
         <View className="flex-row items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 dark:bg-ink-800">
           <Ionicons name={category.icon} size={14} color={colors.textMuted} />
           <AppText variant="caption" tone="muted" className="font-semibold">
-            {category.label} · {item.minutes} мин
+            {category.label} · {formatMinutes(item.minutes)}
           </AppText>
         </View>
-        <IconButton icon="close" onPress={close} accessibilityLabel="Закрыть" />
+        <IconButton icon="close" onPress={close} accessibilityLabel={t.replacements.close} />
       </View>
 
       <View className="gap-2">
@@ -89,21 +92,17 @@ export function ReplacementScreen({ navigation, route }: RootStackScreenProps<"R
       </View>
 
       {locked ? (
-        <LockedCard
-          feature="replacements"
-          title="Эта замена — в StopScroll Pro"
-          text="Откройте полный каталог: больше движений, задач и фактов."
-        />
+        <LockedCard feature="replacements" title={text.lockedTitle} text={text.lockedText} />
       ) : isFacts ? (
         <Card className="gap-4">
           <AppText variant="overline" tone="muted">
-            Факт {factIndex + 1} из {item.steps.length}
+            {text.fact(factIndex + 1, item.steps.length)}
           </AppText>
           <AppText variant="heading" className="text-xl leading-7">
             {item.steps[factIndex]}
           </AppText>
           <Button
-            label="Следующий факт"
+            label={text.nextFact}
             icon="arrow-forward"
             variant="secondary"
             onPress={() => {
@@ -131,7 +130,7 @@ export function ReplacementScreen({ navigation, route }: RootStackScreenProps<"R
 
       {!locked ? (
         <Button
-          label={`Засчитать победу · +${formatMinutes(app.settings.sessionMinutes)}`}
+          label={text.countWin(formatMinutes(app.settings.sessionMinutes))}
           icon="trophy-outline"
           variant="success"
           size="lg"
@@ -151,13 +150,13 @@ export function ReplacementScreen({ navigation, route }: RootStackScreenProps<"R
         confirmDelete ? (
           <View className="flex-row gap-3">
             <Button
-              label="Отмена"
+              label={text.cancel}
               variant="secondary"
               onPress={() => setConfirmDelete(false)}
               className="flex-1"
             />
             <Button
-              label="Удалить"
+              label={text.delete}
               icon="trash-outline"
               variant="warning"
               className="flex-1"
@@ -168,11 +167,7 @@ export function ReplacementScreen({ navigation, route }: RootStackScreenProps<"R
             />
           </View>
         ) : (
-          <Button
-            label="Удалить свою замену"
-            variant="ghost"
-            onPress={() => setConfirmDelete(true)}
-          />
+          <Button label={text.deleteOwn} variant="ghost" onPress={() => setConfirmDelete(true)} />
         )
       ) : null}
     </Screen>
@@ -181,6 +176,7 @@ export function ReplacementScreen({ navigation, route }: RootStackScreenProps<"R
 
 /** Optional countdown for the 1–3 minutes of the replacement. */
 function ReplacementTimer({ minutes }: { minutes: number }) {
+  const text = useT().replacements.detail;
   const total = minutes * 60;
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [elapsed, setElapsed] = useState(0);
@@ -204,15 +200,15 @@ function ReplacementTimer({ minutes }: { minutes: number }) {
   return (
     <Card tone="muted" className="gap-3">
       <View className="flex-row items-center justify-between">
-        <AppText variant="label">{done ? "Время вышло — отлично!" : "Таймер"}</AppText>
-        <AppText variant="heading" accessibilityLabel={`Осталось ${left} секунд`}>
+        <AppText variant="label">{done ? text.timerDone : text.timer}</AppText>
+        <AppText variant="heading" accessibilityLabel={text.secondsLeft(left)}>
           {clock}
         </AppText>
       </View>
       <ProgressBar progress={elapsed / total} />
       {startedAt === null || done ? (
         <Button
-          label={done ? "Ещё раз" : `Запустить на ${minutes} мин`}
+          label={done ? text.again : text.startTimer(formatMinutes(minutes))}
           icon={done ? "refresh" : "play"}
           variant="secondary"
           onPress={() => {

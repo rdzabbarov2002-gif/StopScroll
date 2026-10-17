@@ -3,7 +3,8 @@ import { View } from "react-native";
 
 import { useApp } from "../../context/AppContext";
 import { usePro } from "../../context/ProContext";
-import { WIN_FORMS, formatMinutes, formatMinutesInline, pluralize } from "../../utils/date";
+import { useT } from "../../i18n";
+import { formatMinutes, formatMinutesInline } from "../../utils/date";
 import { computeEquivalents, summarizeWins } from "../../utils/stats";
 import { useThemeColors } from "../../utils/theme";
 import { AppText } from "../AppText";
@@ -14,6 +15,7 @@ import { ProgressBar } from "../ProgressBar";
 
 /** Saved minutes → books, sleep, walks… */
 export function EquivalentsCard() {
+  const t = useT().stats.equivalents;
   const { colors } = useThemeColors();
   const { wins, winArchive, todayKey, settings } = useApp();
   const { isPro } = usePro();
@@ -26,16 +28,18 @@ export function EquivalentsCard() {
     <View className="gap-3">
       <Card className="gap-3">
         <View className="gap-2">
-          <CardLabel icon="leaf" label="Спасено" color={colors.success} />
+          <CardLabel icon="leaf" label={t.label} color={colors.success} />
           <AppText variant="statement">
             {summary.totalMinutes > 0
-              ? `За всё время вы вернули себе ${formatMinutesInline(summary.totalMinutes)}.`
-              : "Каждая пауза и замена вернут вам время — оно появится здесь."}
+              ? t.total(formatMinutesInline(summary.totalMinutes))
+              : t.empty}
           </AppText>
           <AppText variant="caption" tone="muted">
-            {summary.totalWins} {pluralize(summary.totalWins, WIN_FORMS)} · за 7 дней{" "}
-            {formatMinutes(summary.weekMinutes)}. Каждая победа ={" "}
-            {formatMinutes(settings.sessionMinutes)}, которые обычно уходили бы в ленту.
+            {t.summary(
+              summary.totalWins,
+              formatMinutes(summary.weekMinutes),
+              formatMinutes(settings.sessionMinutes),
+            )}
           </AppText>
         </View>
 
@@ -66,11 +70,7 @@ export function EquivalentsCard() {
       </Card>
 
       {hidden > 0 ? (
-        <LockedCard
-          feature="converter"
-          title={`Ещё ${hidden} ${pluralize(hidden, ["эквивалент", "эквивалента", "эквивалентов"])} в Pro`}
-          text="Тренировки, уроки языка и разговоры с близкими."
-        />
+        <LockedCard feature="converter" title={t.lockedTitle(hidden)} text={t.lockedText} />
       ) : null}
     </View>
   );

@@ -15,11 +15,12 @@ export function NativeSync() {
   const { isPro } = usePro();
 
   const { reportReminder } = app.settings;
+  // Rescheduled when the language changes too, so the notification speaks the new one.
   useEffect(() => {
     syncReportReminder(reportReminder).catch((error: unknown) =>
       console.warn("StopScroll: could not update the weekly reminder", error),
     );
-  }, [reportReminder]);
+  }, [reportReminder, app.language]);
 
   // Widgets only redraw when one of their numbers actually changed.
   const snapshot = useMemo(
@@ -33,11 +34,14 @@ export function NativeSync() {
             scrollLog: app.scrollLog,
             settings: app.settings,
             customReplacements: app.customReplacements,
+            language: app.language ?? "ru",
           },
           isPro,
         ),
       ),
+    // The language too: it is in the snapshot, and the replacement titles are read in it.
     [
+      app.language,
       app.todayKey,
       app.wins,
       app.winArchive,

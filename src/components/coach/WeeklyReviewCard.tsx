@@ -2,6 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { View } from "react-native";
 
 import type { ReviewSection } from "../../coach";
+import { useT } from "../../i18n";
 import { useCoachVoice } from "../../services/coachVoice";
 import { useThemeColors } from "../../utils/theme";
 import { AppText } from "../AppText";
@@ -11,6 +12,7 @@ import { CoachBadge } from "./CoachBadge";
 /** The coach's conclusion under the weekly numbers, in five short parts. */
 export function WeeklyReviewCard({ sections }: { sections: readonly ReviewSection[] }) {
   const { colors } = useThemeColors();
+  const t = useT();
   const texts = useCoachVoice(sections.map((section) => section.text));
   const toneColor: Record<ReviewSection["tone"], string> = {
     success: colors.success,
@@ -21,7 +23,7 @@ export function WeeklyReviewCard({ sections }: { sections: readonly ReviewSectio
 
   return (
     <Card tone="primary" className="gap-4">
-      <CoachBadge caption="Разбор недели" />
+      <CoachBadge caption={t.coach.ui.weeklyCaption} />
       {sections.map((section, index) => (
         <View key={section.id} className="flex-row items-start gap-3">
           <View

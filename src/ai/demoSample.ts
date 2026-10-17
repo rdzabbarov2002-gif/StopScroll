@@ -1,3 +1,4 @@
+import { m } from "../i18n";
 import { dayKey } from "../utils/date";
 import type { AiAnalytics, AiChallenge, AiForecast } from "./types";
 
@@ -12,68 +13,49 @@ export function demoSample(now: number): {
   challenge: AiChallenge;
 } {
   const today = dayKey(now);
+  const demo = m().ai.demo;
+  const sample = demo.analytics;
   return {
     forecast: {
       probability: 72,
       level: "high",
-      headline: "Вечер, скорее всего, будет непростым.",
-      reasons: [
-        "Последние три воскресенья вы открывали ленту между 21:00 и 23:00.",
-        "За последние три дня было три срыва — больше, чем обычно для этой недели.",
-        "Большинство срывов за месяц случались поздно вечером после усталости.",
-      ],
-      window: {
-        until: "23:00",
-        message: "Если удастся не открыть ленту до 23:00, шанс спокойного дня заметно вырастет.",
-      },
+      headline: demo.forecast.headline,
+      reasons: [...demo.forecast.reasons],
+      window: { until: "23:00", message: demo.forecast.window },
       passed: null,
-      advice: "Положите телефон заряжаться в другой комнате около 21:00.",
-      basis: "пример",
+      advice: demo.forecast.advice,
+      basis: demo.forecast.basis,
       day: today,
       createdAt: now,
     },
     analytics: {
-      conclusion:
-        "Похоже, лента чаще всего побеждает не от скуки, а от вечерней усталости после длинного дня. Днём вы держитесь заметно лучше, чем месяц назад.",
-      dataNote: "Для выводов о выходных пока мало записей.",
-      warnings: ["После серии из 5+ спокойных дней у вас дважды начинался откат в выходные."],
-      improvements: ["Последние две недели вы всё реже открываете ленту днём: 2 срыва против 6."],
-      worsenings: ["Поздние вечера стали тяжелее: 4 из 5 последних срывов — после 22:00."],
-      habitChanges: [
-        "За месяц больше всего изменилась привычка после работы — она стала спокойнее.",
-      ],
-      causes: [
-        { title: "Усталость", share: 41, note: "Чаще всего — после 21:00 в будни." },
-        { title: "Скука", share: 27, note: "В основном днём, в перерывах." },
-        { title: "Автопилот", share: 18, note: "Открытие без повода, сразу после разблокировки." },
-      ],
-      situations: [{ title: "После работы, дома", note: "Повторяется в 6 из 14 записей." }],
-      emotions: [{ title: "Опустошённость", note: "Встречается почти во всех вечерних записях." }],
-      times: [{ title: "21:00–23:00", note: "Здесь 15 из 17 срывов за месяц." }],
-      weekdays: [{ title: "Воскресенье", note: "Три недели подряд — самый тяжёлый день." }],
-      hypotheses: [
-        {
-          text: "Похоже, прогулки вечером уменьшают вероятность открытия ленты: после пяти прогулок срывов не было.",
-          confidence: "medium",
-        },
-      ],
-      selfComparison: ["За месяц спокойных дней стало на 24% больше, чем в прошлом."],
-      longTerm: [
-        "Раньше самым трудным временем был обед; уже месяц это поздний вечер.",
-        "Лучшая серия — 9 дней в пределах лимита.",
-      ],
-      numbers: {
-        headline: "Вы вернули почти 17 часов.",
-        equivalents: ["около восьми фильмов", "две рабочие смены", "34 прогулки по 30 минут"],
-      },
+      conclusion: sample.conclusion,
+      dataNote: sample.dataNote,
+      warnings: [sample.warning],
+      improvements: [sample.improvement],
+      worsenings: [sample.worsening],
+      habitChanges: [sample.habitChange],
+      causes: sample.causes.map((cause, index) => ({
+        ...cause,
+        share: [41, 27, 18][index] ?? null,
+      })),
+      situations: [sample.situation],
+      emotions: [sample.emotion],
+      times: [sample.time],
+      weekdays: [sample.weekday],
+      hypotheses: [{ text: sample.hypothesis, confidence: "medium" }],
+      selfComparison: [sample.selfComparison],
+      longTerm: [...sample.longTerm],
+      numbers: { headline: sample.savedHeadline, equivalents: [...sample.equivalents] },
     },
     challenge: {
       id: "demo",
-      title: "Телефон вне спальни",
-      description: "Три вечера подряд оставляйте телефон заряжаться за пределами спальни с 22:30.",
+      title: demo.challenge.title,
+      description: demo.challenge.description,
       durationDays: 3,
       focus: "evening",
-      expectation: "Посмотрим, станет ли меньше поздних срывов.",
+      expectation: demo.challenge.expectation,
+      tipId: null,
       status: "proposed",
       proposedAt: now,
       startDay: null,

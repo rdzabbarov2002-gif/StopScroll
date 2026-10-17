@@ -11,12 +11,19 @@ import { parseEntryResult } from "../../../src/ai/parse.ts";
 import { handle } from "../src/index.ts";
 import { ARMS, appendJsonl, args, pool, readJson, readJsonl, resultsDir, sleep } from "./lib.mjs";
 
-const options = args({ arms: "nano,mini", repeats: "3", concurrency: "6", name: "main" });
+const options = args({
+  arms: "nano,mini",
+  repeats: "3",
+  concurrency: "6",
+  name: "main",
+  language: "ru",
+});
 const arms = String(options.arms).split(",");
 for (const arm of arms) if (!ARMS[arm]) throw new Error(`unknown arm ${arm}`);
 const entries = readJson("entries.json").slice(0, options.limit ? Number(options.limit) : undefined);
 const memory = readJson("memory.json");
-const EMPTY_MEMORY = { profile: null, zones: [], hypotheses: [], tags: [] };
+// The same digest the app sends (src/ai/payload.ts entryPayload / blindPayload).
+const EMPTY_MEMORY = { profile: null, zones: [], hypotheses: [], tips: [], corrections: [], tags: [] };
 
 if (!options.mock && !process.env.OPENAI_API_KEY) {
   console.error("OPENAI_API_KEY is not set (or run with --mock to check the pipeline only).");
@@ -47,6 +54,7 @@ const mockClient = {
         missing: null,
         tags: ["mock"],
         gist: entry.text.slice(0, 60),
+        conf: 70,
         votes: [],
       }));
       return {
@@ -93,7 +101,9 @@ async function callOnce(entry, arm, repeat) {
   };
   const payload = {
     memory: entry.memory === "standard" ? memory : EMPTY_MEMORY,
-    entries: [{ n: 1, when: entry.when, outcome: entry.outcome, text: entry.text }],
+    entries: [{ n: 1, when: entry.when, outcome: entry.outcome, text: entry.text, similar: [] }],
+    // The app's language: every text of the answer is written in it.
+    language: options.language,
   };
   const env = {
     OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "mock",
@@ -113,7 +123,7 @@ async function callOnce(entry, arm, repeat) {
   let parsed = null;
   if (response.status === 200) {
     const result = Array.isArray(body.results) ? body.results.find((item) => item?.n === 1) : null;
-    parsed = parseEntryResult(result, 0);
+    parsed = parseEntryResult(result, 0, entry.text.trim().length);
   }
   return { status: response.status, error: response.status === 200 ? null : body.error, body, parsed, ...call };
 }

@@ -36,6 +36,8 @@ export type RootStackParamList = {
   /** `week` is a Monday key; the newest ready report by default. */
   WeeklyReport: { week?: string } | undefined;
   Achievements: undefined;
+  /** The language picker, opened from Settings (the first-launch one is outside navigation). */
+  Language: undefined;
 };
 
 export type RootStackScreenProps<T extends keyof RootStackParamList> = NativeStackScreenProps<

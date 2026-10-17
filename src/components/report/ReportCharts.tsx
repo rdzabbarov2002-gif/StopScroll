@@ -2,6 +2,7 @@ import { useState } from "react";
 import { View, type LayoutChangeEvent } from "react-native";
 import Svg, { Circle, G, Line, Rect, Text as SvgText } from "react-native-svg";
 
+import { useT } from "../../i18n";
 import { useThemeColors } from "../../utils/theme";
 import type { WeeklyReport } from "../../utils/weeklyReport";
 import { AppText } from "../AppText";
@@ -9,6 +10,7 @@ import { AppText } from "../AppText";
 /** A ring with the share of impulses that ended without the feed. */
 export function SuccessRing({ rate, size = 104 }: { rate: number | null; size?: number }) {
   const { colors, chart } = useThemeColors();
+  const t = useT().report;
   const stroke = 11;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -39,7 +41,7 @@ export function SuccessRing({ rate, size = 104 }: { rate: number | null; size?: 
         ) : null}
       </Svg>
       <AppText rounded className="text-[26px] font-bold leading-[30px]">
-        {rate === null ? "—" : `${Math.round(share * 100)}%`}
+        {rate === null ? "—" : t.percent(Math.round(share * 100))}
       </AppText>
     </View>
   );
@@ -53,6 +55,7 @@ const SLOT_LABELS = ["0", "3", "6", "9", "12", "15", "18", "21"];
  */
 export function SlotsChart({ slots }: { slots: WeeklyReport["slots"] }) {
   const { colors, chart } = useThemeColors();
+  const t = useT().report;
   const [width, setWidth] = useState(0);
   const height = 110;
   const base = height - 4;
@@ -66,10 +69,7 @@ export function SlotsChart({ slots }: { slots: WeeklyReport["slots"] }) {
       style={{ height: height + 20 }}
       accessible
       accessibilityLabel={slots
-        .map(
-          (slot) =>
-            `${slot.hour}–${slot.hour + 3} ч: удержались ${slot.resisted}, срывов ${slot.lost}`,
-        )
+        .map((slot) => t.impulses.slot(slot.hour, slot.hour + 3, slot.resisted, slot.lost))
         .join("; ")}
     >
       {width > 0 ? (

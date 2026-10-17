@@ -4,7 +4,8 @@ import { Pressable, View } from "react-native";
 
 import type { AiEntry } from "../../ai/types";
 import { useAi } from "../../context/AiContext";
-import { ENTRY_FORMS, formatRelativeDay, pluralize } from "../../utils/date";
+import { useT } from "../../i18n";
+import { formatRelativeDay } from "../../utils/date";
 import { useThemeColors } from "../../utils/theme";
 import { AppText } from "../AppText";
 import { Button } from "../Button";
@@ -15,15 +16,16 @@ const PAGE = 10;
 
 /** The user's own words and ChatGPT's reading of each entry — the history the analysis uses. */
 export function EntryHistory({ entries, now }: { entries: readonly AiEntry[]; now: number }) {
+  const t = useT();
   const [visible, setVisible] = useState(PAGE);
   if (!entries.length) return null;
   return (
     <View className="gap-3">
       <ListGroup
-        header="История записей"
+        header={t.ai.history.title}
         headerRight={
           <AppText variant="caption" tone="subtle" className="text-[13px]">
-            {entries.length} {pluralize(entries.length, ENTRY_FORMS)}
+            {t.ai.history.count(entries.length)}
           </AppText>
         }
       >
@@ -33,7 +35,7 @@ export function EntryHistory({ entries, now }: { entries: readonly AiEntry[]; no
       </ListGroup>
       {entries.length > visible ? (
         <Button
-          label="Показать ещё"
+          label={t.ai.history.more}
           variant="secondary"
           onPress={() => setVisible((count) => count + PAGE)}
         />
@@ -43,17 +45,15 @@ export function EntryHistory({ entries, now }: { entries: readonly AiEntry[]; no
 }
 
 function EntryRow({ entry, now }: { entry: AiEntry; now: number }) {
+  const t = useT();
+  const h = t.ai.history;
   const { colors } = useThemeColors();
   const ai = useAi();
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const status =
     entry.analysis?.cause ??
-    (entry.status === "failed"
-      ? "Разбор не получен"
-      : entry.status === "pending"
-        ? "Ждёт разбора"
-        : "Причина не ясна");
+    (entry.status === "failed" ? h.failed : entry.status === "pending" ? h.waiting : h.unclear);
 
   return (
     <View className="gap-2 px-4 py-3">
@@ -66,11 +66,7 @@ function EntryRow({ entry, now }: { entry: AiEntry; now: number }) {
         <View className="flex-row items-center justify-between gap-3">
           <AppText variant="caption" tone="subtle" className="text-[13px]">
             {formatRelativeDay(entry.timestamp, now)}
-            {entry.outcome === "resisted"
-              ? " · удержались"
-              : entry.outcome === "opened"
-                ? " · открыли ленту"
-                : ""}
+            {entry.outcome === "resisted" ? h.resisted : entry.outcome === "opened" ? h.opened : ""}
           </AppText>
           <Ionicons name={open ? "chevron-up" : "chevron-down"} size={16} color={colors.chevron} />
         </View>
@@ -92,16 +88,12 @@ function EntryRow({ entry, now }: { entry: AiEntry; now: number }) {
         <View className="gap-3">
           {entry.analysis ? <EntryAnalysisView analysis={entry.analysis} /> : null}
           {entry.status === "failed" ? (
-            <Button
-              label="Повторить разбор"
-              variant="secondary"
-              onPress={() => ai.retryEntry(entry.id)}
-            />
+            <Button label={h.retry} variant="secondary" onPress={() => ai.retryEntry(entry.id)} />
           ) : null}
           {confirming ? (
             <View className="flex-row items-center justify-end gap-2">
               <AppText variant="caption" tone="muted" className="flex-1">
-                Удалить запись?
+                {h.confirmDelete}
               </AppText>
               <Pressable
                 onPress={() => setConfirming(false)}
@@ -109,7 +101,7 @@ function EntryRow({ entry, now }: { entry: AiEntry; now: number }) {
                 className="px-3 py-1.5"
               >
                 <AppText variant="label" tone="primary">
-                  Отмена
+                  {h.cancel}
                 </AppText>
               </Pressable>
               <Pressable
@@ -118,7 +110,7 @@ function EntryRow({ entry, now }: { entry: AiEntry; now: number }) {
                 className="rounded-full bg-rose-50 px-3 py-1.5 dark:bg-rose-950"
               >
                 <AppText variant="label" className="text-rose-500 dark:text-rose-400">
-                  Удалить
+                  {h.delete}
                 </AppText>
               </Pressable>
             </View>
@@ -129,7 +121,7 @@ function EntryRow({ entry, now }: { entry: AiEntry; now: number }) {
               className="self-start"
             >
               <AppText variant="caption" tone="subtle">
-                Удалить запись
+                {h.deleteEntry}
               </AppText>
             </Pressable>
           )}

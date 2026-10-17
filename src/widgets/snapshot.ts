@@ -1,3 +1,4 @@
+import { isLanguage, type LanguageCode } from "../i18n/languages";
 import { REPLACEMENTS } from "../utils/catalog";
 import { addDays, dayKey } from "../utils/date";
 import { getAllReplacements, isLocked } from "../utils/replacements";
@@ -16,6 +17,11 @@ import type {
  * AsyncStorage in the widget task handler.
  */
 export interface WidgetSnapshot {
+  /**
+   * The app's language: the widgets draw their texts in it. Snapshots saved before the app spoke
+   * other languages have none — read it with `widgetLanguage()`.
+   */
+  language: LanguageCode;
   /** The local day the "today" numbers belong to. */
   day: string;
   savedToday: number;
@@ -37,6 +43,8 @@ export interface WidgetSource {
   scrollLog: ScrollLog;
   settings: Settings;
   customReplacements: readonly CustomReplacement[];
+  /** The app's language; Russian until the user has picked one. */
+  language?: LanguageCode | null;
 }
 
 export function buildWidgetSnapshot(source: WidgetSource, isPro: boolean): WidgetSnapshot {
@@ -48,6 +56,7 @@ export function buildWidgetSnapshot(source: WidgetSource, isPro: boolean): Widge
     .filter((item) => !isLocked(item, isPro))
     .map(({ id, title, minutes, category }) => ({ id, title, minutes, category }));
   return {
+    language: source.language ?? "ru",
     day: source.todayKey,
     savedToday: saved.todayMinutes,
     winsToday: saved.todayWins,
@@ -57,6 +66,12 @@ export function buildWidgetSnapshot(source: WidgetSource, isPro: boolean): Widge
     scrolledToday: today ?? null,
     replacements,
   };
+}
+
+/** The language to draw a saved snapshot in: Russian for snapshots older than the field. */
+export function widgetLanguage(snapshot: WidgetSnapshot): LanguageCode {
+  const language: unknown = snapshot.language;
+  return isLanguage(language) ? language : "ru";
 }
 
 export interface WidgetDay {

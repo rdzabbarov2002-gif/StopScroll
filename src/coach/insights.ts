@@ -1,21 +1,9 @@
+import { m } from "../i18n";
 import { getTrigger } from "../utils/catalog";
 import type { IconName } from "../utils/types";
 import type { History } from "./history";
 import { slipsWithin } from "./history";
-import {
-  DAY_WORD_FORMS,
-  SLIP_FORMS,
-  TIME_FORMS,
-  WALK_FORMS,
-  capitalize,
-  clock,
-  count,
-  genitiveNumber,
-  minutes,
-  ordinalFeminine,
-  variant,
-  weekday,
-} from "./language";
+import { clock, minutes, variant } from "./language";
 import {
   durationTrend,
   eveningTrend,
@@ -52,6 +40,7 @@ export function buildInsights(history: History): Insight[] {
   const say = <T>(id: string, options: readonly T[]) =>
     variant(`${history.todayKey}:${id}`, options);
   const found: Insight[] = [];
+  const t = m().coach.insights;
   const recent28 = slipsWithin(history, 28);
 
   const time = findTimePattern(recent28);
@@ -65,27 +54,21 @@ export function buildInsights(history: History): Insight[] {
       score: 3 + share * 2,
       text:
         time.kind === "after"
-          ? say("time-after", [
-              `За последние четыре недели ${time.count} из ${time.total} срывов случились после ${clock(time.hour)}.`,
-              `Большинство срывов — ${time.count} из ${time.total} за последние четыре недели — начинаются после ${clock(time.hour)}.`,
-            ])
-          : `Срывы чаще всего случаются между ${clock(time.from)} и ${clock(time.to)}: ${time.count} из ${time.total} за последние четыре недели.`,
+          ? say("time-after", t.timeAfter)(time.count, time.total, clock(time.hour))
+          : t.timeWindow(clock(time.from), clock(time.to), time.count, time.total),
     });
   }
 
   const reason = findTopReason(slipsWithin(history, 21));
   if (reason) {
-    const noun = getTrigger(reason.trigger).noun;
+    const cause = getTrigger(reason.trigger);
     found.push({
       id: "top-reason",
       group: "reason",
-      icon: getTrigger(reason.trigger).icon,
+      icon: cause.icon,
       tone: "warning",
       score: 3 + (reason.count / reason.total) * 2,
-      text: say("top-reason", [
-        `Основная причина последних срывов — ${noun}: ${reason.count} из ${reason.total}.`,
-        `Чаще всего в последние три недели срывы случались ${getTrigger(reason.trigger).because}: ${reason.count} из ${reason.total}.`,
-      ]),
+      text: say("top-reason", t.topReason)(cause, reason.count, reason.total),
     });
   }
 
@@ -97,7 +80,7 @@ export function buildInsights(history: History): Insight[] {
       icon: "repeat",
       tone: "indigo",
       score: 3.5 + recurring.weeks * 0.2,
-      text: `Это уже ${ordinalFeminine(recurring.weeks)} неделя подряд, когда ${weekday(recurring.index, "nominative")} остаётся самым тяжёлым днём.`,
+      text: t.recurringWeekday(recurring.weeks, recurring.index),
     });
   }
 
@@ -109,7 +92,7 @@ export function buildInsights(history: History): Insight[] {
       icon: "calendar",
       tone: "warning",
       score: 2.5 + hard.bad / hard.active,
-      text: `${capitalize(weekday(hard.index, "nominative"))} — самый трудный день: ${hard.bad} из последних ${genitiveNumber(hard.active)} ${weekday(hard.index, "genitivePlural")} прошли со срывом или выше лимита.`,
+      text: t.hardWeekday(hard.index, hard.bad, hard.active),
     });
   }
 
@@ -123,8 +106,8 @@ export function buildInsights(history: History): Insight[] {
       score: 2.2,
       text:
         calm.bad === 0
-          ? `${capitalize(weekday(calm.index, "accusative"))} вероятность срыва минимальна: из последних ${genitiveNumber(calm.active)} ${weekday(calm.index, "genitivePlural")} трудных не было ни разу.`
-          : `${capitalize(weekday(calm.index, "accusative"))} срывы случаются реже всего: из последних ${genitiveNumber(calm.active)} ${weekday(calm.index, "genitivePlural")} трудный день выпал только ${count(calm.bad, TIME_FORMS)}.`,
+          ? t.calmWeekdayNone(calm.index, calm.active)
+          : t.calmWeekday(calm.index, calm.bad, calm.active),
     });
   }
 
@@ -138,8 +121,8 @@ export function buildInsights(history: History): Insight[] {
       score: 3.2,
       text:
         walks.slipsAfter === 0
-          ? `За последние четыре недели было ${count(walks.walks, WALK_FORMS)} — и ни после одной в ближайшие три часа не случилось срыва.`
-          : `После прогулок срывы почти не случаются: лишь ${walks.slipsAfter} из ${count(walks.walks, WALK_FORMS)} ${walks.slipsAfter % 10 === 1 && walks.slipsAfter % 100 !== 11 ? "закончилась" : "закончились"} лентой в ближайшие три часа.`,
+          ? t.walksNoSlips(walks.walks)
+          : t.walksFewSlips(walks.slipsAfter, walks.walks),
     });
   }
 
@@ -155,8 +138,8 @@ export function buildInsights(history: History): Insight[] {
       score: 3,
       text:
         replacements.withBad === 0
-          ? `В дни, когда ты делаешь хотя бы одну замену, срывов не было ни разу, а без замен трудными были ${withoutRate}% дней.`
-          : `В дни с заменами трудных дней заметно меньше: ${withRate}% против ${withoutRate}% в остальные дни.`,
+          ? t.replacementsNoSlips(withoutRate)
+          : t.replacementsFewer(withRate, withoutRate),
     });
   }
 
@@ -170,9 +153,10 @@ export function buildInsights(history: History): Insight[] {
       icon: "trending-down",
       tone: "success",
       score: 2.5 + Math.min(1.5, Math.abs(scroll.change) / 40) + (steady ? 0.3 : 0),
-      text: steady
-        ? `Последние две недели — устойчивый прогресс: лента занимает в среднем ${minutes(scroll.recent)} в день, на ${Math.abs(scroll.change)}% меньше, чем раньше, и срывов не прибавилось.`
-        : `Последние две недели лента занимает в среднем ${minutes(scroll.recent)} в день — на ${Math.abs(scroll.change)}% меньше, чем две недели до этого.`,
+      text: (steady ? t.scrollDownSteady : t.scrollDown)(
+        minutes(scroll.recent),
+        Math.abs(scroll.change),
+      ),
     });
   } else if (scroll && scroll.change >= 20) {
     found.push({
@@ -181,7 +165,7 @@ export function buildInsights(history: History): Insight[] {
       icon: "trending-up",
       tone: "warning",
       score: 2.4 + Math.min(1.2, scroll.change / 50),
-      text: `Последние две недели ленты стало больше: в среднем ${minutes(scroll.recent)} в день против ${minutes(scroll.previous)} раньше.`,
+      text: t.scrollUp(minutes(scroll.recent), minutes(scroll.previous)),
     });
   } else if (slips.previous >= 3 && slips.recent <= slips.previous / 2) {
     found.push({
@@ -190,7 +174,7 @@ export function buildInsights(history: History): Insight[] {
       icon: "trending-down",
       tone: "success",
       score: 2.6,
-      text: `Срывов стало заметно меньше: ${slips.recent} за последние две недели против ${slips.previous} перед этим.`,
+      text: t.slipsDown(slips.recent, slips.previous),
     });
   } else if (slips.recent >= 4 && slips.recent >= slips.previous * 1.5) {
     found.push({
@@ -199,7 +183,7 @@ export function buildInsights(history: History): Insight[] {
       icon: "trending-up",
       tone: "warning",
       score: 2.2,
-      text: `За последние две недели срывов стало больше: ${slips.recent} против ${slips.previous} перед этим.`,
+      text: t.slipsUp(slips.recent, slips.previous),
     });
   }
 
@@ -211,7 +195,7 @@ export function buildInsights(history: History): Insight[] {
       icon: "moon",
       tone: "success",
       score: 2.8,
-      text: `Вечерняя привычка стала лучше, чем месяц назад: после 21:00 — ${count(evening.recent, SLIP_FORMS)} за месяц против ${evening.previous} месяцем раньше.`,
+      text: t.eveningBetter(clock(21), evening.recent, evening.previous),
     });
   }
 
@@ -223,7 +207,7 @@ export function buildInsights(history: History): Insight[] {
       icon: "hourglass",
       tone: "success",
       score: 2,
-      text: `Срывы стали короче: в среднем ${minutes(duration.recent)} против ${minutes(duration.previous)} двумя неделями раньше.`,
+      text: t.shorterSlips(minutes(duration.recent), minutes(duration.previous)),
     });
   }
 
@@ -237,7 +221,7 @@ export function buildInsights(history: History): Insight[] {
         icon: "flame",
         tone: "primary",
         score: 3.1 - gap * 0.2,
-        text: `До твоего лучшего результата — ${count(streak.best, DAY_WORD_FORMS)} подряд — осталось ${count(gap, DAY_WORD_FORMS)}.`,
+        text: t.streakGap(streak.best, gap),
       });
     }
   } else if (streak.current >= 3 && streak.current === streak.best) {
@@ -247,7 +231,7 @@ export function buildInsights(history: History): Insight[] {
       icon: "flame",
       tone: "primary",
       score: 3,
-      text: `Сейчас идёт твоя самая длинная серия: ${count(streak.current, DAY_WORD_FORMS)} подряд в пределах лимита.`,
+      text: t.streakRecord(streak.current),
     });
   }
 

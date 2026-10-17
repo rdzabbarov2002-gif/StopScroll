@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Pressable, View } from "react-native";
 
 import { useApp } from "../../context/AppContext";
+import { useT } from "../../i18n";
 import { MAX_SCROLL_MINUTES, SCROLL_PRESETS } from "../../utils/catalog";
 import { cn } from "../../utils/cn";
 import { addDays, formatMinutes } from "../../utils/date";
@@ -22,6 +23,7 @@ type Day = "today" | "yesterday";
 
 /** Daily scroll-time input: slider, fine ±5 min steps and quick presets. */
 export function ScrollLogger() {
+  const t = useT().stats;
   const { colors } = useThemeColors();
   const { todayKey, scrollLog } = useApp();
   const [day, setDay] = useState<Day>("today");
@@ -31,16 +33,16 @@ export function ScrollLogger() {
   return (
     <Card className="gap-4">
       <View className="gap-1">
-        <CardLabel icon="create" label="Отметить время" color={colors.primary} />
-        <AppText variant="statement">Сколько ушло на ленту?</AppText>
+        <CardLabel icon="create" label={t.logger.label} color={colors.primary} />
+        <AppText variant="statement">{t.logger.question}</AppText>
         <AppText variant="caption" tone="muted">
-          Reels, TikTok, Shorts — всё вместе
+          {t.logger.hint}
         </AppText>
       </View>
       <SegmentedControl
         options={[
-          { value: "today", label: "Сегодня" },
-          { value: "yesterday", label: "Вчера" },
+          { value: "today", label: t.today },
+          { value: "yesterday", label: t.yesterday },
         ]}
         value={day}
         onChange={setDay}
@@ -52,6 +54,7 @@ export function ScrollLogger() {
 }
 
 function LoggerBody({ dayKey, logged }: { dayKey: string; logged: number | undefined }) {
+  const t = useT().stats.logger;
   const { colors } = useThemeColors();
   const { logScroll, settings } = useApp();
   const [value, setValue] = useState(logged ?? 0);
@@ -93,15 +96,13 @@ function LoggerBody({ dayKey, logged }: { dayKey: string; logged: number | undef
                 : "text-emerald-700 dark:text-emerald-400",
             )}
           >
-            {over
-              ? `Выше лимита на ${formatMinutes(value - limit)}`
-              : `В пределах лимита ${formatMinutes(limit)}`}
+            {over ? t.over(formatMinutes(value - limit)) : t.within(formatMinutes(limit))}
           </AppText>
         </View>
       </View>
 
       <View className="flex-row items-center gap-2">
-        <RoundButton icon="remove" label="Минус 5 минут" onPress={() => update(value - STEP)} />
+        <RoundButton icon="remove" label={t.minus} onPress={() => update(value - STEP)} />
         <View className="flex-1">
           <Slider
             value={minutesToSlider(value)}
@@ -112,11 +113,11 @@ function LoggerBody({ dayKey, logged }: { dayKey: string; logged: number | undef
             minimumTrackTintColor={over ? colors.warning : colors.primary}
             maximumTrackTintColor={colors.ringTrack}
             thumbTintColor={over ? colors.warningStrong : colors.primaryStrong}
-            accessibilityLabel="Минут в ленте за день"
+            accessibilityLabel={t.slider}
             style={{ height: 40 }}
           />
         </View>
-        <RoundButton icon="add" label="Плюс 5 минут" onPress={() => update(value + STEP)} />
+        <RoundButton icon="add" label={t.plus} onPress={() => update(value + STEP)} />
       </View>
 
       <View className="flex-row gap-2">
@@ -128,7 +129,7 @@ function LoggerBody({ dayKey, logged }: { dayKey: string; logged: number | undef
               update(preset);
             }}
             accessibilityRole="button"
-            accessibilityLabel={`Установить ${formatMinutes(preset)}`}
+            accessibilityLabel={t.preset(formatMinutes(preset))}
             className={cn(
               "h-9 flex-1 items-center justify-center rounded-full active:opacity-70",
               value === preset ? "bg-brand-600 dark:bg-brand-500" : "bg-white dark:bg-ink-800",
@@ -145,7 +146,7 @@ function LoggerBody({ dayKey, logged }: { dayKey: string; logged: number | undef
       </View>
 
       <Button
-        label={!dirty ? "Записано" : logged === undefined ? "Записать" : "Обновить запись"}
+        label={!dirty ? t.saved : logged === undefined ? t.save : t.update}
         icon={!dirty ? "checkmark-circle" : "save-outline"}
         disabled={!dirty}
         onPress={() => {
@@ -154,7 +155,7 @@ function LoggerBody({ dayKey, logged }: { dayKey: string; logged: number | undef
         }}
       />
       <AppText variant="caption" tone="subtle" className="text-center text-xs">
-        Точное время подскажет «Экранное время» на iOS или «Цифровое благополучие» на Android.
+        {t.footnote}
       </AppText>
     </View>
   );

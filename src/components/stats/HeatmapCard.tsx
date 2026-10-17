@@ -4,13 +4,8 @@ import { Pressable, View, type LayoutChangeEvent } from "react-native";
 
 import { useApp } from "../../context/AppContext";
 import { usePro } from "../../context/ProContext";
-import {
-  DAY_FORMS,
-  WEEKDAYS_SHORT,
-  formatDayShort,
-  formatMinutes,
-  pluralize,
-} from "../../utils/date";
+import { plural, useT } from "../../i18n";
+import { WEEKDAYS_SHORT, formatDayShort, formatMinutes } from "../../utils/date";
 import { FREE_HEATMAP_WEEKS, PRO_HEATMAP_WEEKS } from "../../utils/pro";
 import {
   countControlledDays,
@@ -27,14 +22,6 @@ import { CardLabel } from "../CardLabel";
 const GAP = 4;
 const LABEL_GUTTER = 24;
 const MAX_CELL = 30;
-
-const STATUS_TEXT: Record<DayStatus, string> = {
-  great: "меньше половины лимита",
-  ok: "в пределах лимита",
-  over: "выше лимита",
-  empty: "нет записи",
-  future: "",
-};
 
 function cellColor(status: DayStatus, chart: ChartColors): string {
   switch (status) {
@@ -53,6 +40,8 @@ function cellColor(status: DayStatus, chart: ChartColors): string {
 
 /** Streak chain + calendar heatmap of days under control. */
 export function HeatmapCard() {
+  const t = useT().stats;
+  const status = t.heatmap.status;
   const navigation = useNavigation();
   const { colors, chart } = useThemeColors();
   const { scrollLog, todayKey, settings } = useApp();
@@ -81,16 +70,20 @@ export function HeatmapCard() {
   return (
     <Card className="gap-4">
       <View className="gap-1">
-        <CardLabel icon="calendar" label="Дни под контролем" color={colors.warningStrong} />
+        <CardLabel icon="calendar" label={t.heatmap.label} color={colors.warningStrong} />
         <AppText variant="caption" tone="muted">
-          День засчитывается, если в ленте не больше {formatMinutes(limit)}.
+          {t.heatmap.rule(formatMinutes(limit))}
         </AppText>
       </View>
 
       <View className="flex-row gap-3">
-        <Metric value={`${streak}`} unit={pluralize(streak, DAY_FORMS)} label="Серия" />
-        <Metric value={`${best}`} unit={pluralize(best, DAY_FORMS)} label="Рекорд" />
-        <Metric value={`${month.controlled}/${month.logged}`} label="За 30 дней" />
+        <Metric
+          value={`${streak}`}
+          unit={plural(streak, t.heatmap.days)}
+          label={t.heatmap.streak}
+        />
+        <Metric value={`${best}`} unit={plural(best, t.heatmap.days)} label={t.heatmap.record} />
+        <Metric value={`${month.controlled}/${month.logged}`} label={t.heatmap.month} />
       </View>
 
       <View onLayout={onLayout} className="gap-3">
@@ -115,11 +108,12 @@ export function HeatmapCard() {
                     disabled={day.status === "future"}
                     onPress={() => setSelectedKey(day.key)}
                     accessibilityRole="button"
-                    accessibilityLabel={`${formatDayShort(day.key)}: ${
+                    accessibilityLabel={t.dayValue(
+                      formatDayShort(day.key),
                       day.minutes === null
-                        ? "нет записи"
-                        : `${formatMinutes(day.minutes)}, ${STATUS_TEXT[day.status]}`
-                    }`}
+                        ? t.noEntry
+                        : t.heatmap.cellValue(formatMinutes(day.minutes), status[day.status]),
+                    )}
                     style={{
                       width: cell,
                       height: cell,
@@ -137,19 +131,23 @@ export function HeatmapCard() {
 
         <AppText variant="caption" tone="muted" accessibilityLiveRegion="polite">
           {selected
-            ? `${formatDayShort(selected.key)}: ${
+            ? t.dayValue(
+                formatDayShort(selected.key),
                 selected.minutes === null
-                  ? "нет записи"
-                  : `${formatMinutes(selected.minutes)} — ${STATUS_TEXT[selected.status]}`
-              }`
-            : "Нажмите на день, чтобы увидеть детали."}
+                  ? t.noEntry
+                  : t.heatmap.selectedValue(
+                      formatMinutes(selected.minutes),
+                      status[selected.status],
+                    ),
+              )
+            : t.heatmap.hint}
         </AppText>
 
         <View className="flex-row flex-wrap gap-x-4 gap-y-2">
-          <Legend color={chart.series} label="≤ ½ лимита" />
-          <Legend color={chart.seriesMid} label="в лимите" />
-          <Legend color={chart.slip} label="выше лимита" />
-          <Legend color={chart.empty} label="нет записи" />
+          <Legend color={chart.series} label={t.heatmap.legend.great} />
+          <Legend color={chart.seriesMid} label={t.heatmap.legend.ok} />
+          <Legend color={chart.slip} label={t.heatmap.legend.over} />
+          <Legend color={chart.empty} label={t.heatmap.legend.empty} />
         </View>
       </View>
 
@@ -160,7 +158,7 @@ export function HeatmapCard() {
           className="active:opacity-70"
         >
           <AppText variant="caption" tone="primary" className="font-semibold">
-            Показать {PRO_HEATMAP_WEEKS} недель истории — в Pro
+            {t.heatmap.more(PRO_HEATMAP_WEEKS)}
           </AppText>
         </Pressable>
       ) : null}

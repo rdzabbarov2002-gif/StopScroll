@@ -1,3 +1,4 @@
+import type { LanguageCode } from "../i18n/languages";
 import {
   MAX_COACH_LOG,
   MAX_CUSTOM_REPLACEMENTS,
@@ -49,6 +50,7 @@ export type AppAction =
   | { type: "deleteCustomReplacement"; id: string }
   | { type: "setLastExercise"; id: ExerciseId }
   | { type: "setTheme"; preference: ThemePreference }
+  | { type: "setLanguage"; language: LanguageCode }
   | { type: "resetProgress" };
 
 export function appReducer(state: AppState, action: AppAction): AppState {
@@ -155,6 +157,9 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         ? state
         : { ...state, themePreference: action.preference };
 
+    case "setLanguage":
+      return state.language === action.language ? state : { ...state, language: action.language };
+
     case "resetProgress": {
       // Wipes the tracked history but keeps the user's setup.
       const fresh = createInitialState();
@@ -181,6 +186,7 @@ export function toPersistedState(state: AppState): PersistedState {
   return {
     version: 1,
     onboarded: state.onboarded,
+    language: state.language,
     settings: state.settings,
     scrollLog: state.scrollLog,
     wins: state.wins,

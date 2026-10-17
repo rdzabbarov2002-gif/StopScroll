@@ -5,8 +5,8 @@ import { View } from "react-native";
 import type { DailyBriefing } from "../../coach";
 import { useApp } from "../../context/AppContext";
 import { usePro } from "../../context/ProContext";
+import { useT } from "../../i18n";
 import { useCoachVoice } from "../../services/coachVoice";
-import { DAY_FORMS, pluralize } from "../../utils/date";
 import { findReplacement, isLocked } from "../../utils/replacements";
 import { useThemeColors } from "../../utils/theme";
 import type { RiskLevel } from "../../utils/types";
@@ -17,16 +17,12 @@ import { Separator } from "../CardLabel";
 import { ProgressBar } from "../ProgressBar";
 import { CoachBadge } from "./CoachBadge";
 
-const RISK_LABEL: Record<RiskLevel, string> = {
-  low: "Низкий",
-  medium: "Средний",
-  high: "Высокий",
-};
 const RISK_STEPS: Record<RiskLevel, number> = { low: 1, medium: 2, high: 3 };
 
 /** The heart of the home screen: today's risk, why, one piece of advice and a look back. */
 export function BriefingCard({ briefing }: { briefing: DailyBriefing }) {
   const { colors } = useThemeColors();
+  const t = useT().coach.ui.briefing;
   const navigation = useNavigation();
   const { customReplacements } = useApp();
   const { isPro } = usePro();
@@ -44,35 +40,27 @@ export function BriefingCard({ briefing }: { briefing: DailyBriefing }) {
 
   return (
     <Card className="gap-4">
-      <CoachBadge caption={learning ? "Знакомлюсь с твоими привычками" : "Брифинг на сегодня"} />
+      <CoachBadge caption={learning ? t.learningCaption : t.caption} />
 
       {learning ? (
         <View className="gap-3">
-          <AppText variant="statement">
-            Пока я собираю информацию — прогноз появится, когда наберётся {learning.needed}{" "}
-            {pluralize(learning.needed, DAY_FORMS)} с записями.
-          </AppText>
+          <AppText variant="statement">{t.learning(learning.needed)}</AppText>
           <View className="gap-1.5">
             <ProgressBar progress={learning.activeDays / learning.needed} />
             <AppText variant="caption" tone="subtle" className="text-[13px]">
-              Дней с записями: {learning.activeDays} из {learning.needed}. Подойдёт любое: время в
-              ленте, SOS-пауза, замена или срыв.
+              {t.progress(learning.activeDays, learning.needed)}
             </AppText>
           </View>
         </View>
       ) : risk ? (
         <View className="gap-2.5">
-          <View
-            className="gap-1.5"
-            accessible
-            accessibilityLabel={`Риск бесконтрольного скролла сегодня: ${RISK_LABEL[risk]}`}
-          >
+          <View className="gap-1.5" accessible accessibilityLabel={t.riskA11y(t.riskLevels[risk])}>
             <AppText variant="caption" tone="muted">
-              Риск бесконтрольного скролла сегодня
+              {t.riskTitle}
             </AppText>
             <View className="flex-row items-center gap-3">
               <AppText variant="statement" style={{ color: riskColor }}>
-                {RISK_LABEL[risk]}
+                {t.riskLevels[risk]}
               </AppText>
               <View className="flex-1 flex-row gap-1.5">
                 {[1, 2, 3].map((step) => (
@@ -89,7 +77,7 @@ export function BriefingCard({ briefing }: { briefing: DailyBriefing }) {
           </View>
           {riskReason ? (
             <AppText className="text-[16px] leading-[22px]">
-              <AppText className="text-[16px] font-semibold leading-[22px]">Почему: </AppText>
+              <AppText className="text-[16px] font-semibold leading-[22px]">{t.why}</AppText>
               {riskReason}
             </AppText>
           ) : null}
@@ -102,13 +90,13 @@ export function BriefingCard({ briefing }: { briefing: DailyBriefing }) {
         <View className="flex-row items-center gap-1.5">
           <Ionicons name="compass-outline" size={16} color={colors.primary} />
           <AppText variant="label" tone="primary">
-            Совет на сегодня
+            {t.adviceTitle}
           </AppText>
         </View>
         <AppText variant="statement">{adviceText}</AppText>
         {offer ? (
           <Button
-            label={`Начать: ${offer.title}`}
+            label={t.start(offer.title)}
             icon="play"
             variant="secondary"
             className="mt-1 self-start"

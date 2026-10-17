@@ -16,10 +16,11 @@ import { Screen } from "../components/Screen";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { useApp } from "../context/AppContext";
 import { usePro } from "../context/ProContext";
+import { countOf, useT, type Messages } from "../i18n";
 import type { RootTabScreenProps } from "../navigation/types";
 import { computePatterns } from "../utils/analytics";
 import { CATEGORIES, getCategory } from "../utils/catalog";
-import { dayKey, formatMinutes, pluralize } from "../utils/date";
+import { dayKey, formatMinutes } from "../utils/date";
 import { MAX_CUSTOM_REPLACEMENTS } from "../utils/persistedState";
 import {
   customToReplacement,
@@ -28,34 +29,22 @@ import {
   suggestReplacements,
 } from "../utils/replacements";
 import { useThemeColors } from "../utils/theme";
-import type { Replacement, ReplacementCategory, TriggerId } from "../utils/types";
+import type { Replacement, ReplacementCategory } from "../utils/types";
 import { useNow } from "../utils/useNow";
 
 type Filter = "all" | ReplacementCategory | "mine";
 
-const FILTERS: readonly { value: Filter; label: string }[] = [
-  { value: "all", label: "Все" },
+/** Built on every render, so the labels follow the current language. */
+const filterOptions = (t: Messages): readonly { value: Filter; label: string }[] => [
+  { value: "all", label: t.replacements.list.filterAll },
   ...CATEGORIES.map((category) => ({ value: category.id, label: category.label })),
-  { value: "mine", label: "Свои" },
+  { value: "mine", label: t.replacements.list.filterMine },
 ];
-
-const REPLACEMENT_FORMS = ["замена", "замены", "замен"] as const;
-
-/** "Когда тянет в ленту от скуки…" — a short reason for the most frequent trigger. */
-const TRIGGER_PHRASE: Record<TriggerId, string> = {
-  boredom: "от скуки",
-  fatigue: "от усталости",
-  stress: "от стресса",
-  loneliness: "от одиночества",
-  procrastination: "вместо дела",
-  autopilot: "на автопилоте",
-  relax: "чтобы расслабиться",
-  sleepless: "когда не спится",
-  other: "",
-};
 
 export function ReplacementsScreen({ navigation, route }: RootTabScreenProps<"Replacements">) {
   const { colors } = useThemeColors();
+  const t = useT();
+  const text = t.replacements.list;
   const app = useApp();
   const { isPro } = usePro();
   const now = useNow(60_000);
@@ -83,6 +72,8 @@ export function ReplacementsScreen({ navigation, route }: RootTabScreenProps<"Re
     (item) => !isLocked(item, isPro),
   );
   const pick = suggestions.find((item) => !doneToday.has(item.id)) ?? suggestions[0];
+  /** "Когда тянет в ленту от скуки…" — a short reason for the most frequent trigger. */
+  const triggerPhrase = patterns.topTrigger ? text.triggerPhrase[patterns.topTrigger] : "";
 
   const items: Replacement[] =
     filter === "mine"
@@ -112,7 +103,7 @@ export function ReplacementsScreen({ navigation, route }: RootTabScreenProps<"Re
     <Screen>
       <View className="flex-row items-end justify-between gap-3 px-1 pb-1">
         <AppText variant="title" accessibilityRole="header">
-          Замены
+          {text.title}
         </AppText>
         <IconButton
           icon="add"
@@ -120,42 +111,41 @@ export function ReplacementsScreen({ navigation, route }: RootTabScreenProps<"Re
           tone="accent"
           className="mb-1 h-[38px] w-[38px]"
           onPress={createCustom}
-          accessibilityLabel="Добавить свою замену"
+          accessibilityLabel={text.add}
         />
       </View>
 
       {pick ? (
         <Card>
-          <CardLabel icon="sparkles" label="Подходит сейчас" color={colors.primary} />
+          <CardLabel icon="sparkles" label={text.pickLabel} color={colors.primary} />
           <AppText variant="statement" className="mt-2">
-            {patterns.topTrigger && TRIGGER_PHRASE[patterns.topTrigger]
-              ? `Когда тянет в ленту ${TRIGGER_PHRASE[patterns.topTrigger]}, попробуйте «${pick.title}».`
-              : `Попробуйте «${pick.title}» вместо ленты.`}
+            {triggerPhrase ? text.pickForTrigger(triggerPhrase, pick.title) : text.pick(pick.title)}
           </AppText>
           <View className="mt-3.5 flex-row items-center justify-between gap-3">
             <AppText variant="caption" tone="subtle" className="shrink" numberOfLines={1}>
-              {pick.minutes} мин · {getCategory(pick.category).label}
+              {formatMinutes(pick.minutes)} · {getCategory(pick.category).label}
             </AppText>
-            <Button label="Начать" onPress={() => open(pick)} className="h-9 px-5" />
+            <Button label={text.start} onPress={() => open(pick)} className="h-9 px-5" />
           </View>
         </Card>
       ) : null}
 
-      <SegmentedControl options={FILTERS} value={filter} onChange={setFilter} className="mt-1" />
+      <SegmentedControl
+        options={filterOptions(t)}
+        value={filter}
+        onChange={setFilter}
+        className="mt-1"
+      />
 
       {sorted.length === 0 ? (
         <View className="gap-3 pt-2">
           <EmptyState
             icon="create-outline"
-            title="Пока пусто"
-            text={
-              isPro
-                ? "Добавьте привычку, которая заряжает именно вас: гитара, отжимания, страница книги."
-                : "Свои замены и привычки доступны в Pro."
-            }
+            title={text.emptyTitle}
+            text={isPro ? text.emptyPro : text.emptyFree}
           />
           <Button
-            label={isPro ? "Добавить свою замену" : "Открыть Pro"}
+            label={isPro ? text.add : text.openPro}
             icon={isPro ? "add" : "sparkles"}
             onPress={createCustom}
           />
@@ -164,8 +154,8 @@ export function ReplacementsScreen({ navigation, route }: RootTabScreenProps<"Re
         <ListGroup
           header={
             todayWins.length > 0
-              ? `Сегодня ${todayWins.length} ${pluralize(todayWins.length, REPLACEMENT_FORMS)}`
-              : "Каталог"
+              ? text.today(countOf(todayWins.length, t.replacements.units.replacements))
+              : text.catalog
           }
           headerRight={
             todayMinutes > 0 ? (
@@ -186,12 +176,12 @@ export function ReplacementsScreen({ navigation, route }: RootTabScreenProps<"Re
                 title={item.title}
                 subtitle={
                   filter === "all" || filter === "mine"
-                    ? `${item.minutes} мин · ${getCategory(item.category).label}`
-                    : `${item.minutes} мин`
+                    ? `${formatMinutes(item.minutes)} · ${getCategory(item.category).label}`
+                    : formatMinutes(item.minutes)
                 }
                 onPress={() => open(item)}
                 chevron={!locked && done === undefined}
-                accessibilityLabel={`${item.title}, ${item.minutes} мин${locked ? ", доступно в Pro" : ""}${done !== undefined ? ", сделано сегодня" : ""}`}
+                accessibilityLabel={`${item.title}, ${formatMinutes(item.minutes)}${locked ? t.replacements.a11y.locked : ""}${done !== undefined ? t.replacements.a11y.doneToday : ""}`}
                 right={
                   locked ? (
                     <ProBadge />
@@ -211,7 +201,7 @@ export function ReplacementsScreen({ navigation, route }: RootTabScreenProps<"Re
             <ListRow
               icon="add"
               iconColor={colors.primary}
-              title="Добавить свою замену"
+              title={text.add}
               onPress={createCustom}
             />
           ) : null}

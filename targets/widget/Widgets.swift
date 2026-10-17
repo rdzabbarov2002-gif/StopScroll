@@ -6,6 +6,9 @@ import WidgetKit
 struct DayEntry: TimelineEntry {
   let date: Date
   let snapshot: Snapshot?
+
+  /// The snapshot's language; the device's before the app has written one.
+  var strings: Strings { Strings(lang: snapshot?.lang ?? .device) }
 }
 
 /// Today's numbers, refreshed at local midnight so "today" never shows yesterday's values.
@@ -35,6 +38,9 @@ struct DayProvider: TimelineProvider {
 struct ReplacementEntry: TimelineEntry {
   let date: Date
   let replacement: Snapshot.Replacement?
+  let lang: Lang
+
+  var strings: Strings { Strings(lang: lang) }
 }
 
 /// A different replacement every half hour, picked from the ones open to the user.
@@ -42,21 +48,27 @@ struct ReplacementProvider: TimelineProvider {
   private static let slot: TimeInterval = 30 * 60
 
   func placeholder(in context: Context) -> ReplacementEntry {
-    ReplacementEntry(date: Date(), replacement: Snapshot.gallery.replacements.first)
+    let gallery = Snapshot.gallery
+    return ReplacementEntry(date: Date(), replacement: gallery.replacements.first, lang: gallery.lang)
   }
 
   func getSnapshot(in context: Context, completion: @escaping (ReplacementEntry) -> Void) {
-    let items = Snapshot.load()?.replacements ?? (context.isPreview ? Snapshot.gallery.replacements : [])
-    completion(ReplacementEntry(date: Date(), replacement: Self.pick(items, at: Date())))
+    let snapshot = Snapshot.load() ?? (context.isPreview ? .gallery : nil)
+    let items = snapshot?.replacements ?? []
+    completion(
+      ReplacementEntry(
+        date: Date(), replacement: Self.pick(items, at: Date()), lang: snapshot?.lang ?? .device))
   }
 
   func getTimeline(in context: Context, completion: @escaping (Timeline<ReplacementEntry>) -> Void) {
     let now = Date()
-    let items = Snapshot.load()?.replacements ?? []
+    let snapshot = Snapshot.load()
+    let items = snapshot?.replacements ?? []
+    let lang = snapshot?.lang ?? .device
     let start = (now.timeIntervalSince1970 / Self.slot).rounded(.down) * Self.slot
     let entries = (0..<12).map { index -> ReplacementEntry in
       let date = index == 0 ? now : Date(timeIntervalSince1970: start + Double(index) * Self.slot)
-      return ReplacementEntry(date: date, replacement: Self.pick(items, at: date))
+      return ReplacementEntry(date: date, replacement: Self.pick(items, at: date), lang: lang)
     }
     completion(Timeline(entries: entries, policy: .atEnd))
   }
@@ -90,13 +102,14 @@ struct WidgetLabel: View {
 
 /// "1 ч 20 мин" with big rounded numbers and small units.
 struct DurationView: View {
+  let strings: Strings
   let minutes: Int
   let color: Color
   var size: CGFloat = 34
 
   var body: some View {
     HStack(alignment: .firstTextBaseline, spacing: 3) {
-      ForEach(Array(durationParts(minutes).enumerated()), id: \.offset) { _, part in
+      ForEach(Array(strings.durationParts(minutes).enumerated()), id: \.offset) { _, part in
         Text(part.0).font(roundedNumber(size))
         Text(part.1).font(.system(size: size * 0.45, weight: .semibold))
       }
@@ -109,11 +122,13 @@ struct DurationView: View {
 
 /// Before the app has written anything.
 struct EmptyWidgetView: View {
+  let strings: Strings
+
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
       WidgetLabel(icon: "pause.circle.fill", title: "StopScroll", color: Color("brand"))
       Spacer(minLength: 0)
-      Text("Откройте StopScroll, чтобы здесь появились ваши цифры.")
+      Text(strings.empty)
         .font(.system(size: 13, weight: .medium))
         .foregroundStyle(.secondary)
     }
@@ -142,36 +157,33 @@ struct TodayView: View {
   let entry: DayEntry
 
   var body: some View {
+    let s = entry.strings
     Group {
       if let snapshot = entry.snapshot {
         let values = snapshot.values(at: entry.date)
         if family == .accessoryRectangular {
           VStack(alignment: .leading, spacing: 1) {
-            Label("Спасено сегодня", systemImage: "leaf.fill").font(.system(size: 12, weight: .semibold))
-            Text(durationText(values.saved)).font(roundedNumber(22))
-            Text("\(values.wins) \(plural(values.wins, ("победа", "победы", "побед")))")
+            Label(s.savedTodayLabel, systemImage: "leaf.fill").font(.system(size: 12, weight: .semibold))
+            Text(s.duration(values.saved)).font(roundedNumber(22))
+            Text(s.winCount(values.wins))
               .font(.system(size: 12))
           }
           .frame(maxWidth: .infinity, alignment: .leading)
         } else {
           VStack(alignment: .leading, spacing: 2) {
-            WidgetLabel(icon: "leaf.fill", title: "Спасено", color: Color("success"))
+            WidgetLabel(icon: "leaf.fill", title: s.savedLabel, color: Color("success"))
             Spacer(minLength: 0)
-            Text("Сегодня").font(.system(size: 13, weight: .medium)).foregroundStyle(.secondary)
-            DurationView(minutes: values.saved, color: Color("success"))
-            Text(
-              values.wins > 0
-                ? "\(values.wins) \(plural(values.wins, ("победа", "победы", "побед"))) над лентой"
-                : "Пауза вернёт время"
-            )
-            .font(.system(size: 12))
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
+            Text(s.todayCaption).font(.system(size: 13, weight: .medium)).foregroundStyle(.secondary)
+            DurationView(strings: s, minutes: values.saved, color: Color("success"))
+            Text(values.wins > 0 ? s.winsOverFeed(values.wins) : s.noWins)
+              .font(.system(size: 12))
+              .foregroundStyle(.secondary)
+              .lineLimit(1)
           }
           .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
       } else {
-        EmptyWidgetView()
+        EmptyWidgetView(strings: s)
       }
     }
     .widgetCard(family)
@@ -184,8 +196,8 @@ struct TodayWidget: Widget {
     StaticConfiguration(kind: "StopScrollToday", provider: DayProvider()) { entry in
       TodayView(entry: entry)
     }
-    .configurationDisplayName("Сегодня")
-    .description("Сколько времени вы сегодня вернули себе.")
+    .configurationDisplayName(Strings.saved.todayName)
+    .description(Strings.saved.todayDescription)
     .supportedFamilies([.systemSmall, .accessoryRectangular])
   }
 }
@@ -197,6 +209,7 @@ struct StreakView: View {
   let entry: DayEntry
 
   var body: some View {
+    let s = entry.strings
     Group {
       if let snapshot = entry.snapshot {
         let streak = snapshot.values(at: entry.date).streak
@@ -206,21 +219,21 @@ struct StreakView: View {
             VStack(spacing: -2) {
               Image(systemName: "flame.fill").font(.system(size: 12, weight: .semibold))
               Text("\(streak)").font(roundedNumber(22))
-              Text(plural(streak, ("день", "дня", "дней"))).font(.system(size: 10, weight: .medium))
+              Text(s.days(streak)).font(.system(size: 10, weight: .medium))
             }
           }
         } else {
           VStack(alignment: .leading, spacing: 2) {
-            WidgetLabel(icon: "flame.fill", title: "Серия", color: Color("warning"))
+            WidgetLabel(icon: "flame.fill", title: s.streakLabel, color: Color("warning"))
             Spacer(minLength: 0)
             HStack(alignment: .firstTextBaseline, spacing: 4) {
               Text("\(streak)").font(roundedNumber(44))
-              Text(plural(streak, ("день", "дня", "дней"))).font(.system(size: 17, weight: .semibold))
+              Text(s.days(streak)).font(.system(size: 17, weight: .semibold))
             }
             .foregroundStyle(Color("warning"))
             .lineLimit(1)
             .minimumScaleFactor(0.6)
-            Text(streak > 0 ? "в пределах лимита" : "Начните серию сегодня")
+            Text(streak > 0 ? s.streakActive : s.streakStart)
               .font(.system(size: 12))
               .foregroundStyle(.secondary)
               .lineLimit(1)
@@ -228,7 +241,7 @@ struct StreakView: View {
           .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
       } else {
-        EmptyWidgetView()
+        EmptyWidgetView(strings: s)
       }
     }
     .widgetCard(family)
@@ -241,8 +254,8 @@ struct StreakWidget: Widget {
     StaticConfiguration(kind: "StopScrollStreak", provider: DayProvider()) { entry in
       StreakView(entry: entry)
     }
-    .configurationDisplayName("Серия")
-    .description("Сколько дней подряд вы держитесь в пределах лимита.")
+    .configurationDisplayName(Strings.saved.streakName)
+    .description(Strings.saved.streakDescription)
     .supportedFamilies([.systemSmall, .accessoryCircular])
   }
 }
@@ -254,18 +267,19 @@ struct LimitView: View {
   let entry: DayEntry
 
   var body: some View {
+    let s = entry.strings
     Group {
       if let snapshot = entry.snapshot {
         let values = snapshot.values(at: entry.date)
         let left = values.left
         let headline: String = {
-          guard let left else { return "Лимит \(durationText(values.limit))" }
-          return left >= 0 ? "Осталось \(durationText(left))" : "Сверх лимита \(durationText(-left))"
+          guard let left else { return s.limitHeadline(s.duration(values.limit)) }
+          return left >= 0 ? s.leftHeadline(s.duration(left)) : s.overHeadline(s.duration(-left))
         }()
-        let caption = left == nil ? "Отметьте время за сегодня" : "из \(durationText(values.limit)) на сегодня"
+        let caption = left == nil ? s.logToday : s.ofToday(s.duration(values.limit))
         if family == .accessoryRectangular {
           VStack(alignment: .leading, spacing: 1) {
-            Label("Лимит ленты", systemImage: "hourglass").font(.system(size: 12, weight: .semibold))
+            Label(s.feedLimitLabel, systemImage: "hourglass").font(.system(size: 12, weight: .semibold))
             Text(headline).font(.system(size: 15, weight: .bold, design: .rounded)).lineLimit(1)
             Text(caption).font(.system(size: 12)).lineLimit(1)
           }
@@ -273,18 +287,18 @@ struct LimitView: View {
         } else {
           let color = (left ?? 0) < 0 ? Color("warning") : Color("brand")
           VStack(alignment: .leading, spacing: 2) {
-            WidgetLabel(icon: "hourglass", title: "Лимит", color: color)
+            WidgetLabel(icon: "hourglass", title: s.limitLabel, color: color)
             Spacer(minLength: 0)
-            Text(left == nil ? "Сегодня" : (left! >= 0 ? "Осталось" : "Сверх лимита"))
+            Text(left == nil ? s.limitToday : (left! >= 0 ? s.limitLeft : s.limitOver))
               .font(.system(size: 13, weight: .medium))
               .foregroundStyle(.secondary)
-            DurationView(minutes: left.map(abs) ?? values.limit, color: color)
+            DurationView(strings: s, minutes: left.map(abs) ?? values.limit, color: color)
             Text(caption).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
           }
           .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
       } else {
-        EmptyWidgetView()
+        EmptyWidgetView(strings: s)
       }
     }
     .widgetCard(family)
@@ -297,8 +311,8 @@ struct LimitWidget: Widget {
     StaticConfiguration(kind: "StopScrollLimit", provider: DayProvider()) { entry in
       LimitView(entry: entry)
     }
-    .configurationDisplayName("Лимит")
-    .description("Сколько ленты осталось на сегодня.")
+    .configurationDisplayName(Strings.saved.limitName)
+    .description(Strings.saved.limitDescription)
     .supportedFamilies([.systemSmall, .accessoryRectangular])
   }
 }
@@ -310,6 +324,7 @@ struct DayRingView: View {
   let entry: DayEntry
 
   var body: some View {
+    let s = entry.strings
     Group {
       if let snapshot = entry.snapshot {
         let values = snapshot.values(at: entry.date)
@@ -334,18 +349,18 @@ struct DayRingView: View {
                 .stroke(color, style: StrokeStyle(lineWidth: 11, lineCap: .round))
                 .rotationEffect(.degrees(-90))
               VStack(spacing: 0) {
-                Text(values.scrolled == nil ? "—" : durationText(used))
+                Text(values.scrolled == nil ? "—" : s.duration(used))
                   .font(roundedNumber(17))
                   .minimumScaleFactor(0.6)
                   .lineLimit(1)
-                Text("из \(durationText(values.limit))")
+                Text(s.ringOf(s.duration(values.limit)))
                   .font(.system(size: 11))
                   .foregroundStyle(.secondary)
                   .lineLimit(1)
               }
               .padding(.horizontal, 14)
             }
-            Text(values.scrolled == nil ? "Отметьте время" : (over ? "Лимит превышен" : "Лента сегодня"))
+            Text(values.scrolled == nil ? s.logTime : (over ? s.limitExceeded : s.feedToday))
               .font(.system(size: 12, weight: .semibold))
               .foregroundStyle(over ? Color("warning") : .secondary)
               .lineLimit(1)
@@ -353,7 +368,7 @@ struct DayRingView: View {
           .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
       } else {
-        EmptyWidgetView()
+        EmptyWidgetView(strings: s)
       }
     }
     .widgetCard(family)
@@ -366,8 +381,8 @@ struct DayRingWidget: Widget {
     StaticConfiguration(kind: "StopScrollRing", provider: DayProvider()) { entry in
       DayRingView(entry: entry)
     }
-    .configurationDisplayName("Прогресс дня")
-    .description("Круг: сколько из дневного лимита ушло на ленту.")
+    .configurationDisplayName(Strings.saved.ringName)
+    .description(Strings.saved.ringDescription)
     .supportedFamilies([.systemSmall, .accessoryCircular])
   }
 }
@@ -387,10 +402,11 @@ struct ReplacementView: View {
   }
 
   var body: some View {
+    let s = entry.strings
     Group {
       if let item = entry.replacement {
         VStack(alignment: .leading, spacing: 4) {
-          WidgetLabel(icon: "sparkles", title: "Вместо ленты", color: Color("indigo"))
+          WidgetLabel(icon: "sparkles", title: s.insteadOfFeed, color: Color("indigo"))
           Spacer(minLength: 0)
           HStack(alignment: .top, spacing: 10) {
             if family == .systemMedium {
@@ -405,7 +421,7 @@ struct ReplacementView: View {
                 .font(.system(size: family == .systemMedium ? 20 : 17, weight: .bold, design: .rounded))
                 .lineLimit(3)
                 .minimumScaleFactor(0.8)
-              Text("\(item.minutes) мин · новая каждые полчаса")
+              Text(s.replacementCaption(s.duration(item.minutes)))
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
@@ -415,7 +431,7 @@ struct ReplacementView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .widgetURL(URL(string: "stopscroll://replacement/\(item.id)"))
       } else {
-        EmptyWidgetView()
+        EmptyWidgetView(strings: s)
       }
     }
     .widgetCard(family)
@@ -427,8 +443,8 @@ struct ReplacementWidget: Widget {
     StaticConfiguration(kind: "StopScrollReplacement", provider: ReplacementProvider()) { entry in
       ReplacementView(entry: entry)
     }
-    .configurationDisplayName("Полезная замена")
-    .description("Короткое дело вместо ленты. Меняется каждые полчаса.")
+    .configurationDisplayName(Strings.saved.replacementName)
+    .description(Strings.saved.replacementDescription)
     .supportedFamilies([.systemSmall, .systemMedium])
   }
 }

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { View } from "react-native";
 
 import { useApp } from "../../context/AppContext";
+import { useT } from "../../i18n";
 import { FEED_APPS } from "../../utils/catalog";
 import { formatMinutes } from "../../utils/date";
 import { haptics } from "../../utils/haptics";
@@ -22,6 +23,7 @@ interface SlipFormProps {
 
 /** Quick capture of a slip: where and how long. Why it happened, the coach asks next. */
 export function SlipForm({ onSaved }: SlipFormProps) {
+  const t = useT().journal.form;
   const { colors } = useThemeColors();
   const { logSlip, settings } = useApp();
   // null = follow the "main feed" setting until the user picks an app here.
@@ -39,13 +41,13 @@ export function SlipForm({ onSaved }: SlipFormProps) {
   return (
     <Card className="gap-5">
       <View className="gap-2">
-        <CardLabel icon="add-circle" label="Записать срыв" color={colors.warningStrong} />
-        <AppText variant="statement">Лента победила? Это бывает.</AppText>
+        <CardLabel icon="add-circle" label={t.label} color={colors.warningStrong} />
+        <AppText variant="statement">{t.statement}</AppText>
       </View>
 
       <View className="gap-3">
         <AppText variant="overline" tone="subtle">
-          Где
+          {t.where}
         </AppText>
         <View className="flex-row flex-wrap gap-2">
           {FEED_APPS.map((item) => (
@@ -65,7 +67,7 @@ export function SlipForm({ onSaved }: SlipFormProps) {
 
       <View className="gap-3">
         <AppText variant="overline" tone="subtle">
-          Сколько ушло
+          {t.howLong}
         </AppText>
         <View className="flex-row flex-wrap gap-2">
           {MINUTE_OPTIONS.map((value) => (
@@ -82,7 +84,7 @@ export function SlipForm({ onSaved }: SlipFormProps) {
         </View>
       </View>
 
-      <Button label="Записать срыв" icon="add-circle-outline" size="lg" onPress={save} />
+      <Button label={t.save} icon="add-circle-outline" size="lg" onPress={save} />
     </Card>
   );
 }

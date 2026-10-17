@@ -1,3 +1,4 @@
+import { m } from "../i18n";
 import { getFeedApp } from "../utils/catalog";
 import type { FeedApp, RiskLevel, TriggerId } from "../utils/types";
 import { clock, variant } from "./language";
@@ -42,7 +43,7 @@ interface AdviceRule {
   text: (context: AdviceContext, say: <T>(options: readonly T[]) => T) => string;
 }
 
-const feedName = (app: FeedApp) => (app === "other" ? "ленту" : getFeedApp(app).label);
+const feedName = (app: FeedApp) => (app === "other" ? null : getFeedApp(app).label);
 
 const reasonIs = (context: AdviceContext, ...ids: TriggerId[]) =>
   context.reason !== null && ids.includes(context.reason);
@@ -52,6 +53,9 @@ const eveningStart = (context: AdviceContext) => {
   return start !== null && start >= 17 && start <= 23 ? start : null;
 };
 
+/** The advice texts of the current language. */
+const t = () => m().coach.advice;
+
 export const ADVICE_RULES: readonly AdviceRule[] = [
   {
     id: "early-sleep",
@@ -59,24 +63,14 @@ export const ADVICE_RULES: readonly AdviceRule[] = [
     score: (context) =>
       (reasonIs(context, "fatigue", "sleepless") ? 4 : 0) +
       ((eveningStart(context) ?? 0) >= 22 ? 2 : 0),
-    text: (_context, say) =>
-      say([
-        "Сегодня попробуй лечь на полчаса раньше и оставить телефон заряжаться за пределами спальни.",
-        "Сегодня лучше лечь пораньше: уставшему мозгу лента всегда кажется хорошей идеей, а утром — нет.",
-      ]),
+    text: (_context, say) => say(t().earlySleep),
   },
   {
     id: "phone-away-evening",
     focus: "evening",
     score: (context) =>
       eveningStart(context) !== null ? 3 + (context.risk === "high" ? 1 : 0) : 0,
-    text: (context, say) => {
-      const hour = eveningStart(context) ?? 21;
-      return say([
-        `Сегодня после ужина убери телефон в другую комнату хотя бы на 15 минут — особенно ближе к ${clock(hour)}.`,
-        `Ближе к ${clock(hour)} положи телефон экраном вниз в другой комнате и дай вечеру пройти без ленты.`,
-      ]);
-    },
+    text: (context, say) => say(t().phoneAway)(clock(eveningStart(context) ?? 21)),
   },
   {
     id: "walk-instead",
@@ -87,98 +81,66 @@ export const ADVICE_RULES: readonly AdviceRule[] = [
       (context.replacementsHelp ? 1.5 : 0) +
       (reasonIs(context, "boredom") ? 1 : 0),
     text: (context, say) =>
-      context.walksHelp
-        ? say([
-            "После прогулок у тебя почти не бывает срывов. Сегодня, когда потянет в ленту, начни с пяти минут на улице.",
-            "Прогулки тебе помогают — это видно по данным. Когда сегодня потянет в ленту, выйди пройтись хотя бы на пять минут.",
-          ])
-        : `Когда сегодня потянет в ${feedName(context.mainApp)}, попробуй заменить ленту короткой прогулкой.`,
+      context.walksHelp ? say(t().walkHelps) : t().walkTry(feedName(context.mainApp)),
   },
   {
     id: "living-alternative",
     focus: "day",
     score: (context) => (reasonIs(context, "boredom") ? 3.5 : 0),
-    text: (_context, say) =>
-      say([
-        "Положи на виду одну «живую» альтернативу ленте — книгу, блокнот, гитару. Скуке нужна новизна, а не бесконечная прокрутка.",
-        "Подготовь заранее одно дело на случай скуки: страницу книги, короткую задачку, звонок. Тогда ленте будет с чем соревноваться.",
-      ]),
+    text: (_context, say) => say(t().livingAlternative),
   },
   {
     id: "move-app",
     focus: "day",
     score: (context) => (reasonIs(context, "autopilot") ? 3.5 : 0),
-    text: (context) =>
-      context.mainApp === "other"
-        ? "Убери приложения с лентой с первого экрана. Автопилот срабатывает быстрее мысли — пусть у него будет на шаг больше."
-        : `Убери ${feedName(context.mainApp)} с первого экрана телефона. Автопилот срабатывает быстрее мысли — пусть у него будет на шаг больше.`,
+    text: (context) => {
+      const app = feedName(context.mainApp);
+      return app === null ? t().moveApps : t().moveApp(app);
+    },
   },
   {
     id: "breathe-first",
     focus: "day",
     score: (context) => (reasonIs(context, "stress") ? 3.5 : 0),
-    text: (_context, say) =>
-      say([
-        "Если сегодня станет тревожно, сначала сделай длинный выдох или SOS-паузу. Лента обещает побег, но тревога потом возвращается.",
-        "Когда накатит напряжение, дай себе 15 секунд SOS-паузы, прежде чем открывать ленту. Телу это помогает быстрее, чем видео.",
-      ]),
+    text: (_context, say) => say(t().breatheFirst),
   },
   {
     id: "call-someone",
     focus: "day",
     score: (context) => (reasonIs(context, "loneliness") ? 3.5 : 0),
-    text: () =>
-      "Напиши сегодня одному близкому человеку. Живой разговор греет лучше, чем чужие жизни в ленте.",
+    text: () => t().callSomeone,
   },
   {
     id: "tiny-step",
     focus: "day",
     score: (context) => (reasonIs(context, "procrastination") ? 3.5 : 0),
-    text: () =>
-      "Если сегодня захочется отложить дело, сделай только первый шаг на две минуты. Лента чаще всего нужна, чтобы не начинать.",
+    text: () => t().tinyStep,
   },
   {
     id: "real-rest",
     focus: "evening",
     replacementId: "muscle-relax",
     score: (context) => (reasonIs(context, "relax") ? 3.5 : 0),
-    text: () =>
-      "Выбери сегодня отдых, после которого правда легче: душ, музыку с закрытыми глазами или растяжку на пять минут.",
+    text: () => t().realRest,
   },
   {
     id: "keep-rhythm",
     focus: "day",
     score: (context) => (context.risk === "low" ? 2 : 0),
-    text: (context, say) =>
-      context.todayLogged
-        ? say([
-            "Риск сегодня низкий — просто держи свой ритм. Если потянет в ленту, пауза всегда под рукой.",
-            "Сегодня спокойный день. Ничего не нужно доказывать — просто продолжай как есть.",
-          ])
-        : say([
-            "Риск сегодня низкий — просто держи свой ритм. Вечером отметь время в ленте, чтобы серия продолжилась.",
-            "Сегодня спокойный день. Не забудь вечером отметить время в ленте — серия держится на этих отметках.",
-          ]),
+    text: (context, say) => say(context.todayLogged ? t().keepRhythmLogged : t().keepRhythm),
   },
   {
     id: "log-today",
     focus: "day",
     score: (context) =>
       context.learning ? 3 : !context.todayLogged && context.hour >= 18 ? 1.5 : 0,
-    text: (context) =>
-      context.learning
-        ? "Отмечай каждый день, сколько времени ушло на ленту, и записывай срывы. Через несколько дней я смогу говорить о твоих привычках конкретно."
-        : "Отметь сегодня, сколько времени ушло на ленту, — так мне будет проще увидеть закономерности.",
+    text: (context) => (context.learning ? t().logLearning : t().logToday),
   },
   {
     id: "sos-ready",
     focus: "day",
     score: (context) => (context.risk === "high" ? 1.5 : 0.5),
-    text: (_context, say) =>
-      say([
-        "Держи под рукой SOS-паузу: 15 секунд дыхания — и решение снова за тобой.",
-        "Если импульс окажется сильным, нажми SOS-паузу. Она не запрещает, а просто даёт время подумать.",
-      ]),
+    text: (_context, say) => say(t().sosReady),
   },
 ];
 

@@ -1,8 +1,9 @@
 import { View } from "react-native";
 
+import { useT } from "../../i18n";
 import { MIN_SLIPS_FOR_PATTERNS, type Patterns } from "../../utils/analytics";
 import { TIME_OF_DAY_LABELS, getFeedApp } from "../../utils/catalog";
-import { ENTRY_FORMS, formatMinutes, pluralize } from "../../utils/date";
+import { formatMinutes } from "../../utils/date";
 import { useThemeColors } from "../../utils/theme";
 import { AppText } from "../AppText";
 import { Card } from "../Card";
@@ -11,13 +12,14 @@ import { ProgressBar } from "../ProgressBar";
 
 /** Free summary of the trigger diary. */
 export function PatternsCard({ patterns }: { patterns: Patterns }) {
+  const t = useT().journal.patterns;
   const { colors } = useThemeColors();
   const resistPercent = patterns.resistRate === null ? null : Math.round(patterns.resistRate * 100);
 
   return (
     <Card className="gap-5">
       <View className="gap-2">
-        <CardLabel icon="moon" label="Закономерности" color={colors.indigo} />
+        <CardLabel icon="moon" label={t.label} color={colors.indigo} />
         {patterns.summary ? (
           <>
             <AppText variant="statement">{patterns.summary}</AppText>
@@ -30,10 +32,7 @@ export function PatternsCard({ patterns }: { patterns: Patterns }) {
         ) : (
           <>
             <AppText variant="caption" tone="muted">
-              {`Добавьте ещё ${MIN_SLIPS_FOR_PATTERNS - patterns.totalSlips} ${pluralize(
-                MIN_SLIPS_FOR_PATTERNS - patterns.totalSlips,
-                ENTRY_FORMS,
-              )}, и мы покажем, когда и почему лента побеждает чаще всего.`}
+              {t.addMore(MIN_SLIPS_FOR_PATTERNS - patterns.totalSlips)}
             </AppText>
             <ProgressBar progress={patterns.totalSlips / MIN_SLIPS_FOR_PATTERNS} />
           </>
@@ -41,18 +40,21 @@ export function PatternsCard({ patterns }: { patterns: Patterns }) {
       </View>
 
       <View className="flex-row gap-3">
-        <Metric label="Срывов за неделю" value={String(patterns.slipsLastWeek)} />
-        <Metric label="Потеряно за неделю" value={formatMinutes(patterns.minutesLostLastWeek)} />
-        <Metric label="Устояли" value={resistPercent === null ? "—" : `${resistPercent}%`} />
+        <Metric label={t.slipsWeek} value={String(patterns.slipsLastWeek)} />
+        <Metric label={t.lostWeek} value={formatMinutes(patterns.minutesLostLastWeek)} />
+        <Metric
+          label={t.resisted}
+          value={resistPercent === null ? "—" : t.percent(resistPercent)}
+        />
       </View>
 
       {patterns.topTimeOfDay || patterns.topApp ? (
         <View className="flex-row gap-3">
           {patterns.topTimeOfDay ? (
-            <Metric label="Опасное время" value={TIME_OF_DAY_LABELS[patterns.topTimeOfDay].label} />
+            <Metric label={t.riskyTime} value={TIME_OF_DAY_LABELS[patterns.topTimeOfDay].label} />
           ) : null}
           {patterns.topApp ? (
-            <Metric label="Главная лента" value={getFeedApp(patterns.topApp).label} />
+            <Metric label={t.topApp} value={getFeedApp(patterns.topApp).label} />
           ) : null}
         </View>
       ) : null}

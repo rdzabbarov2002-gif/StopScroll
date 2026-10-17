@@ -17,17 +17,20 @@ import { ThemePicker } from "../components/ThemePicker";
 import { useAi } from "../context/AiContext";
 import { useApp } from "../context/AppContext";
 import { usePro } from "../context/ProContext";
+import { getLanguageInfo, useT } from "../i18n";
 import type { RootStackScreenProps } from "../navigation/types";
 import { FEED_APPS } from "../utils/catalog";
 import { COACH_VOICE_AVAILABLE } from "../services/coachVoice";
 import { enableReportReminder } from "../services/reportReminder";
-import { formatMinutes } from "../utils/date";
+import { formatMinutes, formatTime } from "../utils/date";
 import { DEMO_MODE } from "../utils/demo";
 import { haptics } from "../utils/haptics";
 import { BASELINE_RANGE, LIMIT_RANGE, SESSION_RANGE } from "../utils/persistedState";
 import { useThemeColors } from "../utils/theme";
+import { WEEKLY_REPORT_HOUR } from "../utils/weeklyReport";
 
 export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">) {
+  const t = useT();
   const { colors } = useThemeColors();
   const ai = useAi();
   const app = useApp();
@@ -36,6 +39,7 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
   const [restoreMessage, setRestoreMessage] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [reminderMessage, setReminderMessage] = useState<string | null>(null);
+  const reportTime = formatTime(new Date().setHours(WEEKLY_REPORT_HOUR, 0, 0, 0));
 
   const toggleReminder = async (on: boolean) => {
     haptics.selection();
@@ -50,8 +54,8 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
     } else {
       setReminderMessage(
         Platform.OS === "web"
-          ? "Уведомления работают в приложении на iPhone и Android."
-          : "Разрешите уведомления для StopScroll в настройках телефона, чтобы получать отчёт.",
+          ? t.settings.coach.notificationsWeb
+          : t.settings.coach.notificationsDenied,
       );
     }
   };
@@ -64,33 +68,31 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
       !result.ok
         ? result.message
         : result.restored
-          ? "Pro восстановлен."
-          : "Активных покупок не найдено.",
+          ? t.settings.pro.restored
+          : t.settings.pro.nothingToRestore,
     );
   };
 
   return (
     <Screen>
-      <BackButton label="Сегодня" />
+      <BackButton label={t.settings.back} />
       <AppText variant="title" accessibilityRole="header" className="px-1 pb-1">
-        Настройки
+        {t.settings.title}
       </AppText>
 
       <Pressable
         onPress={() => navigation.navigate("Paywall")}
         accessibilityRole="button"
-        accessibilityLabel={pro.isPro ? "StopScroll Pro активен" : "Открыть StopScroll Pro"}
+        accessibilityLabel={pro.isPro ? t.settings.pro.active : t.settings.pro.open}
         className="flex-row items-center gap-3.5 rounded-card bg-card p-4 active:opacity-80 dark:bg-ink-900"
       >
         <AppIconMark size={52} />
         <View className="flex-1 gap-0.5">
           <AppText variant="heading">
-            {pro.isPro ? "StopScroll Pro активен" : "StopScroll Pro"}
+            {pro.isPro ? t.settings.pro.active : t.settings.pro.title}
           </AppText>
           <AppText variant="caption" tone="subtle" className="text-[14px] leading-[19px]">
-            {pro.isPro
-              ? "Все упражнения, замены и глубокая аналитика открыты."
-              : "Все упражнения, свои замены и глубокая аналитика"}
+            {pro.isPro ? t.settings.pro.activeText : t.settings.pro.pitch}
           </AppText>
         </View>
         <Ionicons name="chevron-forward" size={18} color={colors.chevron} />
@@ -98,7 +100,7 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
       {pro.status === "ready" ? (
         <View className="gap-1.5">
           <Button
-            label="Восстановить покупки"
+            label={t.settings.pro.restore}
             variant="secondary"
             loading={restoring}
             onPress={restore}
@@ -117,17 +119,26 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
       ) : null}
 
       <AppText variant="overline" tone="subtle" className="px-1 pt-3" accessibilityRole="header">
-        Оформление
+        {t.settings.appearance}
       </AppText>
       <ThemePicker />
+      <ListGroup>
+        <ListRow
+          icon="language-outline"
+          iconColor={colors.primary}
+          title={t.language.settingsRow}
+          value={getLanguageInfo(app.language ?? "ru").nativeName}
+          onPress={() => navigation.navigate("Language")}
+        />
+      </ListGroup>
 
       <AppText variant="overline" tone="subtle" className="px-1 pt-3" accessibilityRole="header">
-        Цели
+        {t.settings.goals.header}
       </AppText>
       <Card className="gap-4">
         <Stepper
-          label="Дневной лимит ленты"
-          hint="День в пределах лимита продолжает серию"
+          label={t.settings.goals.limit}
+          hint={t.settings.goals.limitHint}
           value={app.settings.dailyLimitMinutes}
           min={LIMIT_RANGE.min}
           max={LIMIT_RANGE.max}
@@ -137,8 +148,8 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
         />
         <Separator />
         <Stepper
-          label="Одна сессия в ленте"
-          hint="Столько минут засчитываем за каждую победу"
+          label={t.settings.goals.session}
+          hint={t.settings.goals.sessionHint}
           value={app.settings.sessionMinutes}
           min={SESSION_RANGE.min}
           max={SESSION_RANGE.max}
@@ -148,8 +159,8 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
         />
         <Separator />
         <Stepper
-          label="Исходный уровень"
-          hint="Сколько уходило в день до StopScroll"
+          label={t.settings.goals.baseline}
+          hint={t.settings.goals.baselineHint}
           value={app.settings.baselineMinutes}
           min={BASELINE_RANGE.min}
           max={BASELINE_RANGE.max}
@@ -160,24 +171,24 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
       </Card>
 
       <ListGroup
-        header="Коуч и отчёты"
+        header={t.settings.coach.header}
         footer={
           reminderMessage ??
           (COACH_VOICE_AVAILABLE
-            ? "В воскресенье в 19:00 коуч разберёт неделю и пришлёт уведомление. Живые формулировки: выводы коуча (без заметок и записей) переписывает ChatGPT — факты и цифры остаются прежними. Работают, если разрешён AI-анализ."
-            : "В воскресенье в 19:00 коуч разберёт неделю и пришлёт уведомление, что отчёт готов.")
+            ? t.settings.coach.footerWithPhrasing(reportTime)
+            : t.settings.coach.footer(reportTime))
         }
       >
         <ListRow
           icon="calendar"
           iconColor={colors.indigo}
-          title="Отчёт по воскресеньям"
+          title={t.settings.coach.report}
           right={
             <Switch
               value={app.settings.reportReminder}
               onValueChange={toggleReminder}
               trackColor={{ true: colors.successBright, false: colors.ringTrack }}
-              accessibilityLabel="Уведомлять о недельном отчёте"
+              accessibilityLabel={t.settings.coach.reportSwitch}
             />
           }
         />
@@ -185,13 +196,13 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
           <ListRow
             icon="chatbubble-ellipses"
             iconColor={colors.primary}
-            title="Живые формулировки"
+            title={t.settings.coach.phrasing}
             right={
               <Switch
                 value={app.settings.coachPhrasing}
                 onValueChange={(value) => app.updateSettings({ coachPhrasing: value })}
                 trackColor={{ true: colors.successBright, false: colors.ringTrack }}
-                accessibilityLabel="Живые формулировки советов коуча"
+                accessibilityLabel={t.settings.coach.phrasingSwitch}
               />
             }
           />
@@ -201,7 +212,7 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
       <AiSettings />
 
       <AppText variant="overline" tone="subtle" className="px-1 pt-3" accessibilityRole="header">
-        Главная лента
+        {t.settings.feed}
       </AppText>
       <Card className="flex-row flex-wrap gap-2">
         {FEED_APPS.map((item) => (
@@ -221,16 +232,15 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
       {__DEV__ || DEMO_MODE ? (
         <>
           <AppText variant="overline" tone="subtle" className="px-1 pt-3">
-            {DEMO_MODE ? "Демо-версия" : "Разработка"}
+            {DEMO_MODE ? t.settings.dev.demo : t.settings.dev.development}
           </AppText>
           {DEMO_MODE ? (
             <Card className="gap-3">
               <AppText variant="caption" tone="muted">
-                Это версия для просмотра в браузере: оплата отключена. Заполните приложение примером
-                данных, чтобы увидеть графики, серии и закономерности.
+                {t.settings.dev.demoText}
               </AppText>
               <Button
-                label="Заполнить примером данных"
+                label={t.settings.dev.demoFill}
                 icon="sparkles"
                 variant="secondary"
                 onPress={() => {
@@ -243,42 +253,39 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
           <Card className="flex-row items-center gap-3">
             <View className="flex-1">
               <AppText variant="label" className="text-base">
-                Тестовый Pro
+                {t.settings.dev.testPro}
               </AppText>
               <AppText variant="caption" tone="muted">
-                {DEMO_MODE
-                  ? "Открывает Pro-функции без покупки, чтобы их посмотреть."
-                  : "Только в dev-сборке: открывает Pro-функции без покупки."}
+                {DEMO_MODE ? t.settings.dev.testProDemo : t.settings.dev.testProDev}
               </AppText>
             </View>
             <Switch
               value={pro.devPro}
               onValueChange={pro.setDevPro}
               trackColor={{ true: colors.successBright, false: colors.ringTrack }}
-              accessibilityLabel="Тестовый Pro"
+              accessibilityLabel={t.settings.dev.testPro}
             />
           </Card>
         </>
       ) : null}
 
       <AppText variant="overline" tone="subtle" className="px-1 pt-3" accessibilityRole="header">
-        Данные
+        {t.settings.data.header}
       </AppText>
       <Card className="gap-3">
         <AppText variant="caption" tone="muted">
-          Все записи хранятся только на этом устройстве. Сброс удалит историю времени, побед,
-          срывов, свои замены, записи об импульсах и память AI-коуча, но сохранит цели и подписку.
+          {t.settings.data.text}
         </AppText>
         {confirmReset ? (
           <View className="flex-row gap-3">
             <Button
-              label="Отмена"
+              label={t.settings.cancel}
               variant="secondary"
               onPress={() => setConfirmReset(false)}
               className="flex-1"
             />
             <Button
-              label="Стереть"
+              label={t.settings.erase}
               icon="trash-outline"
               variant="warning"
               className="flex-1"
@@ -292,7 +299,7 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
           </View>
         ) : (
           <Button
-            label="Сбросить прогресс"
+            label={t.settings.data.reset}
             variant="secondary"
             onPress={() => setConfirmReset(true)}
           />
@@ -305,39 +312,34 @@ export function SettingsScreen({ navigation }: RootStackScreenProps<"Settings">)
 
 /** The AI coach: permission to send entries to ChatGPT, and forgetting everything it learned. */
 function AiSettings() {
+  const t = useT();
   const { colors } = useThemeColors();
   const ai = useAi();
   const [confirming, setConfirming] = useState(false);
   if (!ai.configured) {
     return (
-      <ListGroup
-        header="AI-коуч"
-        footer="В этой сборке AI-анализ не подключён: записи остаются на телефоне."
-      >
+      <ListGroup header={t.settings.ai.header} footer={t.settings.ai.offFooter}>
         <ListRow
           icon="sparkles"
           iconColor={colors.textSubtle}
           title="ChatGPT"
-          value="Не подключён"
+          value={t.settings.ai.offValue}
         />
       </ListGroup>
     );
   }
   return (
-    <ListGroup
-      header="AI-коуч"
-      footer="Записи, ответы и статистика привычек отправляются в OpenAI (ChatGPT) через сервер StopScroll только с вашего разрешения. Память коуча хранится на телефоне."
-    >
+    <ListGroup header={t.settings.ai.header} footer={t.settings.ai.footer}>
       <ListRow
         icon="sparkles"
         iconColor={colors.indigo}
-        title="Анализ в ChatGPT"
+        title={t.settings.ai.consent}
         right={
           <Switch
             value={ai.consent === true}
             onValueChange={ai.setConsent}
             trackColor={{ true: colors.successBright, false: colors.ringTrack }}
-            accessibilityLabel="Разрешить анализ записей в ChatGPT"
+            accessibilityLabel={t.settings.ai.consentSwitch}
           />
         }
       />
@@ -345,7 +347,7 @@ function AiSettings() {
         <ListRow
           icon="trash"
           iconColor={colors.danger}
-          title="Стереть записи и память коуча?"
+          title={t.settings.ai.confirmErase}
           destructive
           right={
             <View className="flex-row gap-3">
@@ -355,7 +357,7 @@ function AiSettings() {
                 hitSlop={8}
               >
                 <AppText variant="label" tone="primary">
-                  Отмена
+                  {t.settings.cancel}
                 </AppText>
               </Pressable>
               <Pressable
@@ -368,7 +370,7 @@ function AiSettings() {
                 hitSlop={8}
               >
                 <AppText variant="label" className="text-rose-500 dark:text-rose-400">
-                  Стереть
+                  {t.settings.erase}
                 </AppText>
               </Pressable>
             </View>
@@ -378,7 +380,7 @@ function AiSettings() {
         <ListRow
           icon="trash"
           iconColor={colors.danger}
-          title="Удалить данные AI-коуча"
+          title={t.settings.ai.erase}
           destructive
           onPress={() => setConfirming(true)}
         />

@@ -15,20 +15,17 @@ import { ChartLegend, SlotsChart, SuccessRing } from "../components/report/Repor
 import { Screen } from "../components/Screen";
 import { buildWeeklyReview } from "../coach";
 import { useApp } from "../context/AppContext";
+import { plural, useT } from "../i18n";
 import type { RootStackScreenProps } from "../navigation/types";
 import { getTrigger } from "../utils/catalog";
 import {
-  DAY_FORMS,
-  TIMES_FORMS,
   WEEKDAYS_SHORT,
-  WIN_FORMS,
   addDays,
   formatHourRange,
   formatMinutes,
   formatMinutesCompact,
   formatMinutesInline,
   formatWeekRange,
-  pluralize,
   weekdayName,
 } from "../utils/date";
 import { useThemeColors } from "../utils/theme";
@@ -44,12 +41,9 @@ import {
   type WeeklyReport,
 } from "../utils/weeklyReport";
 
-const SLIP_FORMS = ["срыв", "срыва", "срывов"] as const;
-const IMPULSE_FORMS = ["импульс", "импульса", "импульсов"] as const;
-const REPLACEMENT_FORMS = ["замена", "замены", "замен"] as const;
-
 export function WeeklyReportScreen({ route }: RootStackScreenProps<"WeeklyReport">) {
   const app = useApp();
+  const t = useT().report;
   const now = useNow(60_000);
   const data = useMemo(
     () => ({
@@ -86,14 +80,14 @@ export function WeeklyReportScreen({ route }: RootStackScreenProps<"WeeklyReport
 
   return (
     <Screen>
-      <BackButton label="Назад" />
+      <BackButton label={t.back} />
       <View className="flex-row items-end justify-between gap-3 px-1 pb-1">
         <View className="flex-1">
           <AppText variant="overline" tone="subtle">
             {formatWeekRange(week)}
           </AppText>
           <AppText variant="title" accessibilityRole="header">
-            Неделя
+            {t.title}
           </AppText>
         </View>
         {weeks.length > 1 ? (
@@ -101,13 +95,13 @@ export function WeeklyReportScreen({ route }: RootStackScreenProps<"WeeklyReport
             <IconButton
               icon="chevron-back"
               onPress={() => older && setWeek(older)}
-              accessibilityLabel="Неделей раньше"
+              accessibilityLabel={t.olderWeek}
               className={older ? "" : "opacity-30"}
             />
             <IconButton
               icon="chevron-forward"
               onPress={() => newer && setWeek(newer)}
-              accessibilityLabel="Неделей позже"
+              accessibilityLabel={t.newerWeek}
               className={newer ? "" : "opacity-30"}
             />
           </View>
@@ -115,17 +109,9 @@ export function WeeklyReportScreen({ route }: RootStackScreenProps<"WeeklyReport
       </View>
 
       {weeks.length === 0 ? (
-        <EmptyState
-          icon="calendar-outline"
-          title="Первый отчёт — в воскресенье"
-          text="Каждое воскресенье вечером ваш персональный коуч разбирает неделю: что получилось, где лента выигрывает и что попробовать дальше. Отмечайте время и срывы — разбору будет на что опереться."
-        />
+        <EmptyState icon="calendar-outline" title={t.firstReport.title} text={t.firstReport.text} />
       ) : isEmptyReport(report) ? (
-        <EmptyState
-          icon="leaf-outline"
-          title="Тихая неделя"
-          text="За эти дни нет записей: ни побед над импульсом, ни срывов, ни отмеченного времени."
-        />
+        <EmptyState icon="leaf-outline" title={t.quietWeek.title} text={t.quietWeek.text} />
       ) : (
         <ReportBody report={report} previous={hasPrevious ? previous : null} />
       )}
@@ -137,6 +123,7 @@ export function WeeklyReportScreen({ route }: RootStackScreenProps<"WeeklyReport
 
 function ReportBody({ report, previous }: { report: WeeklyReport; previous: WeeklyReport | null }) {
   const { colors, chart } = useThemeColors();
+  const t = useT().report;
   const app = useApp();
   const limit = app.settings.dailyLimitMinutes;
   const changes = previous ? compareReports(report, previous) : [];
@@ -147,13 +134,16 @@ function ReportBody({ report, previous }: { report: WeeklyReport; previous: Week
     key: day.key,
     value: day.saved,
     label: WEEKDAYS_SHORT[index],
-    a11y: `${WEEKDAYS_SHORT[index]}: спасено ${formatMinutes(day.saved)}`,
+    a11y: t.daySaved(WEEKDAYS_SHORT[index], formatMinutes(day.saved)),
   }));
   const scrollData: ColumnDatum[] = report.days.map((day, index) => ({
     key: day.key,
     value: day.scroll,
     label: WEEKDAYS_SHORT[index],
-    a11y: `${WEEKDAYS_SHORT[index]}: ${day.scroll === null ? "нет записи" : formatMinutes(day.scroll)}`,
+    a11y: t.dayScroll(
+      WEEKDAYS_SHORT[index],
+      day.scroll === null ? null : formatMinutes(day.scroll),
+    ),
   }));
   const bestDay = report.days.reduce<number | null>(
     (best, day, index) =>
@@ -164,21 +154,28 @@ function ReportBody({ report, previous }: { report: WeeklyReport; previous: Week
   return (
     <>
       <Card>
-        <CardLabel icon="leaf" label="Спасено" color={colors.success} />
+        <CardLabel icon="leaf" label={t.saved.label} color={colors.success} />
         <AppText variant="statement" className="mt-2">
           {savedChange && savedChange.delta !== 0
-            ? `На ${formatMinutesInline(Math.abs(savedChange.delta))} ${savedChange.delta > 0 ? "больше" : "меньше"}, чем неделей раньше.`
+            ? t.saved.change(
+                formatMinutesInline(Math.abs(savedChange.delta)),
+                savedChange.delta > 0,
+              )
             : report.savedMinutes > 0
-              ? `Каждая пауза и замена этой недели — ${formatMinutesInline(report.savedMinutes)} вашей жизни.`
-              : "На этой неделе время ещё не спасено — следующая SOS-пауза это исправит."}
+              ? t.saved.total(formatMinutesInline(report.savedMinutes))
+              : t.saved.none}
         </AppText>
         <Separator className="my-3.5" />
         <View className="flex-row gap-3">
-          <DurationValue label="За неделю" minutes={report.savedMinutes} color={colors.success} />
+          <DurationValue
+            label={t.saved.week}
+            minutes={report.savedMinutes}
+            color={colors.success}
+          />
           <KeyValue
-            label="Побед"
+            label={t.saved.wins}
             value={String(report.wins)}
-            unit={pluralize(report.wins, WIN_FORMS)}
+            unit={plural(report.wins, t.units.wins)}
             color={colors.textSubtle}
           />
         </View>
@@ -200,116 +197,118 @@ function ReportBody({ report, previous }: { report: WeeklyReport; previous: Week
         <MetricTile
           icon="checkmark-done-circle"
           color={colors.primary}
-          label="В лимите"
+          label={t.metrics.inLimit}
           value={report.daysInLimit}
-          unit={`из ${report.loggedDays} ${pluralize(report.loggedDays, DAY_FORMS)}`}
+          unit={t.metrics.ofDays(report.loggedDays)}
         />
         <MetricTile
           icon="alert-circle"
           color={colors.warningStrong}
-          label="Срывы"
+          label={t.metrics.slips}
           value={report.slips}
-          unit={pluralize(report.slips, SLIP_FORMS)}
+          unit={plural(report.slips, t.units.slips)}
           change={changes.find((change) => change.id === "slips")}
         />
         <MetricTile
           icon="sparkles"
           color={colors.indigo}
-          label="Замены"
+          label={t.metrics.replacements}
           value={report.replacements}
-          unit={pluralize(report.replacements, REPLACEMENT_FORMS)}
+          unit={plural(report.replacements, t.units.replacements)}
         />
         <MetricTile
           icon="flame"
           color={colors.warning}
-          label="Серия"
+          label={t.metrics.streak}
           value={report.currentStreak}
-          unit={pluralize(report.currentStreak, DAY_FORMS)}
-          caption={`Рекорд — ${report.bestStreak} ${pluralize(report.bestStreak, DAY_FORMS)}`}
+          unit={plural(report.currentStreak, t.units.days)}
+          caption={t.metrics.record(report.bestStreak)}
         />
       </View>
 
       <Card>
-        <CardLabel icon="pulse" label="Импульсы" color={colors.successBright} />
+        <CardLabel icon="pulse" label={t.impulses.label} color={colors.successBright} />
         <View className="mt-3 flex-row items-center gap-5">
           <SuccessRing rate={report.successRate} />
           <View className="flex-1 gap-2">
             <AppText variant="statement">
               {report.successRate === null
-                ? "Импульсов не было."
-                : `${Math.round(report.successRate * 100)}% импульсов прошли без ленты.`}
+                ? t.impulses.none
+                : t.impulses.success(Math.round(report.successRate * 100))}
             </AppText>
             <AppText variant="caption" tone="muted">
-              {impulses} {pluralize(impulses, IMPULSE_FORMS)}: {report.wins}{" "}
-              {pluralize(report.wins, WIN_FORMS)}, {report.slips}{" "}
-              {pluralize(report.slips, SLIP_FORMS)}.
+              {t.impulses.breakdown(impulses, report.wins, report.slips)}
             </AppText>
           </View>
         </View>
         <Separator className="my-3.5" />
         <AppText variant="label" className="mb-2">
-          По времени суток
+          {t.impulses.byTime}
         </AppText>
         <SlotsChart slots={report.slots} />
         <ChartLegend
           items={[
-            { label: "Удержались", color: chart.series },
-            { label: "Срывы", color: chart.slip },
+            { label: t.impulses.resisted, color: chart.series },
+            { label: t.impulses.slips, color: chart.slip },
           ]}
         />
       </Card>
 
-      <ListGroup header="Самое трудное">
+      <ListGroup header={t.hardest.header}>
         <ListRow
           icon="calendar"
           iconColor={colors.warningStrong}
-          title="Опасный день"
+          title={t.hardest.day}
           subtitle={
             report.hardestDay === null
-              ? "Нет данных"
+              ? t.hardest.noData
               : report.hardestDay.basis === "slips"
-                ? `${report.hardestDay.value} ${pluralize(report.hardestDay.value, SLIP_FORMS)}`
-                : `Больше всего ленты: ${formatMinutes(report.hardestDay.value)}`
+                ? t.hardest.slips(report.hardestDay.value)
+                : t.hardest.mostFeed(formatMinutes(report.hardestDay.value))
           }
           value={report.hardestDay ? weekdayName(report.hardestDay.index) : "—"}
         />
         <ListRow
           icon="time"
           iconColor={colors.indigo}
-          title="Опасное время"
+          title={t.hardest.hour}
           subtitle={
             report.hardestHour === null
-              ? "Нет данных"
+              ? t.hardest.noData
               : report.hardestHour.basis === "slips"
-                ? `${report.hardestHour.count} ${pluralize(report.hardestHour.count, SLIP_FORMS)}`
-                : `Чаще всего тянет в ленту · ${report.hardestHour.count} ${pluralize(report.hardestHour.count, TIMES_FORMS)}`
+                ? t.hardest.slips(report.hardestHour.count)
+                : t.hardest.mostPull(report.hardestHour.count)
           }
           value={report.hardestHour ? formatHourRange(report.hardestHour.hour) : "—"}
         />
         <ListRow
           icon={report.topTrigger ? getTrigger(report.topTrigger.id).icon : "happy"}
           iconColor={colors.danger}
-          title="Частая причина"
+          title={t.hardest.trigger}
           subtitle={
             report.topTrigger
-              ? `${report.topTrigger.count} ${pluralize(report.topTrigger.count, SLIP_FORMS)} из ${report.slips}`
-              : "Срывов не было"
+              ? t.hardest.triggerSlips(report.topTrigger.count, report.slips)
+              : t.hardest.noSlips
           }
           value={report.topTrigger ? getTrigger(report.topTrigger.id).label : "—"}
         />
       </ListGroup>
 
       <Card>
-        <CardLabel icon="phone-portrait" label="Лента по дням" color={colors.primary} />
+        <CardLabel icon="phone-portrait" label={t.feed.label} color={colors.primary} />
         <AppText variant="statement" className="mt-2">
           {report.scrollAverage === null
-            ? "Время в ленте на этой неделе не отмечено."
-            : `В среднем ${formatMinutesInline(report.scrollAverage)} в день · ${report.daysInLimit} из ${report.loggedDays} ${pluralize(report.loggedDays, DAY_FORMS)} в пределах лимита.`}
+            ? t.feed.none
+            : t.feed.average(
+                formatMinutesInline(report.scrollAverage),
+                report.daysInLimit,
+                report.loggedDays,
+              )}
         </AppText>
         <View className="mt-4">
           <ColumnChart
             data={scrollData}
-            reference={{ value: limit, label: `лимит ${formatMinutes(limit)}` }}
+            reference={{ value: limit, label: t.feed.limit(formatMinutes(limit)) }}
             formatTick={formatMinutesCompact}
             plotHeight={110}
             colorFor={(datum) =>
@@ -320,7 +319,7 @@ function ReportBody({ report, previous }: { report: WeeklyReport; previous: Week
       </Card>
 
       {changes.length > 0 ? (
-        <ListGroup header="По сравнению с прошлой неделей">
+        <ListGroup header={t.changes.header}>
           {changes.map((change) => (
             <ChangeRow key={change.id} change={change} />
           ))}
@@ -348,9 +347,10 @@ function MetricTile({
   caption?: string;
 }) {
   const { colors } = useThemeColors();
+  const t = useT().report;
   const delta =
     change && change.direction !== "same"
-      ? `${change.delta > 0 ? "+" : "−"}${Math.abs(change.delta)} к прошлой неделе`
+      ? t.metrics.vsLastWeek(`${change.delta > 0 ? "+" : "−"}${Math.abs(change.delta)}`)
       : null;
   return (
     <View
@@ -389,23 +389,25 @@ function MetricTile({
   );
 }
 
-const CHANGE_LABELS: Record<ReportChange["id"], { title: string; icon: IconName }> = {
-  saved: { title: "Спасено", icon: "leaf" },
-  slips: { title: "Срывы", icon: "alert-circle" },
-  success: { title: "Удержались", icon: "pulse" },
-  scroll: { title: "Лента в день", icon: "phone-portrait" },
+const CHANGE_ICONS: Record<ReportChange["id"], IconName> = {
+  saved: "leaf",
+  slips: "alert-circle",
+  success: "pulse",
+  scroll: "phone-portrait",
 };
 
 function ChangeRow({ change }: { change: ReportChange }) {
   const { colors } = useThemeColors();
-  const { title, icon } = CHANGE_LABELS[change.id];
+  const t = useT().report;
+  const title = t.changes[change.id];
+  const icon = CHANGE_ICONS[change.id];
   const sign = change.delta > 0 ? "+" : change.delta < 0 ? "−" : "";
   const amount = Math.abs(change.delta);
   const value =
     change.id === "saved" || change.id === "scroll"
       ? `${sign}${formatMinutes(amount)}`
       : change.id === "success"
-        ? `${sign}${amount}%`
+        ? t.percent(amount, sign)
         : `${sign}${amount}`;
   const color =
     change.direction === "better"
@@ -426,7 +428,7 @@ function ChangeRow({ change }: { change: ReportChange }) {
             color={color}
           />
           <AppText variant="label" style={{ color }}>
-            {change.direction === "same" ? "Без изменений" : value}
+            {change.direction === "same" ? t.changes.same : value}
           </AppText>
         </View>
       }

@@ -1,3 +1,4 @@
+import { m } from "../i18n";
 import { earnedAchievements } from "./achievements";
 import { addDays, parseDayKey, weekdayIndex } from "./date";
 import { createInitialState } from "./persistedState";
@@ -104,7 +105,7 @@ export function createDemoState(today: string, themePreference: ThemePreference)
       trigger,
       app: apps[index % apps.length]!,
       minutesLost: [12, 25, 18, 15][index % 4]!,
-      note: index === 1 ? "Открыл «на минутку» перед сном" : "",
+      note: index === 1 ? m().journal.demoNote : "",
     }))
     .sort((a, b) => b.timestamp - a.timestamp);
 

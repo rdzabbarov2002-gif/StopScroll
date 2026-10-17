@@ -1,6 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Pressable, View } from "react-native";
 
+import { useT } from "../i18n";
 import { cn } from "../utils/cn";
 import { haptics } from "../utils/haptics";
 import { useThemeColors } from "../utils/theme";
@@ -27,6 +28,7 @@ export function SegmentedControl<T extends string>({
   onChange,
   className,
 }: SegmentedControlProps<T>) {
+  const t = useT();
   const { colors } = useThemeColors();
   return (
     <View
@@ -44,7 +46,9 @@ export function SegmentedControl<T extends string>({
             }}
             accessibilityRole="tab"
             accessibilityState={{ selected }}
-            accessibilityLabel={option.locked ? `${option.label}, доступно в Pro` : option.label}
+            accessibilityLabel={
+              option.locked ? t.common.pro.lockedOption(option.label) : option.label
+            }
             className={cn(
               "h-8 flex-1 flex-row items-center justify-center gap-1 rounded-lg",
               selected && "bg-white shadow-sm shadow-black/10 dark:bg-ink-600 dark:shadow-none",

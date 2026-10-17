@@ -1,13 +1,20 @@
 /**
  * StopScroll AI coach — a Cloudflare Worker between the app and the OpenAI API.
  *
- * POST /entry   new entries the user wrote (usually one) + a short digest of the memory
- *               → their analysis, a one-line gist for the memory, votes on the hypotheses
- *               (a light, inexpensive model)
- * POST /deep    the memory + compact digests of the new entries + arithmetic over the whole
- *               history → the rebuilt long-term memory, questions, a weekly experiment
- *               (rare: about once a week; a stronger model)
- * POST /phrase  the on-device coach's sentences → the same sentences, worded more naturally
+ * POST /entry      new entries the user wrote (usually one) + a short digest of the memory
+ *                  → their analysis, a one-line gist for the memory, votes on the beliefs
+ *                  (a light, inexpensive model). The same route, with an empty memory, makes
+ *                  the independent check of old readings before a deep analysis.
+ * POST /deep       the memory + one-line digests of the new entries + a few original entries
+ *                  chosen for re-reading + arithmetic over the whole history → operations on
+ *                  the long-term memory, revised readings, questions, a weekly experiment
+ *                  (rare: about once a week; a stronger model)
+ * POST /phrase     the on-device coach's sentences → the same sentences, worded more naturally
+ * POST /translate  the memory's texts → the same texts in the app's new language (once, after
+ *                  the user changes the language)
+ *
+ * Every request carries `language` (ru, en, tr, de, fr): every text for the user comes back in
+ * that language.
  *
  * Everything that is plain arithmetic — counts, streaks, records, percentages, the daily
  * forecast — is computed by the app and never costs a request.
@@ -17,8 +24,23 @@
  */
 import OpenAI from "openai";
 
-import { DEEP_INSTRUCTIONS, ENTRY_INSTRUCTIONS, PHRASE_INSTRUCTIONS } from "./prompts";
-import { DEEP_SCHEMA, ENTRY_SCHEMA, PHRASE_SCHEMA } from "./schemas";
+import {
+  DEEP_INSTRUCTIONS,
+  ENTRY_INSTRUCTIONS,
+  PHRASE_INSTRUCTIONS,
+  TRANSLATE_INSTRUCTIONS,
+  isLanguage,
+  languageBlock,
+  type Language,
+} from "./prompts";
+import {
+  DEEP_SCHEMA,
+  ENTRY_SCHEMA,
+  MAX_ENTRIES,
+  MAX_TRANSLATE,
+  PHRASE_SCHEMA,
+  TRANSLATE_SCHEMA,
+} from "./schemas";
 
 /** Cloudflare's rate limiting binding (optional, see wrangler.toml). */
 interface RateLimiter {
@@ -55,6 +77,8 @@ const DEFAULTS: Record<Tier, { model: string; effort: string }> = {
 interface Route {
   tier: Tier;
   instructions: string;
+  /** How the texts address the user: the analysis formally, the on-device coach as a friend. */
+  address: "formal" | "informal";
   schema: Record<string, unknown>;
   name: string;
   maxBodyBytes: number;
@@ -65,13 +89,11 @@ interface Route {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-/** Entries analyzed in one request (a backlog after being offline goes in batches). */
-const MAX_ENTRIES = 5;
-
 const ROUTES: Record<string, Route> = {
   "/entry": {
     tier: "light",
     instructions: ENTRY_INSTRUCTIONS,
+    address: "formal",
     schema: ENTRY_SCHEMA,
     name: "entry_analysis",
     maxBodyBytes: 40_000,
@@ -87,15 +109,21 @@ const ROUTES: Record<string, Route> = {
   "/deep": {
     tier: "deep",
     instructions: DEEP_INSTRUCTIONS,
+    address: "formal",
     schema: DEEP_SCHEMA,
     name: "deep_analysis",
-    maxBodyBytes: 64_000,
+    maxBodyBytes: 96_000,
+    // Reasoning tokens count here too; this is a ceiling, not what is usually spent.
     maxOutputTokens: 16_000,
-    validate: (body) => isRecord(body.stats) && Array.isArray(body.newEntries),
+    validate: (body) =>
+      isRecord(body.stats) &&
+      Array.isArray(body.newEntries) &&
+      (body.reread === undefined || (Array.isArray(body.reread) && body.reread.length <= 8)),
   },
   "/phrase": {
     tier: "light",
     instructions: PHRASE_INSTRUCTIONS,
+    address: "informal",
     schema: PHRASE_SCHEMA,
     name: "phrasing",
     maxBodyBytes: 8_000,
@@ -105,6 +133,20 @@ const ROUTES: Record<string, Route> = {
       body.texts.length > 0 &&
       body.texts.length <= 12 &&
       body.texts.every((text) => typeof text === "string" && text.length <= 400),
+  },
+  "/translate": {
+    tier: "light",
+    instructions: TRANSLATE_INSTRUCTIONS,
+    address: "formal",
+    schema: TRANSLATE_SCHEMA,
+    name: "translation",
+    maxBodyBytes: 48_000,
+    maxOutputTokens: 12_000,
+    validate: (body) =>
+      Array.isArray(body.texts) &&
+      body.texts.length > 0 &&
+      body.texts.length <= MAX_TRANSLATE &&
+      body.texts.every((text) => typeof text === "string" && text.length <= 900),
   },
 };
 
@@ -134,15 +176,17 @@ export async function callModel(
   route: Route,
   payload: Record<string, unknown>,
   client = new OpenAI({ apiKey: env.OPENAI_API_KEY, maxRetries: 1, timeout: 90_000 }),
+  language: Language = "ru",
 ): Promise<unknown> {
   const tier = route.tier === "light" ? "LIGHT" : "DEEP";
   const model = env[`OPENAI_MODEL_${tier}`] || DEFAULTS[route.tier].model;
   const effort = env[`OPENAI_EFFORT_${tier}`] || DEFAULTS[route.tier].effort;
   const response = await client.responses.create({
     model,
-    // The instructions and the schema come first and never change, so OpenAI serves them from
-    // its prompt cache (cheaper input); the key keeps each kind of request on its own cache.
-    instructions: route.instructions,
+    // The instructions and the schema come first and never change (the language goes last), so
+    // OpenAI serves them from its prompt cache (cheaper input); the key keeps each kind of
+    // request on its own cache, shared by every language.
+    instructions: route.instructions + languageBlock(language, route.address),
     input: JSON.stringify(payload),
     text: {
       format: { type: "json_schema", name: route.name, schema: route.schema, strict: true },
@@ -161,6 +205,7 @@ export async function callModel(
     console.log(
       JSON.stringify({
         route: route.name,
+        language,
         model,
         input: usage.input_tokens,
         cached: usage.input_tokens_details?.cached_tokens ?? 0,
@@ -218,9 +263,17 @@ export async function handle(request: Request, env: Env, client?: OpenAI): Promi
     body = null;
   }
   if (!isRecord(body) || !route.validate(body)) return json(env, 400, { error: "bad_request" });
+  // The app's language; an older app without it gets Russian, as before.
+  const { language, ...payload } = body;
 
   try {
-    const result = await callModel(env, route, body, client);
+    const result = await callModel(
+      env,
+      route,
+      payload,
+      client,
+      isLanguage(language) ? language : "ru",
+    );
     return json(env, 200, result);
   } catch (error) {
     return errorResponse(env, route, error);

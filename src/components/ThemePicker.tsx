@@ -2,6 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Pressable, Switch, View } from "react-native";
 
 import { useApp } from "../context/AppContext";
+import { useT } from "../i18n";
 import { haptics } from "../utils/haptics";
 import { useThemeColors } from "../utils/theme";
 import { AppText } from "./AppText";
@@ -21,6 +22,7 @@ const PREVIEW = {
 
 /** iOS "Display & Brightness" style picker: light / dark thumbnails and a "follow system" switch. */
 export function ThemePicker() {
+  const t = useT();
   const { themePreference, setThemePreference } = useApp();
   const { isDark, colors } = useThemeColors();
   const resolved = isDark ? "dark" : "light";
@@ -31,7 +33,7 @@ export function ThemePicker() {
       <View className="flex-row justify-center gap-14 pb-3.5 pt-5">
         {(["light", "dark"] as const).map((scheme) => {
           const selected = (followsSystem ? resolved : themePreference) === scheme;
-          const label = scheme === "light" ? "Светлая" : "Тёмная";
+          const label = scheme === "light" ? t.common.theme.light : t.common.theme.dark;
           return (
             <Pressable
               key={scheme}
@@ -41,7 +43,9 @@ export function ThemePicker() {
               }}
               accessibilityRole="radio"
               accessibilityState={{ selected }}
-              accessibilityLabel={`${label} тема`}
+              accessibilityLabel={
+                scheme === "light" ? t.common.theme.lightA11y : t.common.theme.darkA11y
+              }
               className="items-center gap-2 active:opacity-80"
             >
               <PhonePreview scheme={scheme} />
@@ -60,7 +64,7 @@ export function ThemePicker() {
       </View>
       <Separator />
       <View className="min-h-[50px] flex-row items-center justify-between gap-3 px-4">
-        <AppText variant="body">Как в системе</AppText>
+        <AppText variant="body">{t.common.theme.system}</AppText>
         <Switch
           value={followsSystem}
           onValueChange={(value) => {
@@ -70,7 +74,7 @@ export function ThemePicker() {
           trackColor={{ true: colors.successBright, false: isDark ? "#39393D" : "#E9E9EA" }}
           ios_backgroundColor={isDark ? "#39393D" : "#E9E9EA"}
           thumbColor="#FFFFFF"
-          accessibilityLabel="Тема как в системе"
+          accessibilityLabel={t.common.theme.systemA11y}
         />
       </View>
     </View>

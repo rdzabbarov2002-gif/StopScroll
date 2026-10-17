@@ -1,3 +1,4 @@
+import { m, type Messages, type PluralForms } from "../i18n";
 import { getFeedApp } from "./catalog";
 import { MS_PER_DAY, MS_PER_HOUR, addDays, dayKey, parseDayKey, weekdayIndex } from "./date";
 import { isControlled, type ScrollLog } from "./stats";
@@ -24,7 +25,7 @@ export type AchievementTone = "primary" | "success" | "warning" | "indigo" | "da
 
 /** How progress reads under a locked achievement. */
 export type ProgressUnit =
-  | { kind: "count"; forms: readonly [string, string, string] }
+  | { kind: "count"; forms: PluralForms }
   | { kind: "minutes" }
   | { kind: "once" };
 
@@ -263,88 +264,113 @@ const MORNING = { from: 5, to: 12 } as const;
 /** 22:00 → 05:00 the next morning. */
 const NIGHT = { from: 22, to: 29 } as const;
 
-const TIMES = ["раз", "раза", "раз"] as const;
+type TextId = keyof Messages["achievements"]["items"];
+type UnitId = keyof Messages["achievements"]["units"];
+
+/** An achievement's texts in the current language. */
+const texts = (id: TextId) => m().achievements.items[id];
+
+/** Progress counted in `unit`; its word is read in the current language when progress is shown. */
+const counted = (unit: UnitId): ProgressUnit => ({
+  kind: "count",
+  get forms() {
+    return m().achievements.units[unit];
+  },
+});
+
+type Spec = Omit<Achievement, "id" | "title" | "description" | "hint"> & {
+  id: TextId;
+  /** Only for a title that names the user's feed app; otherwise it comes from the messages. */
+  title?: (mainApp: FeedApp) => string;
+};
+
+/**
+ * An achievement whose texts are getters, read from the messages whenever they are used, so the
+ * catalog (built once at import) always speaks the current language.
+ */
+function define(spec: Spec): Achievement {
+  // No object spread here: compiled spreads copy getters as values, freezing today's language.
+  const { id, title } = spec;
+  return {
+    id,
+    icon: spec.icon,
+    tone: spec.tone,
+    unit: spec.unit,
+    target: spec.target,
+    evaluate: spec.evaluate,
+    get title() {
+      return title ?? texts(id).title;
+    },
+    get description() {
+      return texts(id).description;
+    },
+    get hint() {
+      return texts(id).hint;
+    },
+  };
+}
 
 export const ACHIEVEMENTS: readonly Achievement[] = [
-  {
+  define({
     id: "first-choice",
-    title: "Первый выбор в свою пользу",
-    description: "Импульс тянул в ленту, а вы выбрали паузу. С этого всё начинается.",
-    hint: "Пройдите паузу или выполните замену вместо ленты.",
     icon: "hand-left",
     tone: "primary",
     unit: { kind: "once" },
     target: 1,
     evaluate: (history) => countUntil(history.wins, 1, history.winArchive.count),
-  },
-  {
+  }),
+  define({
     id: "first-evening",
     title: (mainApp) =>
-      `Первый вечер без ${mainApp === "other" ? "ленты" : getFeedApp(mainApp).label}`,
-    description: "Вечер, когда вы удержались и ни разу не сорвались в ленту.",
-    hint: "Удержитесь от ленты вечером (17–23 ч) и закончите вечер без срыва.",
+      mainApp === "other"
+        ? texts("first-evening").title
+        : m().achievements.firstEveningWith(getFeedApp(mainApp).label),
     icon: "moon",
     tone: "indigo",
     unit: { kind: "once" },
     target: 1,
     evaluate: (history) =>
       windowsUntil(cleanWindows(history, EVENING.from, EVENING.to, { needsWin: true }), 1),
-  },
-  {
+  }),
+  define({
     id: "first-hour",
-    title: "Первый спасённый час",
-    description: "60 минут, которые остались вам, а не алгоритму.",
-    hint: "Спасите 60 минут паузами и заменами.",
     icon: "hourglass",
     tone: "success",
     unit: { kind: "minutes" },
     target: 60,
     evaluate: (history) => sumUntil(history.wins, 60, history.winArchive.minutes),
-  },
-  {
+  }),
+  define({
     id: "morning-free",
-    title: "Утро принадлежит вам",
-    description: "Утро, которое началось с паузы, а не с бесконечной прокрутки.",
-    hint: "Удержитесь от ленты утром (5–12 ч) и не сорвитесь до полудня.",
     icon: "sunny",
     tone: "warning",
     unit: { kind: "once" },
     target: 1,
     evaluate: (history) =>
       windowsUntil(cleanWindows(history, MORNING.from, MORNING.to, { needsWin: true }), 1),
-  },
-  {
+  }),
+  define({
     id: "comeback",
-    title: "Сорвались — и вернулись",
-    description: "Срыв не стал поводом сдаться: следующий импульс остался за вами.",
-    hint: "Удержитесь в течение суток после записанного срыва.",
     icon: "refresh-circle",
     tone: "success",
     unit: { kind: "once" },
     target: 1,
     evaluate: comeback,
-  },
-  {
+  }),
+  define({
     id: "honest-look",
-    title: "Пять честных разборов",
-    description:
-      "Пять раз после срыва вместо самокритики — спокойный разговор о том, что произошло.",
-    hint: "Ответьте коучу «Что произошло?» после пяти срывов.",
     icon: "chatbubbles",
     tone: "indigo",
-    unit: { kind: "count", forms: TIMES },
+    unit: counted("times"),
     target: 5,
     evaluate: (history) =>
       countUntil(
         history.slips.filter((slip) => slip.trigger !== null),
         5,
       ),
-  },
-  {
+  }),
+  define({
     id: "sunday-evening",
-    title: "Воскресный вечер за вами",
-    description: "Самый «ленточный» вечер недели прошёл без единого срыва.",
-    hint: "Удержитесь в воскресенье вечером и закончите его без срыва.",
     icon: "cafe",
     tone: "indigo",
     unit: { kind: "once" },
@@ -354,60 +380,45 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
         cleanWindows(history, EVENING.from, EVENING.to, { needsWin: true, weekday: 6 }),
         1,
       ),
-  },
-  {
+  }),
+  define({
     id: "week-in-limit",
-    title: "Неделя в своём ритме",
-    description: "Семь дней подряд в пределах лимита. Лента больше не задаёт темп.",
-    hint: "Держитесь в пределах дневного лимита 7 дней подряд.",
     icon: "calendar",
     tone: "warning",
-    unit: { kind: "count", forms: ["день", "дня", "дней"] },
+    unit: counted("days"),
     target: 7,
     evaluate: (history) => limitStreak(history, 7),
-  },
-  {
+  }),
+  define({
     id: "nights-7",
-    title: "7 вечеров без ночного скролла",
-    description: "Семь ночей, когда сон оказался важнее ленты.",
-    hint: "Проведите 7 ночей (22–5 ч) без срывов в дни, когда пользуетесь StopScroll.",
     icon: "bed",
     tone: "indigo",
-    unit: { kind: "count", forms: ["ночь", "ночи", "ночей"] },
+    unit: counted("nights"),
     target: 7,
     evaluate: (history) =>
       windowsUntil(cleanWindows(history, NIGHT.from, NIGHT.to, { needsWin: false }), 7),
-  },
-  {
+  }),
+  define({
     id: "stress-10",
-    title: "Стресс без побега",
-    description: "10 раз вы встретили стресс без ленты. Это и есть устойчивость.",
-    hint: "Удержитесь 10 раз, когда в ленту тянет из-за стресса.",
     icon: "thunderstorm",
     tone: "danger",
-    unit: { kind: "count", forms: TIMES },
+    unit: counted("times"),
     target: 10,
     evaluate: (history) => countUntil(triggerWins(history, "stress"), 10),
-  },
-  {
+  }),
+  define({
     id: "boredom-20",
-    title: "20 побед над скукой",
-    description: "Скука звала в ленту двадцать раз — и двадцать раз проиграла.",
-    hint: "Удержитесь 20 раз, когда в ленту тянет от скуки.",
     icon: "hourglass-outline",
     tone: "warning",
-    unit: { kind: "count", forms: TIMES },
+    unit: counted("times"),
     target: 20,
     evaluate: (history) => countUntil(triggerWins(history, "boredom"), 20),
-  },
-  {
+  }),
+  define({
     id: "replacements-25",
-    title: "Тело и голова вместо ленты",
-    description: "25 раз вы выбрали движение, задачу или факт вместо прокрутки.",
-    hint: "Выполните 25 полезных замен.",
     icon: "barbell",
     tone: "success",
-    unit: { kind: "count", forms: ["замена", "замены", "замен"] },
+    unit: counted("replacements"),
     target: 25,
     evaluate: (history) =>
       countUntil(
@@ -415,40 +426,31 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
         25,
         history.winArchive.replacementCount,
       ),
-  },
-  {
+  }),
+  define({
     id: "refusals-30",
-    title: "30 успешных отказов подряд",
-    description: "Тридцать импульсов подряд — и ни одного срыва между ними.",
-    hint: "Удержитесь 30 раз подряд без срыва.",
     icon: "flame",
     tone: "danger",
-    unit: { kind: "count", forms: ["отказ", "отказа", "отказов"] },
+    unit: counted("refusals"),
     target: 30,
     evaluate: (history) => refusalRun(history, 30),
-  },
-  {
+  }),
+  define({
     id: "half-feed",
-    title: "Вдвое меньше ленты",
-    description: "Неделя, когда лента заняла вдвое меньше времени, чем до StopScroll.",
-    hint: "Отмечайте время 7 дней: в среднем — не больше половины исходного уровня.",
     icon: "trending-down",
     tone: "primary",
     unit: { kind: "once" },
     target: 1,
     evaluate: halfFeed,
-  },
-  {
+  }),
+  define({
     id: "day-of-life",
-    title: "Сутки жизни — ваши",
-    description: "1 440 минут спасено. Целые сутки, которые вы вернули себе.",
-    hint: "Спасите 24 часа паузами и заменами.",
     icon: "infinite",
     tone: "success",
     unit: { kind: "minutes" },
     target: 24 * 60,
     evaluate: (history) => sumUntil(history.wins, 24 * 60, history.winArchive.minutes),
-  },
+  }),
 ];
 
 export function getAchievement(id: string): Achievement | undefined {

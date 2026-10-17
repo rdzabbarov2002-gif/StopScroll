@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { View } from "react-native";
 
 import type { AiAnalytics } from "../../ai/types";
+import { useT } from "../../i18n";
 import { useThemeColors } from "../../utils/theme";
 import type { IconName } from "../../utils/types";
 import { AppText } from "../AppText";
@@ -10,14 +11,10 @@ import { CardLabel } from "../CardLabel";
 import { ProgressBar } from "../ProgressBar";
 import { Bullet } from "./parts";
 
-const CONFIDENCE: Record<"low" | "medium" | "high", string> = {
-  low: "Слабые признаки",
-  medium: "Заметные признаки",
-  high: "Сильные признаки",
-};
-
 /** ChatGPT's conclusions from the long-term memory and the numbers behind them, as cards. */
 export function AnalyticsView({ analytics }: { analytics: AiAnalytics }) {
+  const t = useT();
+  const a = t.ai.analytics;
   const { colors } = useThemeColors();
   const changes = [
     ...analytics.improvements.map((text) => ({
@@ -41,7 +38,7 @@ export function AnalyticsView({ analytics }: { analytics: AiAnalytics }) {
   return (
     <>
       <Card tone="primary" className="gap-2">
-        <CardLabel icon="sparkles" label="Общий вывод" color={colors.primary} />
+        <CardLabel icon="sparkles" label={a.conclusion} color={colors.primary} />
         <AppText variant="statement">{analytics.conclusion}</AppText>
         {analytics.dataNote ? (
           <AppText variant="caption" tone="muted" className="leading-[20px]">
@@ -51,7 +48,7 @@ export function AnalyticsView({ analytics }: { analytics: AiAnalytics }) {
       </Card>
 
       {analytics.warnings.length ? (
-        <Section icon="warning" label="Опасные периоды" color={colors.warningStrong}>
+        <Section icon="warning" label={a.warnings} color={colors.warningStrong}>
           {analytics.warnings.map((text) => (
             <Bullet key={text} icon="alert-circle" color={colors.warningStrong} text={text} />
           ))}
@@ -59,7 +56,7 @@ export function AnalyticsView({ analytics }: { analytics: AiAnalytics }) {
       ) : null}
 
       {changes.length ? (
-        <Section icon="git-compare" label="Что меняется" color={colors.success}>
+        <Section icon="git-compare" label={a.changes} color={colors.success}>
           {changes.map((item) => (
             <Bullet key={item.text} icon={item.icon} color={item.color} text={item.text} />
           ))}
@@ -67,7 +64,7 @@ export function AnalyticsView({ analytics }: { analytics: AiAnalytics }) {
       ) : null}
 
       {analytics.causes.length ? (
-        <Section icon="list" label="Частые причины" color={colors.danger}>
+        <Section icon="list" label={a.causes} color={colors.danger}>
           {analytics.causes.map((cause) => (
             <View key={cause.title} className="gap-1.5">
               <View className="flex-row items-baseline justify-between gap-3">
@@ -95,30 +92,31 @@ export function AnalyticsView({ analytics }: { analytics: AiAnalytics }) {
 
       <TitledSection
         icon="repeat"
-        label="Повторяющиеся ситуации"
+        label={a.situations}
         color={colors.indigo}
         items={analytics.situations}
       />
       <TitledSection
         icon="heart"
-        label="Эмоциональные состояния"
+        label={a.emotions}
         color={colors.danger}
         items={analytics.emotions}
       />
       <TitledSection
         icon="time"
-        label="Опасное время и дни"
+        label={a.times}
         color={colors.primary}
         items={[...analytics.times, ...analytics.weekdays]}
       />
 
       {analytics.hypotheses.length ? (
-        <Section icon="bulb" label="Гипотезы" color={colors.warning}>
+        <Section icon="bulb" label={a.hypotheses} color={colors.warning}>
           {analytics.hypotheses.map((item) => (
             <View key={item.text} className="gap-1">
               <AppText className="text-[16px] leading-[22px]">{item.text}</AppText>
               <AppText variant="caption" tone="subtle" className="text-[13px]">
-                {CONFIDENCE[item.confidence]} · пока предположение, не факт
+                {a.confidence[item.confidence]} ·{" "}
+                {item.confidence === "high" ? a.confirmed : a.notFact}
               </AppText>
             </View>
           ))}
@@ -126,7 +124,7 @@ export function AnalyticsView({ analytics }: { analytics: AiAnalytics }) {
       ) : null}
 
       {analytics.selfComparison.length ? (
-        <Section icon="person" label="Вы против себя" color={colors.primary}>
+        <Section icon="person" label={a.self} color={colors.primary}>
           {analytics.selfComparison.map((text) => (
             <Bullet key={text} icon="swap-horizontal" color={colors.primary} text={text} />
           ))}
@@ -134,7 +132,7 @@ export function AnalyticsView({ analytics }: { analytics: AiAnalytics }) {
       ) : null}
 
       {analytics.numbers ? (
-        <Section icon="leaf" label="Время, которое вы вернули" color={colors.success}>
+        <Section icon="leaf" label={a.saved} color={colors.success}>
           <AppText variant="statement">{analytics.numbers.headline}</AppText>
           {analytics.numbers.equivalents.map((text) => (
             <Bullet key={text} icon="checkmark" color={colors.success} text={text} />
@@ -143,7 +141,7 @@ export function AnalyticsView({ analytics }: { analytics: AiAnalytics }) {
       ) : null}
 
       {memoryLines.length ? (
-        <Section icon="hourglass" label="Долгая память" color={colors.indigo}>
+        <Section icon="hourglass" label={a.memory} color={colors.indigo}>
           {memoryLines.map((text) => (
             <Bullet key={text} icon="bookmark" color={colors.indigo} text={text} />
           ))}

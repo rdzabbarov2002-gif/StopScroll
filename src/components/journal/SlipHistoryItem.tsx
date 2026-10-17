@@ -2,6 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 
+import { useT } from "../../i18n";
 import { getFeedApp, getTrigger } from "../../utils/catalog";
 import { formatMinutes, formatRelativeDay } from "../../utils/date";
 import { useThemeColors } from "../../utils/theme";
@@ -19,6 +20,7 @@ interface SlipHistoryItemProps {
 
 /** One row of the slip history, meant to sit inside a ListGroup. */
 export function SlipHistoryItem({ entry, now, onDelete, onReflect }: SlipHistoryItemProps) {
+  const t = useT().journal.item;
   const { colors } = useThemeColors();
   const [confirming, setConfirming] = useState(false);
   const trigger = entry.trigger ? getTrigger(entry.trigger) : null;
@@ -33,7 +35,7 @@ export function SlipHistoryItem({ entry, now, onDelete, onReflect }: SlipHistory
         />
         <View className="flex-1 gap-0.5">
           <AppText variant="heading" className="text-[16px]" tone={trigger ? "default" : "muted"}>
-            {trigger?.label ?? "Причина не указана"}
+            {trigger?.label ?? t.noReason}
           </AppText>
           <AppText variant="caption" tone="subtle" className="text-[13px]">
             {formatRelativeDay(entry.timestamp, now)} · {app.label}
@@ -45,7 +47,7 @@ export function SlipHistoryItem({ entry, now, onDelete, onReflect }: SlipHistory
         <Pressable
           onPress={() => setConfirming((value) => !value)}
           accessibilityRole="button"
-          accessibilityLabel="Удалить запись"
+          accessibilityLabel={t.delete}
           hitSlop={8}
           className="h-8 w-8 items-center justify-center rounded-full active:opacity-60"
         >
@@ -63,12 +65,12 @@ export function SlipHistoryItem({ entry, now, onDelete, onReflect }: SlipHistory
         <Pressable
           onPress={() => onReflect(entry)}
           accessibilityRole="button"
-          accessibilityLabel="Разобрать срыв с коучем"
+          accessibilityLabel={t.reflectA11y}
           className="ml-[42px] flex-row items-center gap-1.5 self-start rounded-full bg-brand-50 px-3 py-1.5 active:opacity-70 dark:bg-brand-900"
         >
           <Ionicons name="chatbubble-ellipses-outline" size={14} color={colors.primary} />
           <AppText variant="label" tone="primary" className="text-[14px]">
-            Разобрать
+            {t.reflect}
           </AppText>
         </Pressable>
       ) : null}
@@ -76,7 +78,7 @@ export function SlipHistoryItem({ entry, now, onDelete, onReflect }: SlipHistory
       {confirming ? (
         <View className="flex-row items-center justify-end gap-2 pl-[42px]">
           <AppText variant="caption" tone="muted" className="flex-1">
-            Удалить эту запись?
+            {t.confirm}
           </AppText>
           <Pressable
             onPress={() => setConfirming(false)}
@@ -84,7 +86,7 @@ export function SlipHistoryItem({ entry, now, onDelete, onReflect }: SlipHistory
             className="rounded-full px-3 py-1.5 active:opacity-70"
           >
             <AppText variant="label" tone="primary">
-              Отмена
+              {t.cancel}
             </AppText>
           </Pressable>
           <Pressable
@@ -93,7 +95,7 @@ export function SlipHistoryItem({ entry, now, onDelete, onReflect }: SlipHistory
             className="rounded-full bg-rose-50 px-3 py-1.5 active:opacity-70 dark:bg-rose-950"
           >
             <AppText variant="label" className="text-rose-500 dark:text-rose-400">
-              Удалить
+              {t.confirmDelete}
             </AppText>
           </Pressable>
         </View>

@@ -2,6 +2,7 @@ import { useNavigation } from "@react-navigation/native";
 import { Pressable } from "react-native";
 
 import { useAi } from "../../context/AiContext";
+import { useT } from "../../i18n";
 import { useThemeColors } from "../../utils/theme";
 import { Card } from "../Card";
 import { CardLabel } from "../CardLabel";
@@ -9,6 +10,7 @@ import { Bullet } from "./parts";
 
 /** On the home screen: the two or three most useful lines of the AI analytics. */
 export function AiHighlightsCard() {
+  const t = useT();
   const { colors } = useThemeColors();
   const navigation = useNavigation();
   const { analytics } = useAi();
@@ -29,11 +31,11 @@ export function AiHighlightsCard() {
     <Pressable
       onPress={() => navigation.navigate("Main", { screen: "AI" })}
       accessibilityRole="button"
-      accessibilityLabel="Главное от AI-коуча, открыть аналитику"
+      accessibilityLabel={t.ai.highlights.a11y}
       className="active:opacity-80"
     >
       <Card className="gap-3">
-        <CardLabel icon="sparkles" label="Главное от AI-коуча" color={colors.indigo} chevron />
+        <CardLabel icon="sparkles" label={t.ai.highlights.label} color={colors.indigo} chevron />
         {lines.map((line) => (
           <Bullet key={line.text} icon={line.icon} color={line.color} text={line.text} />
         ))}

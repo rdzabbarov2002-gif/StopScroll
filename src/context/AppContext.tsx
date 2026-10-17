@@ -10,6 +10,7 @@ import {
 } from "react";
 import { AppState as RNAppState } from "react-native";
 
+import { setLanguage as applyLanguage, type LanguageCode } from "../i18n";
 import { dayKey } from "../utils/date";
 import { createDemoState } from "../utils/demo";
 import {
@@ -61,6 +62,8 @@ export interface AppContextValue extends Omit<PersistedState, "version"> {
   deleteCustomReplacement: (id: string) => void;
   setLastExercise: (id: ExerciseId) => void;
   setThemePreference: (preference: ThemePreference) => void;
+  /** Saves the chosen language and switches the whole app (and the AI coach) to it. */
+  setLanguage: (language: LanguageCode) => void;
   resetProgress: () => void;
   /** Web preview only: replaces the history with sample data. */
   loadDemoData: () => void;
@@ -96,6 +99,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         (loaded) => {
           if (cancelled) return;
           canPersist.current = true;
+          // Before the first render with data, so every screen starts in the saved language.
+          if (loaded.language) applyLanguage(loaded.language);
           dispatch({ type: "hydrate", state: loaded, today: dayKey() });
         },
         (error: unknown) => {
@@ -229,6 +234,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const setLanguage = useCallback((language: LanguageCode) => {
+    applyLanguage(language);
+    dispatch({ type: "setLanguage", language });
+  }, []);
+
   const setThemePreference = useCallback(
     (preference: ThemePreference) => dispatch({ type: "setTheme", preference }),
     [],
@@ -237,10 +247,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const resetProgress = useCallback(() => dispatch({ type: "resetProgress" }), []);
 
   const themePreference = state.themePreference;
+  const language = state.language;
   const loadDemoData = useCallback(() => {
     const today = dayKey();
-    dispatch({ type: "hydrate", state: createDemoState(today, themePreference), today });
-  }, [themePreference]);
+    dispatch({
+      type: "hydrate",
+      state: { ...createDemoState(today, themePreference), language },
+      today,
+    });
+  }, [themePreference, language]);
 
   const value = useMemo<AppContextValue>(
     () => ({
@@ -248,6 +263,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       todayKey: state.todayKey,
       unlockQueue: state.unlockQueue,
       onboarded: state.onboarded,
+      language: state.language,
       settings: state.settings,
       scrollLog: state.scrollLog,
       wins: state.wins,
@@ -276,6 +292,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteCustomReplacement,
       setLastExercise,
       setThemePreference,
+      setLanguage,
       resetProgress,
       loadDemoData,
     }),
@@ -298,6 +315,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteCustomReplacement,
       setLastExercise,
       setThemePreference,
+      setLanguage,
       resetProgress,
       loadDemoData,
     ],

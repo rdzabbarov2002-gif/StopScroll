@@ -9,7 +9,8 @@ import Purchases, {
   type PurchasesPackage,
 } from "react-native-purchases";
 
-import { pluralize } from "../utils/date";
+import { m, type Messages } from "../i18n";
+import type { PeriodUnit } from "../i18n/messages/paywall/ru";
 
 /** Entitlement identifier configured in the RevenueCat dashboard. */
 export const PRO_ENTITLEMENT_ID =
@@ -59,39 +60,44 @@ export function isPurchaseCancelled(error: unknown): boolean {
 }
 
 export function describePurchaseError(error: unknown): string {
+  const errors = m().paywall.errors;
   switch (asPurchasesError(error)?.code) {
     case PURCHASES_ERROR_CODE.NETWORK_ERROR:
     case PURCHASES_ERROR_CODE.OFFLINE_CONNECTION_ERROR:
-      return "Нет связи с магазином. Проверьте интернет и попробуйте ещё раз.";
+      return errors.network;
     case PURCHASES_ERROR_CODE.PRODUCT_ALREADY_PURCHASED_ERROR:
-      return "Эта подписка уже оформлена. Нажмите «Восстановить покупки».";
+      return errors.alreadyPurchased;
     case PURCHASES_ERROR_CODE.PURCHASE_NOT_ALLOWED_ERROR:
-      return "Покупки запрещены на этом устройстве или в этом аккаунте.";
+      return errors.notAllowed;
     case PURCHASES_ERROR_CODE.PAYMENT_PENDING_ERROR:
-      return "Платёж ожидает подтверждения. Pro включится автоматически, когда он пройдёт.";
+      return errors.pending;
     case PURCHASES_ERROR_CODE.PRODUCT_NOT_AVAILABLE_FOR_PURCHASE_ERROR:
-      return "Этот тариф сейчас недоступен в вашем магазине.";
+      return errors.planUnavailable;
     default:
-      return "Не удалось завершить покупку. Попробуйте ещё раз чуть позже.";
+      return errors.generic;
   }
 }
 
-const PACKAGE_TITLES: Partial<Record<PACKAGE_TYPE, string>> = {
-  [PACKAGE_TYPE.ANNUAL]: "Год",
-  [PACKAGE_TYPE.SIX_MONTH]: "6 месяцев",
-  [PACKAGE_TYPE.THREE_MONTH]: "3 месяца",
-  [PACKAGE_TYPE.TWO_MONTH]: "2 месяца",
-  [PACKAGE_TYPE.MONTHLY]: "Месяц",
-  [PACKAGE_TYPE.WEEKLY]: "Неделя",
-  [PACKAGE_TYPE.LIFETIME]: "Навсегда",
+type PlanTitle = keyof Pick<
+  Messages["paywall"]["plans"],
+  "annual" | "sixMonths" | "threeMonths" | "twoMonths" | "monthly" | "weekly" | "lifetime"
+>;
+
+/** The plan names, as keys of `paywall.plans` (read in the current language when shown). */
+const PACKAGE_TITLES: Partial<Record<PACKAGE_TYPE, PlanTitle>> = {
+  [PACKAGE_TYPE.ANNUAL]: "annual",
+  [PACKAGE_TYPE.SIX_MONTH]: "sixMonths",
+  [PACKAGE_TYPE.THREE_MONTH]: "threeMonths",
+  [PACKAGE_TYPE.TWO_MONTH]: "twoMonths",
+  [PACKAGE_TYPE.MONTHLY]: "monthly",
+  [PACKAGE_TYPE.WEEKLY]: "weekly",
+  [PACKAGE_TYPE.LIFETIME]: "lifetime",
 };
 
-const PERIOD_FORMS: Record<string, readonly [string, string, string]> = {
-  DAY: ["день", "дня", "дней"],
-  WEEK: ["неделя", "недели", "недель"],
-  MONTH: ["месяц", "месяца", "месяцев"],
-  YEAR: ["год", "года", "лет"],
-};
+const PERIOD_UNITS: readonly PeriodUnit[] = ["DAY", "WEEK", "MONTH", "YEAR"];
+
+const isPeriodUnit = (unit: string): unit is PeriodUnit =>
+  (PERIOD_UNITS as readonly string[]).includes(unit);
 
 export interface PlanView {
   id: string;
@@ -132,6 +138,7 @@ export function toPlanViews(
   packages: readonly PurchasesPackage[],
   isTrialEligible: (productId: string) => boolean = () => true,
 ): PlanView[] {
+  const plans = m().paywall.plans;
   const monthly = packages.find((item) => item.packageType === PACKAGE_TYPE.MONTHLY);
   const order = [
     PACKAGE_TYPE.ANNUAL,
@@ -152,10 +159,12 @@ export function toPlanViews(
     .map((pkg) => {
       const { product } = pkg;
       const intro = product.introPrice;
-      const forms = intro ? PERIOD_FORMS[intro.periodUnit] : undefined;
       const trial =
-        intro && intro.price === 0 && forms && isTrialEligible(product.identifier)
-          ? `${intro.periodNumberOfUnits} ${pluralize(intro.periodNumberOfUnits, forms)} бесплатно`
+        intro &&
+        intro.price === 0 &&
+        isPeriodUnit(intro.periodUnit) &&
+        isTrialEligible(product.identifier)
+          ? plans.trial(intro.periodNumberOfUnits, intro.periodUnit)
           : null;
 
       let savings: number | null = null;
@@ -171,16 +180,17 @@ export function toPlanViews(
 
       const caption =
         pkg.packageType === PACKAGE_TYPE.LIFETIME
-          ? "разовая покупка"
+          ? plans.oneTime
           : pkg.packageType !== PACKAGE_TYPE.MONTHLY &&
               pkg.packageType !== PACKAGE_TYPE.WEEKLY &&
               product.pricePerMonthString
-            ? `≈ ${product.pricePerMonthString} в месяц`
+            ? plans.pricePerMonth(product.pricePerMonthString)
             : null;
 
+      const titleKey = PACKAGE_TITLES[pkg.packageType];
       return {
         id: pkg.identifier,
-        title: PACKAGE_TITLES[pkg.packageType] ?? product.title,
+        title: titleKey ? plans[titleKey] : product.title,
         price: product.priceString,
         caption,
         trial,

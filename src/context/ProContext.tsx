@@ -9,6 +9,7 @@ import {
 } from "react";
 import Purchases, { type CustomerInfo, type PurchasesPackage } from "react-native-purchases";
 
+import { m } from "../i18n";
 import {
   configurePurchases,
   describePurchaseError,
@@ -98,7 +99,7 @@ export function ProProvider({ children }: { children: ReactNode }) {
       const isTrialEligible = await getTrialEligibility(packages);
       setPlans(toPlanViews(packages, isTrialEligible));
       if (packages.length === 0) {
-        setPlansError("Тарифы пока не опубликованы. Загляните чуть позже.");
+        setPlansError(m().paywall.errors.noPlans);
       }
     } catch (error) {
       setPlansError(describePurchaseError(error));
@@ -117,7 +118,7 @@ export function ProProvider({ children }: { children: ReactNode }) {
         : {
             ok: false,
             cancelled: false,
-            message: "Оплата прошла, но Pro ещё не активен. Попробуйте «Восстановить покупки».",
+            message: m().paywall.errors.notActivated,
           };
     } catch (error) {
       const cancelled = isPurchaseCancelled(error);

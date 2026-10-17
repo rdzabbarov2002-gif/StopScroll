@@ -1,6 +1,7 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 
+import { m } from "../i18n";
 import { WEEKLY_REPORT_HOUR } from "../utils/weeklyReport";
 
 const CHANNEL_ID = "weekly-report";
@@ -25,11 +26,13 @@ function ensureHandler() {
   });
 }
 
+/** Schedules the reminder with the texts of the current language (rescheduled when it changes). */
 async function schedule() {
   ensureHandler();
+  const texts = m().report.reminder;
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-      name: "Недельный отчёт",
+      name: texts.channel,
       importance: Notifications.AndroidImportance.DEFAULT,
     });
   }
@@ -37,8 +40,8 @@ async function schedule() {
   await Notifications.scheduleNotificationAsync({
     identifier: REMINDER_ID,
     content: {
-      title: "Отчёт за неделю готов",
-      body: "Сколько времени вы вернули себе, самые трудные часы и новые достижения.",
+      title: texts.title,
+      body: texts.body,
       data: { url: REPORT_URL },
     },
     trigger: {

@@ -1,12 +1,14 @@
 import { useNavigation } from "@react-navigation/native";
 import { Linking, Pressable, View } from "react-native";
 
+import { useT } from "../i18n";
 import { cn } from "../utils/cn";
 import { PRIVACY_URL, TERMS_URL } from "../utils/legal";
 import { AppText } from "./AppText";
 
 /** "Условия использования · Политика конфиденциальности" — required beside subscription offers. */
 export function LegalLinks({ className }: { className?: string }) {
+  const t = useT();
   const navigation = useNavigation();
   const termsUrl = TERMS_URL;
 
@@ -23,7 +25,7 @@ export function LegalLinks({ className }: { className?: string }) {
       {termsUrl ? (
         <>
           <LinkText
-            label="Условия использования"
+            label={t.privacy.links.terms}
             onPress={() => Linking.openURL(termsUrl).catch(() => undefined)}
           />
           <AppText variant="caption" tone="subtle" className="text-xs">
@@ -31,7 +33,7 @@ export function LegalLinks({ className }: { className?: string }) {
           </AppText>
         </>
       ) : null}
-      <LinkText label="Политика конфиденциальности" onPress={openPrivacy} />
+      <LinkText label={t.privacy.links.privacy} onPress={openPrivacy} />
     </View>
   );
 }

@@ -15,8 +15,12 @@ export const DEEP_INTERVAL_DAYS = 7;
 /** During the first two weeks the memory is rebuilt every few days: it learns the most then. */
 export const YOUNG_MEMORY_DAYS = 14;
 const YOUNG_INTERVAL_DAYS = 3;
-/** So many new entries rebuild the memory early (but not more than every few days). */
-export const DEEP_EARLY_ENTRIES = 25;
+/**
+ * So many new entries rebuild the memory early (but not more than every few days). At 35, an
+ * active user (5 entries a day) gets the deep analysis about weekly — the cost stays where it was,
+ * and re-reading originals makes up for the slightly later update.
+ */
+export const DEEP_EARLY_ENTRIES = 35;
 
 /** Analyzed entries the memory hasn't taken in yet — they go into the next deep analysis. */
 export function entriesSinceDeep(state: AiState) {

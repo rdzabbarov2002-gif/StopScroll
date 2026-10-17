@@ -1,14 +1,29 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import { isLanguage } from "../i18n/languages";
 import {
+  isRecord,
+  newBelief,
+  nextId,
   parseChallenge,
   parseEntryAnalysis,
   parseMemory,
   parseQuestion,
   parseQuestions,
+  parseVotes,
   titled,
 } from "./parse";
-import type { AiAnswer, AiEntry, AiMemory, AiState, EntryOutcome, EntryStatus } from "./types";
+import type {
+  AiAnswer,
+  AiEntry,
+  AiMemory,
+  AiState,
+  Calibration,
+  EntryAnalysis,
+  EntryOutcome,
+  EntryReading,
+  EntryStatus,
+} from "./types";
 
 /**
  * The AI coach keeps its data apart from the main state:
@@ -16,7 +31,7 @@ import type { AiAnswer, AiEntry, AiMemory, AiState, EntryOutcome, EntryStatus } 
  * - `@stopscroll/ai/entries/YYYY-MM` — the entries of one month.
  * Splitting by month keeps every stored value small (Android reads at most ~2 MB per value),
  * so the whole history can be kept without a cap on the number of entries.
- * Data saved by the earlier version of the coach is read and converted here.
+ * Data saved by earlier versions of the coach is read and converted here.
  */
 export const AI_META_KEY = "@stopscroll/ai/v1";
 const ENTRIES_PREFIX = "@stopscroll/ai/entries/";
@@ -27,6 +42,12 @@ export const MAX_ENTRY_LENGTH = 2000;
 const MAX_ANSWERS = 60;
 const MAX_PAST_CHALLENGES = 20;
 
+const emptyCalibration = (): Calibration => ({
+  "40": { checked: 0, disputed: 0 },
+  "70": { checked: 0, disputed: 0 },
+  "95": { checked: 0, disputed: 0 },
+});
+
 export function createInitialAiState(): AiState {
   return {
     consent: null,
@@ -34,6 +55,7 @@ export function createInitialAiState(): AiState {
     memory: null,
     deepAt: null,
     memorySince: null,
+    deepCount: 0,
     deepRecordsKey: null,
     question: null,
     questionQueue: [],
@@ -43,25 +65,74 @@ export function createInitialAiState(): AiState {
     challenge: null,
     pastChallenges: [],
     deletedSinceDeep: [],
+    calibration: emptyCalibration(),
+    pivotsSeen: [],
+    memoryLanguage: null,
   };
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 const isTimestamp = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value) && value > 0;
 
 const STATUSES: readonly EntryStatus[] = ["pending", "done", "failed"];
 const OUTCOMES: readonly EntryOutcome[] = ["resisted", "opened"];
+const CHECKS = ["none", "agreed", "disputed", "settled"] as const;
+
+/** The first reading of an entry, from its analysis. */
+export const readingOf = (
+  analysis: EntryAnalysis,
+  votes: EntryReading["votes"] = [],
+): EntryReading => ({
+  cause: analysis.cause,
+  tags: analysis.tags,
+  gist: analysis.gist,
+  conf: analysis.conf,
+  votes,
+  by: "entry",
+  at: analysis.analyzedAt,
+  check: "none",
+});
+
+function sanitizeReading(value: unknown): EntryReading | null {
+  if (!isRecord(value)) return null;
+  const at = isTimestamp(value.at) ? value.at : 0;
+  const tags = Array.isArray(value.tags)
+    ? value.tags.filter((tag): tag is string => typeof tag === "string").slice(0, 4)
+    : [];
+  return {
+    cause: typeof value.cause === "string" ? value.cause.slice(0, 120) : null,
+    tags,
+    gist: typeof value.gist === "string" ? value.gist.slice(0, 160) : null,
+    conf: typeof value.conf === "number" ? Math.min(100, Math.max(0, value.conf)) : 70,
+    votes: parseVotes(value.votes),
+    by: value.by === "deep" ? "deep" : "entry",
+    at,
+    check: CHECKS.includes(value.check as (typeof CHECKS)[number])
+      ? (value.check as EntryReading["check"])
+      : "none",
+  };
+}
 
 export function sanitizeEntry(value: unknown): AiEntry | null {
   if (!isRecord(value) || typeof value.id !== "string" || !isTimestamp(value.timestamp))
     return null;
   if (typeof value.text !== "string" || !value.text.trim()) return null;
-  const analysis = parseEntryAnalysis(value.analysis, value.timestamp);
+  // Earlier versions had no confidence: their readings count as "follows from the context".
+  const stored = isRecord(value.analysis) ? { conf: 70, ...value.analysis } : value.analysis;
+  const analysis = parseEntryAnalysis(stored, value.timestamp);
   const status = STATUSES.includes(value.status as EntryStatus)
     ? (value.status as EntryStatus)
     : "pending";
+  const reading = analysis ? (sanitizeReading(value.reading) ?? readingOf(analysis)) : null;
+  const blind = isRecord(value.blind)
+    ? {
+        cause: typeof value.blind.cause === "string" ? value.blind.cause.slice(0, 120) : null,
+        tags: Array.isArray(value.blind.tags)
+          ? value.blind.tags.filter((tag): tag is string => typeof tag === "string").slice(0, 4)
+          : [],
+        enough: value.blind.enough !== false,
+      }
+    : null;
   return {
     id: value.id,
     timestamp: value.timestamp,
@@ -74,7 +145,16 @@ export function sanitizeEntry(value: unknown): AiEntry | null {
     attempts:
       typeof value.attempts === "number" && value.attempts >= 0 ? Math.floor(value.attempts) : 0,
     analysis,
-    // `inInsights` — the earlier version's name for the same flag.
+    reading,
+    past: (Array.isArray(value.past) ? value.past : [])
+      .map(sanitizeReading)
+      .filter((item): item is EntryReading => item !== null)
+      .slice(0, 2),
+    reads: typeof value.reads === "number" && value.reads >= 0 ? Math.floor(value.reads) : 0,
+    readAt: isTimestamp(value.readAt) ? value.readAt : null,
+    contested: value.contested === true,
+    blind: reading?.check === "disputed" ? blind : null,
+    // `inInsights` — an earlier version's name for the same flag.
     inMemory: (value.inMemory === true || value.inInsights === true) && analysis !== null,
   };
 }
@@ -94,13 +174,14 @@ function sanitizeAnswer(value: unknown): AiAnswer | null {
     question: question.slice(0, 200),
     answer: answer.slice(0, 60),
     answeredAt: value.answeredAt,
+    about: typeof value.about === "string" ? value.about.slice(0, 20) : null,
     inMemory: value.inMemory === true || value.inInsights === true,
   };
 }
 
 /**
- * The earlier version kept ChatGPT's analytics next to a smaller memory: its conclusions move
- * into the new memory, so nothing learned is lost before the next deep analysis.
+ * The first version kept ChatGPT's analytics next to a smaller memory: its conclusions move
+ * into the memory, so nothing learned is lost before the next deep analysis.
  */
 function withOldAnalytics(memory: AiMemory | null, analytics: unknown): AiMemory | null {
   if (!memory || memory.conclusion || !isRecord(analytics)) return memory;
@@ -114,22 +195,37 @@ function withOldAnalytics(memory: AiMemory | null, analytics: unknown): AiMemory
       .map(titled)
       .filter((item): item is NonNullable<typeof item> => item !== null)
       .slice(0, limit);
+  const beliefs = [...memory.beliefs];
+  for (const item of notes(analytics.situations, 5)) {
+    beliefs.push(newBelief(nextId(beliefs, "t"), "trigger", item.title, item.note, "supported"));
+  }
+  for (const note of strings(analytics.warnings, 3)) {
+    beliefs.push(newBelief(nextId(beliefs, "z"), "zone", note.slice(0, 120), note, "supported"));
+  }
   return {
     ...memory,
     conclusion: typeof analytics.conclusion === "string" ? analytics.conclusion.slice(0, 800) : "",
-    triggers: notes(analytics.situations, 5),
     emotions: notes(analytics.emotions, 4),
-    dangerZones: strings(analytics.warnings, 3).map((note) => ({
-      title: note.slice(0, 120),
-      note,
-      weekday: null,
-      from: null,
-      to: null,
-    })),
     improvements: strings(analytics.improvements, 3),
     worsenings: strings(analytics.worsenings, 3),
     changes: strings(analytics.habitChanges, 4),
+    beliefs,
   };
+}
+
+function sanitizeCalibration(value: unknown): Calibration {
+  const base = emptyCalibration();
+  if (!isRecord(value)) return base;
+  for (const bucket of ["40", "70", "95"] as const) {
+    const item = value[bucket];
+    if (isRecord(item)) {
+      const checked = typeof item.checked === "number" ? Math.max(0, Math.floor(item.checked)) : 0;
+      const disputed =
+        typeof item.disputed === "number" ? Math.max(0, Math.floor(item.disputed)) : 0;
+      base[bucket] = { checked, disputed: Math.min(checked, disputed) };
+    }
+  }
+  return base;
 }
 
 /** Everything but the entries, checked field by field: a bad field falls back to empty. */
@@ -153,6 +249,7 @@ export function sanitizeAiMeta(value: unknown): Omit<AiState, "entries"> {
     memory: withOldAnalytics(parseMemory(value.memory), value.analytics),
     deepAt,
     memorySince: isTimestamp(value.memorySince) ? value.memorySince : deepAt,
+    deepCount: typeof value.deepCount === "number" && value.deepCount >= 0 ? value.deepCount : 0,
     deepRecordsKey: typeof recordsKey === "string" ? recordsKey : null,
     question: parseQuestion(value.question, "", 0),
     questionQueue: parseQuestions(value.questionQueue),
@@ -181,6 +278,16 @@ export function sanitizeAiMeta(value: unknown): Omit<AiState, "entries"> {
         time: item.time.slice(0, 5),
         cause: typeof item.cause === "string" ? item.cause.slice(0, 120) : null,
       })),
+    calibration: sanitizeCalibration(value.calibration),
+    pivotsSeen: (Array.isArray(value.pivotsSeen) ? value.pivotsSeen : [])
+      .filter((item): item is string => typeof item === "string")
+      .slice(-40),
+    // Memory from before languages existed was written in Russian.
+    memoryLanguage: isLanguage(value.memoryLanguage)
+      ? value.memoryLanguage
+      : value.memory
+        ? "ru"
+        : null,
   };
 }
 

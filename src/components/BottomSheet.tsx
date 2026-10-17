@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useT } from "../i18n";
 import { AppText } from "./AppText";
 import { IconButton } from "./IconButton";
 
@@ -24,6 +25,7 @@ interface BottomSheetProps {
 
 /** Modal card that rises from the bottom of the screen over a dimmed backdrop. */
 export function BottomSheet({ visible, onClose, title, subtitle, children }: BottomSheetProps) {
+  const t = useT();
   const insets = useSafeAreaInsets();
   const [offset] = useState(() => new Animated.Value(48));
 
@@ -55,7 +57,7 @@ export function BottomSheet({ visible, onClose, title, subtitle, children }: Bot
           className="absolute inset-0 bg-slate-950/50"
           onPress={onClose}
           accessibilityRole="button"
-          accessibilityLabel="Закрыть окно"
+          accessibilityLabel={t.common.closeSheet}
         />
         <Animated.View style={{ transform: [{ translateY: offset }], maxHeight: "92%" }}>
           <View
@@ -77,7 +79,12 @@ export function BottomSheet({ visible, onClose, title, subtitle, children }: Bot
                   </AppText>
                 ) : null}
               </View>
-              <IconButton icon="close" onPress={onClose} accessibilityLabel="Закрыть" size={18} />
+              <IconButton
+                icon="close"
+                onPress={onClose}
+                accessibilityLabel={t.common.close}
+                size={18}
+              />
             </View>
             <ScrollView
               contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 12, paddingBottom: 12 }}

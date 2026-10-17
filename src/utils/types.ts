@@ -1,5 +1,7 @@
 import type Ionicons from "@expo/vector-icons/Ionicons";
 
+import type { LanguageCode } from "../i18n/languages";
+
 export type IconName = keyof typeof Ionicons.glyphMap;
 
 export type ThemePreference = "system" | "light" | "dark";
@@ -124,6 +126,8 @@ export interface WinArchive {
 export interface PersistedState {
   version: 1;
   onboarded: boolean;
+  /** The app's language; null until the user picks one on the very first launch. */
+  language: LanguageCode | null;
   settings: Settings;
   /** Minutes of feed scrolling per local day, keyed by "YYYY-MM-DD". */
   scrollLog: Record<string, number>;

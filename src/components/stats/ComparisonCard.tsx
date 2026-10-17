@@ -2,6 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { View } from "react-native";
 
 import { useApp } from "../../context/AppContext";
+import { useT } from "../../i18n";
 import { cn } from "../../utils/cn";
 import { formatMinutes, formatMinutesInline } from "../../utils/date";
 import { compareScroll } from "../../utils/stats";
@@ -12,41 +13,46 @@ import { CardLabel } from "../CardLabel";
 
 /** "Вчера — 3 ч, сегодня — 30 мин": a before/after scale against yesterday and the baseline. */
 export function ComparisonCard() {
+  const t = useT().stats;
   const { colors } = useThemeColors();
   const { scrollLog, todayKey, settings } = useApp();
   const comparison = compareScroll(scrollLog, todayKey, settings.baselineMinutes);
   const { today, yesterday, baseline } = comparison;
 
   const rows = [
-    { label: "До StopScroll", value: baseline, emphasis: false },
-    { label: "Вчера", value: yesterday, emphasis: false },
-    { label: "Сегодня", value: today, emphasis: true },
+    { label: t.comparison.before, value: baseline, emphasis: false },
+    { label: t.yesterday, value: yesterday, emphasis: false },
+    { label: t.today, value: today, emphasis: true },
   ];
   const max = Math.max(1, ...rows.map((row) => row.value ?? 0));
 
   const headline =
     today !== null && yesterday !== null
-      ? `Вчера — ${formatMinutesInline(yesterday)}, сегодня — ${formatMinutesInline(today)}`
+      ? t.comparison.both(formatMinutesInline(yesterday), formatMinutesInline(today))
       : today !== null
-        ? `Сегодня — ${formatMinutesInline(today)}`
-        : "Отметьте время за сегодня";
+        ? t.comparison.todayOnly(formatMinutesInline(today))
+        : t.comparison.empty;
 
   return (
     <Card className="gap-4">
       <View className="gap-2">
-        <CardLabel icon="analytics" label="Сравнение" color={colors.indigo} />
+        <CardLabel icon="analytics" label={t.comparison.label} color={colors.indigo} />
         <AppText variant="statement">{headline}</AppText>
       </View>
 
       <View className="flex-row flex-wrap gap-2">
         {comparison.deltaPercent !== null ? (
-          <DeltaBadge percent={comparison.deltaPercent} suffix="к вчера" sameText="как вчера" />
+          <DeltaBadge
+            percent={comparison.deltaPercent}
+            describe={t.comparison.vsYesterday}
+            sameText={t.comparison.sameAsYesterday}
+          />
         ) : null}
         {comparison.baselinePercent !== null ? (
           <DeltaBadge
             percent={comparison.baselinePercent}
-            suffix="к исходному уровню"
-            sameText="на исходном уровне"
+            describe={t.comparison.vsBaseline}
+            sameText={t.comparison.sameAsBaseline}
           />
         ) : null}
       </View>
@@ -78,12 +84,10 @@ function ScaleRow({
   emphasis: boolean;
 }) {
   const { chart } = useThemeColors();
+  const t = useT().stats;
+  const text = value === null ? t.comparison.noData : formatMinutes(value);
   return (
-    <View
-      className="gap-1.5"
-      accessible
-      accessibilityLabel={`${label}: ${value === null ? "нет данных" : formatMinutes(value)}`}
-    >
+    <View className="gap-1.5" accessible accessibilityLabel={t.dayValue(label, text)}>
       <View className="flex-row items-center justify-between">
         <AppText
           variant="caption"
@@ -93,7 +97,7 @@ function ScaleRow({
           {label}
         </AppText>
         <AppText variant="label" tone={value === null ? "subtle" : "default"}>
-          {value === null ? "нет данных" : formatMinutes(value)}
+          {text}
         </AppText>
       </View>
       <View className="h-3 justify-center">
@@ -116,18 +120,22 @@ function ScaleRow({
 
 function DeltaBadge({
   percent,
-  suffix,
+  describe,
   sameText,
 }: {
   percent: number;
-  suffix: string;
+  /** Puts the signed change into words: "−20% к вчера". */
+  describe: (change: string) => string;
   /** Shown when the change rounds to 0%. */
   sameText: string;
 }) {
   const { colors } = useThemeColors();
+  const t = useT().stats;
   const better = percent < 0;
   const same = percent === 0;
-  const text = same ? sameText : `${better ? "−" : "+"}${Math.abs(percent)}% ${suffix}`;
+  const text = same
+    ? sameText
+    : describe(t.comparison.change(better ? "−" : "+", Math.abs(percent)));
   return (
     <View
       className={cn(

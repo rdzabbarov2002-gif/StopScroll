@@ -11,27 +11,37 @@ import { CardLabel } from "../components/CardLabel";
 import { ProgressBar } from "../components/ProgressBar";
 import { Screen } from "../components/Screen";
 import { useApp } from "../context/AppContext";
+import { m, useT } from "../i18n";
 import { evaluateAchievements, type AchievementStatus } from "../utils/achievements";
-import { formatDate, formatMinutes, pluralize } from "../utils/date";
+import { formatDate, formatMinutes } from "../utils/date";
 import { useThemeColors } from "../utils/theme";
 import { useNow } from "../utils/useNow";
-
-const ACHIEVEMENT_FORMS = ["достижение", "достижения", "достижений"] as const;
 
 /** "12 из 20 раз", "35 мин из 1 ч". */
 export function progressLabel(status: AchievementStatus): string {
   const { unit } = status.achievement;
+  const messages = m().achievements.progress;
   if (unit.kind === "minutes") {
-    return `${formatMinutes(status.current)} из ${formatMinutes(status.target)}`;
+    return messages.minutes(formatMinutes(status.current), formatMinutes(status.target));
   }
   if (unit.kind === "count") {
-    return `${status.current} из ${status.target} ${pluralize(status.target, unit.forms)}`;
+    return messages.count(status.current, status.target, unit.forms);
   }
-  return "Ещё впереди";
+  return messages.once;
+}
+
+/** The progress inside a sentence, kept on one line: "ещё впереди", "12 из 20 раз". */
+function inlineProgress(status: AchievementStatus): string {
+  const label =
+    status.achievement.unit.kind === "once"
+      ? m().achievements.progress.onceInline
+      : progressLabel(status);
+  return label.replace(/ /g, "\u00A0");
 }
 
 export function AchievementsScreen() {
   const { colors } = useThemeColors();
+  const t = useT().achievements;
   const app = useApp();
   const now = useNow(60_000);
   const [selected, setSelected] = useState<AchievementStatus | null>(null);
@@ -63,13 +73,13 @@ export function AchievementsScreen() {
 
   return (
     <Screen>
-      <BackButton label="Назад" />
+      <BackButton label={t.back} />
       <AppText variant="title" accessibilityRole="header" className="px-1 pb-1">
-        Достижения
+        {t.title}
       </AppText>
 
       <Card>
-        <CardLabel icon="trophy" label="Получено" color={colors.warning} />
+        <CardLabel icon="trophy" label={t.earned} color={colors.warning} />
         <View className="mt-2 flex-row items-baseline gap-1.5">
           <AppText
             rounded
@@ -79,19 +89,17 @@ export function AchievementsScreen() {
             {earned.length}
           </AppText>
           <AppText className="text-[17px] font-semibold" style={{ color: colors.warning }}>
-            из {statuses.length}
+            {t.ofTotal(statuses.length)}
           </AppText>
         </View>
         <ProgressBar progress={earned.length / statuses.length} tone="warning" className="mt-2" />
         <AppText variant="caption" tone="muted" className="mt-3">
-          {next
-            ? `Ближе всего: «${next.title}» — ${progressLabel(next).toLowerCase().replace(/ /g, "\u00A0")}.`
-            : "Вы собрали все достижения. Лента вам больше не хозяйка."}
+          {next ? t.closest(next.title, inlineProgress(next)) : t.allEarned}
         </AppText>
       </Card>
 
       {earned.length > 0 ? (
-        <Section title={`${earned.length} ${pluralize(earned.length, ACHIEVEMENT_FORMS)}`}>
+        <Section title={t.earnedCount(earned.length)}>
           {earned.map((status) => (
             <AchievementTile
               key={status.achievement.id}
@@ -104,7 +112,7 @@ export function AchievementsScreen() {
       ) : null}
 
       {ahead.length > 0 ? (
-        <Section title="Впереди">
+        <Section title={t.ahead}>
           {ahead.map((status) => (
             <AchievementTile
               key={status.achievement.id}
@@ -148,6 +156,7 @@ function AchievementTile({
   onPress: () => void;
 }) {
   const { colors } = useThemeColors();
+  const t = useT().achievements;
   const { achievement } = status;
   const unlocked = earnedAt !== null;
   return (
@@ -155,7 +164,7 @@ function AchievementTile({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`${status.title}. ${achievement.description} ${
-        unlocked ? `Получено ${formatDate(earnedAt)}` : progressLabel(status)
+        unlocked ? t.earnedOn(formatDate(earnedAt)) : progressLabel(status)
       }`}
       className="min-w-[45%] flex-1 gap-2.5 rounded-card bg-card p-4 active:opacity-80 dark:bg-ink-900"
     >
@@ -219,6 +228,7 @@ function AchievementDetail({
   earnedAt: number | null;
 }) {
   const { colors } = useThemeColors();
+  const t = useT().achievements;
   const { achievement } = status;
   const unlocked = earnedAt !== null;
   return (
@@ -233,12 +243,12 @@ function AchievementDetail({
       <AppText className="text-center">{achievement.description}</AppText>
       {unlocked ? (
         <AppText variant="label" style={{ color: toneColor(achievement.tone, colors) }}>
-          Получено {formatDate(earnedAt)}
+          {t.earnedOn(formatDate(earnedAt))}
         </AppText>
       ) : (
         <View className="w-full gap-2">
           <Card className="gap-1">
-            <AppText variant="label">Как получить</AppText>
+            <AppText variant="label">{t.howToEarn}</AppText>
             <AppText variant="caption" tone="muted">
               {achievement.hint}
             </AppText>

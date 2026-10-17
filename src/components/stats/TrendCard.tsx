@@ -4,6 +4,7 @@ import { View } from "react-native";
 
 import { useApp } from "../../context/AppContext";
 import { usePro } from "../../context/ProContext";
+import { useT } from "../../i18n";
 import {
   WEEKDAYS_SHORT,
   formatDayShort,
@@ -26,6 +27,7 @@ const MINUTE_STEPS = [30, 60, 90, 120, 180, 240, 300, 360, 480, 600, 720];
 type Range = "short" | "long";
 
 export function TrendCard() {
+  const t = useT().stats;
   const navigation = useNavigation();
   const { colors, chart } = useThemeColors();
   const { scrollLog, todayKey, settings } = useApp();
@@ -53,18 +55,21 @@ export function TrendCard() {
       key: point.key,
       value: point.minutes,
       label,
-      a11y: `${describe(point.key)}: ${point.minutes === null ? "нет записи" : formatMinutes(point.minutes)}`,
+      a11y: t.dayValue(
+        describe(point.key),
+        point.minutes === null ? t.noEntry : formatMinutes(point.minutes),
+      ),
     };
   });
 
   return (
     <Card className="gap-4">
-      <CardLabel icon="phone-portrait" label="Время в ленте" color={colors.primary} />
+      <CardLabel icon="phone-portrait" label={t.trend.label} color={colors.primary} />
 
       <SegmentedControl
         options={[
-          { value: "short", label: `${FREE_TREND_DAYS} дней` },
-          { value: "long", label: `${PRO_TREND_DAYS} дней`, locked: !isPro },
+          { value: "short", label: t.trend.days(FREE_TREND_DAYS) },
+          { value: "long", label: t.trend.days(PRO_TREND_DAYS), locked: !isPro },
         ]}
         value={range === "long" && isPro ? "long" : "short"}
         onChange={(value) => {
@@ -79,11 +84,11 @@ export function TrendCard() {
       <View className="flex-row items-end justify-between gap-3">
         <View className="shrink">
           <AppText variant="overline" tone="subtle">
-            В среднем
+            {t.trend.average}
           </AppText>
           {average === null ? (
             <AppText variant="statement" tone="muted">
-              Пока нет записей
+              {t.trend.empty}
             </AppText>
           ) : (
             <View className="flex-row flex-wrap items-baseline gap-x-1">
@@ -98,7 +103,7 @@ export function TrendCard() {
                 </View>
               ))}
               <AppText variant="heading" tone="subtle">
-                в день
+                {t.trend.perDay}
               </AppText>
             </View>
           )}
@@ -108,7 +113,7 @@ export function TrendCard() {
             {describe(selected.key)}
           </AppText>
           <AppText variant="label" tone="primary">
-            {selected.minutes === null ? "нет записи" : formatMinutes(selected.minutes)}
+            {selected.minutes === null ? t.noEntry : formatMinutes(selected.minutes)}
           </AppText>
         </View>
       </View>
@@ -117,7 +122,7 @@ export function TrendCard() {
         data={data}
         highlightKey={selected.key}
         onSelect={setSelectedKey}
-        reference={{ value: limit, label: `лимит ${formatMinutes(limit)}` }}
+        reference={{ value: limit, label: t.limitLine(formatMinutes(limit)) }}
         formatTick={formatMinutesCompact}
         niceSteps={MINUTE_STEPS}
         colorFor={(datum, highlighted) =>

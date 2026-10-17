@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Animated, Easing, Modal, Platform, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
+import { useT } from "../../i18n";
 import type { Achievement } from "../../utils/achievements";
 import { formatDate } from "../../utils/date";
 import { haptics } from "../../utils/haptics";
@@ -50,6 +51,7 @@ export function AchievementUnlock({
   onOpenAll: () => void;
 }) {
   const { colors } = useThemeColors();
+  const t = useT().achievements.unlock;
   const [pop] = useState(() => new Animated.Value(0));
   const [spin] = useState(() => new Animated.Value(0));
   const [burst] = useState(() => new Animated.Value(0));
@@ -223,7 +225,7 @@ export function AchievementUnlock({
             </View>
 
             <AppText variant="overline" style={{ color }} className="text-center">
-              Новое достижение
+              {t.overline}
             </AppText>
             <AppText
               className="mt-1.5 text-center text-[26px] font-bold leading-[31px] tracking-tight"
@@ -239,8 +241,8 @@ export function AchievementUnlock({
             </AppText>
 
             <View className="mt-5 w-full gap-2">
-              <Button label="Отлично" size="lg" onPress={onClose} />
-              <Button label="Все достижения" variant="secondary" onPress={onOpenAll} />
+              <Button label={t.close} size="lg" onPress={onClose} />
+              <Button label={t.openAll} variant="secondary" onPress={onOpenAll} />
             </View>
           </View>
         </Animated.View>

@@ -11,27 +11,44 @@ import {
 } from "react";
 import { AppState as RNAppState } from "react-native";
 
-import { buildAnalytics, challengeReview } from "../ai/analytics";
-import { AI_CONFIGURED, AI_ERROR_TEXT, AiRequestError, postAi } from "../ai/client";
+import { buildAnalytics, challengeHelped, challengeReview } from "../ai/analytics";
+import { AI_CONFIGURED, AiRequestError, aiErrorText, postAi, type AiErrorKind } from "../ai/client";
+import { isActive } from "../ai/evidence";
 import { buildTimeline, hasHistory, recordsKey } from "../ai/facts";
 import { buildForecast } from "../ai/forecast";
-import { parseChallenge, parseEntryResult, parseMemory, parseQuestions } from "../ai/parse";
-import { ENTRY_BATCH, deepPayload, duplicateAnalysis, entryPayload } from "../ai/payload";
+import { applyDeep } from "../ai/memory";
+import { isRecord, parseChallenge, parseEntryResult, parseQuestions } from "../ai/parse";
+import {
+  ENTRY_BATCH,
+  blindPayload,
+  deepPayload,
+  duplicateOf,
+  entryPayload,
+  translatable,
+  type Reread,
+} from "../ai/payload";
 import { aiReducer, type AiAction } from "../ai/reducer";
-import { challengeFinished, entriesSinceDeep, needsDeep, questionDue } from "../ai/schedule";
+import { disputed, planReview, sameReading } from "../ai/review";
+import { challengeFinished, needsDeep, questionDue } from "../ai/schedule";
 import { createInitialAiState, loadAiState, saveAiState } from "../ai/storage";
 import type { AiAnalytics, AiEntry, AiForecast, AiState, EntryOutcome } from "../ai/types";
+import { getLanguage, m, useLanguage } from "../i18n";
 import { dayKey } from "../utils/date";
 import { createId } from "../utils/persistedState";
 import { useNow } from "../utils/useNow";
 import { useApp } from "./AppContext";
 
-export type AiTask = "entry" | "deep";
+export type AiTask = "entry" | "deep" | "translate";
 
 export interface AiSync {
   status: "idle" | "working" | "error";
   task: AiTask | null;
+  /** What went wrong, in the app's current language. */
   error: string | null;
+}
+
+interface SyncState extends Omit<AiSync, "error"> {
+  error: AiErrorKind | null;
 }
 
 export interface AiContextValue extends AiState {
@@ -65,7 +82,7 @@ export interface AiContextValue extends AiState {
 const AiContext = createContext<AiContextValue | null>(null);
 
 const MINUTE = 60_000;
-const TIMEOUTS: Record<AiTask, number> = { entry: 45_000, deep: 150_000 };
+const TIMEOUTS: Record<AiTask, number> = { entry: 45_000, deep: 150_000, translate: 60_000 };
 /** A failed request waits this long before the next automatic attempt. */
 const RETRY_DELAY = 2 * MINUTE;
 /** While the app is open, whether a deep analysis is due is checked this often (no request). */
@@ -73,14 +90,39 @@ const CHECK_INTERVAL = 30 * MINUTE;
 /** The on-device forecast follows the clock at this pace (and every new record at once). */
 const FORECAST_TICK = 5 * MINUTE;
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
+/** Texts (and characters) per translation request when the memory changes language. */
+const TRANSLATE_CHUNK = 60;
+const TRANSLATE_CHARS = 12_000;
+
+/** Splits the texts into requests of a size the server takes. */
+function chunks(items: readonly string[]): string[][] {
+  const result: string[][] = [];
+  let current: string[] = [];
+  let size = 0;
+  for (const item of items) {
+    if (
+      current.length &&
+      (current.length >= TRANSLATE_CHUNK || size + item.length > TRANSLATE_CHARS)
+    ) {
+      result.push(current);
+      current = [];
+      size = 0;
+    }
+    current.push(item.slice(0, 900));
+    size += item.length;
+  }
+  if (current.length) result.push(current);
+  return result;
+}
+/** Disputed readings the deep analysis settles at once (plus one turning point). */
+const MAX_DISPUTES = 4;
 
 export function AiProvider({ children }: { children: ReactNode }) {
   const app = useApp();
   const [state, dispatch] = useReducer(aiReducer, undefined, createInitialAiState);
   const [hydrated, setHydrated] = useState(false);
-  const [sync, setSync] = useState<AiSync>({ status: "idle", task: null, error: null });
+  const [syncState, setSync] = useState<SyncState>({ status: "idle", task: null, error: null });
+  const language = useLanguage();
 
   // The async engine reads the latest values through refs; `apply` keeps them current
   // immediately, without waiting for the next render.
@@ -160,13 +202,14 @@ export function AiProvider({ children }: { children: ReactNode }) {
   const runRef = useRef<() => Promise<void>>(async () => undefined);
   // Bumped by a reset: an answer to a request sent before it is about erased data and is dropped.
   const generation = useRef(0);
+  const translateFailures = useRef(0);
 
   /** Remembers the failure and comes back by itself once the pause is over. */
   const fail = useCallback((task: AiTask, error: unknown) => {
     const kind = error instanceof AiRequestError ? error.kind : "unusable";
     const delay = kind === "offline" ? MINUTE : RETRY_DELAY;
     retryAt.current = Date.now() + delay;
-    setSync({ status: "error", task, error: AI_ERROR_TEXT[kind] });
+    setSync({ status: "error", task, error: kind });
     if (retryTimer.current) clearTimeout(retryTimer.current);
     retryTimer.current = setTimeout(() => void runRef.current(), delay + 1_000);
   }, []);
@@ -179,7 +222,8 @@ export function AiProvider({ children }: { children: ReactNode }) {
 
   /**
    * One unit of work. On the device: the experiment's result, the next prepared question,
-   * repeated texts. Requests: new entries (light, in batches) and, rarely, the deep analysis.
+   * repeated texts. Requests: translating the memory once after a language change, new entries
+   * (light, in batches) and, rarely, the deep analysis with its independent re-reading.
    * Returns true to continue.
    */
   const step = useCallback(async (): Promise<boolean> => {
@@ -192,20 +236,72 @@ export function AiProvider({ children }: { children: ReactNode }) {
 
     const finished = stateRef.current.challenge;
     if (finished && challengeFinished(finished, dayKey(now))) {
-      apply({ type: "finishChallenge", review: challengeReview(finished, timeline()) });
+      const t = timeline();
+      apply({
+        type: "finishChallenge",
+        review: challengeReview(finished, t),
+        helped: challengeHelped(finished, t),
+      });
     }
     if (questionDue(stateRef.current, now)) apply({ type: "showQuestion", at: now });
 
-    // 1. New entries, oldest first. The same words again reuse the earlier analysis.
+    // 0. The memory was written in another language: translate it once (the light model).
+    const language = getLanguage();
+    const before = stateRef.current;
+    if (before.memory && before.memoryLanguage && before.memoryLanguage !== language) {
+      setSync({ status: "working", task: "translate", error: null });
+      try {
+        const items = translatable(before);
+        const translations: Record<string, string> = {};
+        let offset = 0;
+        for (const chunk of chunks(items)) {
+          const raw = await postAi("/translate", { texts: chunk }, TIMEOUTS.translate);
+          const texts = isRecord(raw) && Array.isArray(raw.texts) ? raw.texts : [];
+          if (texts.length !== chunk.length) throw new AiRequestError("unusable");
+          texts.forEach((value, at) => {
+            if (typeof value === "string" && value.trim()) {
+              translations[items[offset + at]!] = value.trim();
+            }
+          });
+          offset += chunk.length;
+        }
+        // The language changed again meanwhile: start over with the new one.
+        if (!current() || getLanguage() !== language) return current();
+        apply({
+          type: "translated",
+          language,
+          translations,
+          yesNo: [m().ai.yes, m().ai.no],
+        });
+        return true;
+      } catch (error) {
+        if (!current()) return false;
+        // The translation must never hold up the analysis: after a few failures (or at once if
+        // the server has no such route) the memory stays as it is and the next deep analysis
+        // rewrites it in the new language.
+        translateFailures.current += 1;
+        const kind = error instanceof AiRequestError ? error.kind : "unusable";
+        if (kind === "server" || translateFailures.current >= 3) {
+          translateFailures.current = 0;
+          apply({ type: "translated", language, translations: {}, yesNo: [m().ai.yes, m().ai.no] });
+          return true;
+        }
+        fail("translate", error);
+        return false;
+      }
+    }
+
+    // 1. New entries, oldest first. The same words again reuse the earlier reading.
     for (const item of [...stateRef.current.entries].reverse()) {
       if (item.status !== "pending") continue;
-      const reused = duplicateAnalysis(item, stateRef.current.entries);
-      if (reused) {
+      const source = duplicateOf(item, stateRef.current.entries);
+      if (source?.analysis) {
         apply({
           type: "entryAnalyzed",
           id: item.id,
-          analysis: { ...reused, analyzedAt: now },
+          analysis: { ...source.analysis, analyzedAt: now },
           votes: [],
+          reading: source.reading ? { ...source.reading, votes: [], at: now } : undefined,
         });
       }
     }
@@ -219,15 +315,21 @@ export function AiProvider({ children }: { children: ReactNode }) {
       try {
         const raw = await postAi(
           "/entry",
-          entryPayload(batch, ai.memory, ai.entries),
+          entryPayload(batch, ai.memory, ai.entries, now),
           TIMEOUTS.entry,
         );
         if (!current()) return false;
         const at = Date.now();
         const results = (isRecord(raw) && Array.isArray(raw.results) ? raw.results : [])
-          .map((item) => parseEntryResult(item, at))
+          .map((item) => {
+            const n = isRecord(item) && typeof item.n === "number" ? item.n : 0;
+            return parseEntryResult(item, at, batch[n - 1]?.text.trim().length);
+          })
           .filter((item) => item !== null);
         if (!results.length) throw new AiRequestError("unusable");
+        const known = new Set(
+          (ai.memory?.beliefs ?? []).filter(isActive).map((belief) => belief.id),
+        );
         batch.forEach((item, index) => {
           const result = results.find((value) => value.n === index + 1);
           apply(
@@ -236,7 +338,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
                   type: "entryAnalyzed",
                   id: item.id,
                   analysis: result.analysis,
-                  votes: result.votes,
+                  votes: result.votes.filter((vote) => known.has(vote.id)),
                 }
               : { type: "entryFailed", id: item.id, countAttempt: true },
           );
@@ -256,42 +358,105 @@ export function AiProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // 2. Rarely: the deep analysis rebuilds the long-term memory.
-    const t = timeline();
+    // 2. Rarely: the deep analysis. First a few chosen entries are read again without the
+    // memory; only those where that reading disagrees reach the deep analysis as originals.
     const key = recordsKey(data);
-    if (needsDeep(ai, key, hasHistory(t), now)) {
-      setSync({ status: "working", task: "deep", error: null });
-      const body = deepPayload(ai, t);
-      try {
-        const raw = await postAi("/deep", body, TIMEOUTS.deep);
+    if (!needsDeep(ai, key, hasHistory(timeline()), now)) return false;
+    setSync({ status: "working", task: "deep", error: null });
+    try {
+      const plan = planReview(ai, timeline(), now);
+      if (plan.blind.length) {
+        const sent = plan.blind.map((item) => item.entry);
+        const raw = await postAi("/entry", blindPayload(sent), TIMEOUTS.entry);
         if (!current()) return false;
-        const result = isRecord(raw) ? raw : {};
-        // Votes that came in while the request ran are kept: counts come from the latest memory.
-        const memory = parseMemory(result, stateRef.current.memory);
-        if (!memory) throw new AiRequestError("unusable");
-        const at = Date.now();
+        const results = (isRecord(raw) && Array.isArray(raw.results) ? raw.results : [])
+          .map((item) => parseEntryResult(item, now))
+          .filter((item) => item !== null);
         apply({
-          type: "deepUpdated",
-          // What is answered or changed while the request runs goes into the next analysis.
+          type: "blindChecked",
           at: now,
-          recordsKey: key,
-          sentEntryIds: entriesSinceDeep(ai).map((item) => item.id),
-          sentAnswerIds: ai.answers
-            .filter((answer) => !answer.inMemory)
-            .map((answer) => answer.questionId),
-          sentDeleted: ai.deletedSinceDeep.length,
-          memory,
-          questions: body.policy.questions ? parseQuestions(result.questions) : [],
-          challenge: body.policy.challenge ? parseChallenge(result.challenge, `c-${at}`, at) : null,
+          results: sent.flatMap((entry, index) => {
+            const result = results.find((value) => value.n === index + 1);
+            if (!result || !entry.reading) return [];
+            const blind = {
+              cause: result.analysis.cause,
+              tags: result.analysis.tags,
+              enough: result.analysis.enough,
+            };
+            return [
+              { id: entry.id, blind, agreed: sameReading(entry.reading, entry.analysis, blind) },
+            ];
+          }),
         });
-        return false;
-      } catch (error) {
-        if (!current()) return false;
-        fail("deep", error);
-        return false;
       }
+      const state = stateRef.current;
+      const t = timeline();
+      const rereads: Reread[] = disputed(state)
+        .slice(0, MAX_DISPUTES)
+        .map((entry) => ({ entry, reason: "disputed" as const }));
+      const pivot =
+        plan.pivot && !rereads.some((item) => item.entry.id === plan.pivot!.entry.id)
+          ? state.entries.find((entry) => entry.id === plan.pivot!.entry.id)
+          : undefined;
+      if (pivot) rereads.push({ entry: pivot, reason: "pivot" });
+      const { body, refs, reread, sentIds } = deepPayload(state, t, rereads);
+      const raw = await postAi("/deep", body, TIMEOUTS.deep);
+      if (!current()) return false;
+      // Applied to the latest state: what came in while the request ran is kept.
+      const latest = stateRef.current;
+      const result = applyDeep(latest, raw, {
+        refs,
+        reread,
+        now: Date.now(),
+        month: dayKey(now).slice(0, 7),
+        timeline: buildTimeline({ ...appRef.current, entries: latest.entries, now: Date.now() }),
+      });
+      if (!result) throw new AiRequestError("unusable");
+      const at = Date.now();
+      const record = isRecord(raw) ? raw : {};
+      const active = new Set(result.memory.beliefs.filter(isActive).map((belief) => belief.id));
+      const tips = new Set(
+        result.memory.beliefs
+          .filter((belief) => belief.kind === "tip" && isActive(belief))
+          .map((belief) => belief.id),
+      );
+      const challenge = body.policy.challenge
+        ? parseChallenge(record.challenge, `c-${at}`, at)
+        : null;
+      apply({
+        type: "deepUpdated",
+        // What is answered or changed while the request runs goes into the next analysis.
+        at: now,
+        recordsKey: key,
+        sentEntryIds: sentIds,
+        sentAnswerIds: state.answers
+          .filter((answer) => !answer.inMemory)
+          .map((answer) => answer.questionId),
+        sentDeleted: state.deletedSinceDeep.length,
+        memory: result.memory,
+        language,
+        readIds: rereads.map((item) => item.entry.id),
+        readings: result.readings,
+        pivotKey: pivot && plan.pivot ? plan.pivot.key : null,
+        questions: body.policy.questions
+          ? parseQuestions(record.questions).map((question) => ({
+              ...question,
+              about: question.about && active.has(question.about) ? question.about : null,
+            }))
+          : [],
+        challenge: challenge
+          ? {
+              ...challenge,
+              tipId: challenge.tipId && tips.has(challenge.tipId) ? challenge.tipId : null,
+            }
+          : null,
+      });
+      return false;
+    } catch (error) {
+      if (!current()) return false;
+      fail("deep", error);
+      return false;
     }
-    return false;
   }, [apply, fail]);
 
   // Only one request at a time; a call during a run asks for one more pass.
@@ -325,7 +490,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
   const pendingCount = state.entries.filter((entry) => entry.status === "pending").length;
   useEffect(() => {
     if (enabled) void run();
-  }, [enabled, pendingCount, state.answers.length, state.challenge?.status, run]);
+  }, [enabled, pendingCount, state.answers.length, state.challenge?.status, language, run]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -353,13 +518,21 @@ export function AiProvider({ children }: { children: ReactNode }) {
     () => buildTimeline({ ...appData, entries: state.entries, now: at }),
     [appData, state.entries, at],
   );
+  // Built in the app's language: a new language rebuilds them at once.
   const forecast = useMemo(
-    () => (enabled ? buildForecast(timeline, state.memory) : null),
-    [enabled, timeline, state.memory],
+    () => (enabled && language ? buildForecast(timeline, state.memory) : null),
+    [enabled, timeline, state.memory, language],
   );
   const analytics = useMemo(
-    () => (state.memory ? buildAnalytics(timeline, state.memory) : null),
-    [timeline, state.memory],
+    () => (state.memory && language ? buildAnalytics(timeline, state.memory) : null),
+    [timeline, state.memory, language],
+  );
+  const sync = useMemo<AiSync>(
+    () => ({
+      ...syncState,
+      error: syncState.error && language ? aiErrorText(syncState.error) : null,
+    }),
+    [syncState, language],
   );
   const updatedAt = useMemo(() => {
     const analyzed = state.entries.reduce(
@@ -379,6 +552,12 @@ export function AiProvider({ children }: { children: ReactNode }) {
         status: "pending",
         attempts: 0,
         analysis: null,
+        reading: null,
+        past: [],
+        reads: 0,
+        readAt: null,
+        contested: false,
+        blind: null,
         inMemory: false,
       };
       apply({ type: "addEntry", entry });

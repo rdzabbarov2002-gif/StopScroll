@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { Animated, Platform, View } from "react-native";
 
 import { useApp } from "../context/AppContext";
-import { WIN_FORMS, formatMinutes, pluralize } from "../utils/date";
+import { countOf, useT } from "../i18n";
+import { formatMinutes } from "../utils/date";
 import { computeEquivalents, summarizeWins } from "../utils/stats";
 import { useThemeColors } from "../utils/theme";
 import type { WinEntry } from "../utils/types";
@@ -20,6 +21,8 @@ interface WinCelebrationProps {
 /** "+15 мин спасено" — shown after an SOS pause or a replacement is counted as a win. */
 export function WinCelebration({ win, onDone, onUndo }: WinCelebrationProps) {
   const { colors } = useThemeColors();
+  const t = useT();
+  const text = t.replacements.win;
   const { wins, winArchive, todayKey } = useApp();
   const summary = summarizeWins(wins, winArchive, todayKey);
   const sleep = computeEquivalents(summary.totalMinutes).find(
@@ -45,28 +48,28 @@ export function WinCelebration({ win, onDone, onUndo }: WinCelebrationProps) {
           </View>
         </Animated.View>
         <AppText variant="overline" className="text-emerald-600 dark:text-emerald-400">
-          Импульс побеждён
+          {text.overline}
         </AppText>
         <AppText variant="display" className="text-center text-5xl" accessibilityRole="header">
           +{formatMinutes(win.minutesSaved)}
         </AppText>
         <AppText tone="muted" className="text-center">
-          спасено у ленты. Мозг получил честный дофамин — от выбора, а не от скролла.
+          {text.saved}
         </AppText>
       </View>
 
       <Card className="gap-3">
         <Row
-          label="Сегодня"
-          value={`${formatMinutes(summary.todayMinutes)} · ${summary.todayWins} ${pluralize(summary.todayWins, WIN_FORMS)}`}
+          label={text.today}
+          value={`${formatMinutes(summary.todayMinutes)} · ${countOf(summary.todayWins, t.common.units.wins)}`}
         />
-        <Row label="Всего спасено" value={formatMinutes(summary.totalMinutes)} />
-        {sleep && sleep.value > 0 ? <Row label="Это уже" value={sleep.label} /> : null}
+        <Row label={text.total} value={formatMinutes(summary.totalMinutes)} />
+        {sleep && sleep.value > 0 ? <Row label={text.already} value={sleep.label} /> : null}
       </Card>
 
       <View className="gap-2">
-        <Button label="Вернуться" size="lg" icon="checkmark" onPress={onDone} />
-        <Button label="Отменить запись" variant="ghost" onPress={onUndo} />
+        <Button label={text.back} size="lg" icon="checkmark" onPress={onDone} />
+        <Button label={text.undo} variant="ghost" onPress={onUndo} />
       </View>
     </View>
   );

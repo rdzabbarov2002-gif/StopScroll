@@ -1,3 +1,4 @@
+import { m } from "../i18n";
 import { addDays } from "../utils/date";
 import type { CoachLogEntry, RiskLevel } from "../utils/types";
 import { type Advice, type AdviceOutcome, chooseAdvice, getAdviceRule } from "./advice";
@@ -13,17 +14,7 @@ import {
 } from "./history";
 import { type Insight, buildInsights } from "./insights";
 import { type ReplacementPick, pickReplacement } from "./replacement";
-import {
-  DAY_WORD_FORMS,
-  SLIP_FORMS,
-  capitalize,
-  count,
-  genitiveNumber,
-  greeting,
-  minutes,
-  variant,
-  weekday,
-} from "./language";
+import { greeting, minutes, variant } from "./language";
 import {
   findCalmWeekday,
   findHardWeekday,
@@ -63,6 +54,7 @@ interface Evidence {
 /** Signals for and against a hard day, each a sentence built from the records. */
 function riskEvidence(history: History): Evidence[] {
   const evidence: Evidence[] = [];
+  const t = m().coach.briefing.risk;
   const today = history.byKey.get(history.todayKey)!;
   const limit = history.settings.dailyLimitMinutes;
   const todayIndex = today.weekday;
@@ -71,63 +63,57 @@ function riskEvidence(history: History): Evidence[] {
   if (hard?.index === todayIndex) {
     evidence.push({
       points: 2,
-      text: `${capitalize(weekday(todayIndex, "dativePlural"))} у тебя чаще всего бывают трудные дни: ${hard.bad} из последних ${genitiveNumber(hard.active)} ${weekday(todayIndex, "genitivePlural")}.`,
+      text: t.hardWeekday(todayIndex, hard.bad, hard.active),
     });
   }
   const calm = findCalmWeekday(history);
   if (calm?.index === todayIndex) {
     evidence.push({
       points: -1,
-      text: `${capitalize(weekday(todayIndex, "accusative"))} срывы обычно случаются редко: трудных дней — ${calm.bad} из последних ${genitiveNumber(calm.active)}.`,
+      text: t.calmWeekday(todayIndex, calm.bad, calm.active),
     });
   }
 
   const lastThree = lastDays(history, 3, 1);
   const recentSlips = lastThree.reduce((sum, day) => sum + day.slips.length, 0);
   if (recentSlips >= 2) {
-    evidence.push({
-      points: 2,
-      text: `За последние три дня было ${count(recentSlips, SLIP_FORMS)} — импульсы сейчас сильнее обычного.`,
-    });
+    evidence.push({ points: 2, text: t.recentSlips(recentSlips) });
   } else if (recentSlips === 1) {
-    evidence.push({ points: 1, text: "За последние три дня был один срыв." });
+    evidence.push({ points: 1, text: t.oneRecentSlip });
   }
 
   const yesterday = history.byKey.get(addDays(history.todayKey, -1));
   if (yesterday?.scroll !== null && yesterday?.scroll !== undefined && yesterday.scroll > limit) {
     evidence.push({
       points: 1,
-      text: `Вчера лента заняла ${minutes(yesterday.scroll)} — больше лимита в ${minutes(limit)}.`,
+      text: t.yesterdayOver(minutes(yesterday.scroll), minutes(limit)),
     });
   }
 
   if (today.scroll !== null && today.scroll > limit) {
     evidence.push({
       points: 3,
-      text: `Сегодня лимит уже исчерпан: ${minutes(today.scroll)} из ${minutes(limit)}.`,
+      text: t.todayOver(minutes(today.scroll), minutes(limit)),
     });
   } else if (today.slips.length > 0) {
-    evidence.push({ points: 1, text: "Сегодня уже был срыв." });
+    evidence.push({ points: 1, text: t.todaySlip });
   }
 
   const streak = streaks(history).current;
   if (streak >= 3) {
-    evidence.push({
-      points: -1,
-      text: `${capitalize(count(streak, DAY_WORD_FORMS))} подряд ты держишься в пределах лимита.`,
-    });
+    evidence.push({ points: -1, text: t.streak(streak) });
   }
 
   const trend = weekScrollTrend(history);
   if (trend && trend.change >= 20) {
     evidence.push({
       points: 1,
-      text: `Последняя неделя тяжелее предыдущей: в среднем ${minutes(trend.recent)} ленты в день против ${minutes(trend.previous)}.`,
+      text: t.heavierWeek(minutes(trend.recent), minutes(trend.previous)),
     });
   } else if (trend && trend.change <= -20) {
     evidence.push({
       points: -1,
-      text: `Последняя неделя легче предыдущей: в среднем ${minutes(trend.recent)} ленты в день против ${minutes(trend.previous)}.`,
+      text: t.lighterWeek(minutes(trend.recent), minutes(trend.previous)),
     });
   }
   return evidence;
@@ -153,17 +139,9 @@ export function adviceOutcome(history: History, entry: CoachLogEntry): AdviceOut
 }
 
 function memoryLine(history: History, outcome: AdviceOutcome | null, focus: string | undefined) {
-  if (outcome === "worked") {
-    return focus === "evening"
-      ? "Вчерашний совет сработал: вечер прошёл без срывов."
-      : "Вчерашний совет сработал: день прошёл без срывов и в пределах лимита.";
-  }
-  if (outcome === "missed") {
-    return variant(`${history.todayKey}:missed`, [
-      "Вчера не получилось — это нормально. Сегодня попробуем зайти с другой стороны.",
-      "Вчерашний совет не сработал, и это тоже полезно знать. Сегодня — другой подход.",
-    ]);
-  }
+  const t = m().coach.briefing.memory;
+  if (outcome === "worked") return focus === "evening" ? t.workedEvening : t.workedDay;
+  if (outcome === "missed") return variant(`${history.todayKey}:missed`, t.missed);
   return null;
 }
 
@@ -188,10 +166,8 @@ export function buildBriefing(input: CoachInput, isPro = false): DailyBriefing {
       riskReason = supporting[0].text;
     } else {
       const weekSlips = slipsWithin(history, 7).length;
-      riskReason =
-        weekSlips === 0
-          ? "За последнюю неделю не было ни одного срыва."
-          : `Явных сигналов риска сегодня нет: за неделю ${count(weekSlips, SLIP_FORMS)}, без серий подряд.`;
+      const t = m().coach.briefing.risk;
+      riskReason = weekSlips === 0 ? t.calmWeek : t.noSignals(weekSlips);
     }
   }
 

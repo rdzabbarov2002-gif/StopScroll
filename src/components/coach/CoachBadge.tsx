@@ -1,12 +1,14 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { View } from "react-native";
 
+import { useT } from "../../i18n";
 import { useThemeColors } from "../../utils/theme";
 import { AppText } from "../AppText";
 
 /** "Ваш персональный коуч" — who is speaking in a card. */
 export function CoachBadge({ caption }: { caption?: string }) {
   const { colors } = useThemeColors();
+  const t = useT();
   return (
     <View className="flex-row items-center gap-2.5">
       <View
@@ -18,7 +20,7 @@ export function CoachBadge({ caption }: { caption?: string }) {
       </View>
       <View className="shrink">
         <AppText variant="label" className="text-[15px]" numberOfLines={1}>
-          Ваш персональный коуч
+          {t.coach.ui.badge}
         </AppText>
         {caption ? (
           <AppText

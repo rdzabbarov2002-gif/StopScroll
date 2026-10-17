@@ -22,16 +22,17 @@ export interface FactsInput {
   now: number;
 }
 
+/** Model-facing labels are in English whatever the app's language: the instructions are too. */
 export const WEEKDAYS = [
-  "понедельник",
-  "вторник",
-  "среда",
-  "четверг",
-  "пятница",
-  "суббота",
-  "воскресенье",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
 ] as const;
-const WEEKDAYS_SHORT = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"] as const;
+export const WEEKDAYS_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
 /** Questions at most every three days; an experiment about once a week. */
 export const QUESTION_COOLDOWN_DAYS = 3;
@@ -258,9 +259,11 @@ export function causeCounts(t: Timeline, sinceDays?: number) {
   };
   let items = 0;
   for (const entry of t.input.entries) {
-    if (entry.timestamp < from || !entry.analysis?.tags.length) continue;
+    // The current understanding of each entry: a re-read entry counts with its revised tags.
+    const tags = (entry.reading ?? entry.analysis)?.tags ?? [];
+    if (entry.timestamp < from || !tags.length) continue;
     items += 1;
-    for (const tag of new Set(entry.analysis.tags)) add(tag, entry.timestamp);
+    for (const tag of new Set(tags)) add(tag, entry.timestamp);
   }
   for (const slip of t.input.slips) {
     if (slip.timestamp < from || !slip.trigger || slip.trigger === "other") continue;
@@ -370,7 +373,7 @@ export function deepStats(t: Timeline) {
       wins: t.input.wins.length + t.input.winArchive.count,
     },
     months: {
-      cols: "месяц,дней,трудных,срывов,утро,день,вечер,ночь,записей,открыл,ср.лента мин,трудный день",
+      cols: "month,days,hard,slips,morning,day,evening,night,entries,opened,avgFeedMin,hardestDay",
       rows: monthStats(t).map((month) => [
         month.month,
         month.observed,
@@ -387,7 +390,7 @@ export function deepStats(t: Timeline) {
       ]),
     },
     weeks: {
-      cols: "понедельник,срывов,записей,открыл,трудных,в лимите,с лентой,ср.лента мин",
+      cols: "monday,slips,entries,opened,hardDays,inLimit,feedLogged,avgFeedMin",
       rows: weeks,
     },
     hours: { slips: slipHours, entries: entryHours },
@@ -398,15 +401,110 @@ export function deepStats(t: Timeline) {
       // Calm runs and how many of the three days after each were hard.
       runs: calmRuns(t)
         .slice(-6)
-        .map((run) => `${run.start} ${run.days}д → ${run.hardNext3 ?? "?"}/3`),
+        .map((run) => `${run.start} ${run.days}d → ${run.hardNext3 ?? "?"}/3 hard after`),
     },
     causes: causeCounts(t)
       .causes.slice(0, 15)
       .map(
-        ([name, value]) => `${name} ${value.count} (30д: ${recentCauses.get(name)?.count ?? 0})`,
+        ([name, value]) => `${name} ${value.count} (30d: ${recentCauses.get(name)?.count ?? 0})`,
       ),
     savedMinutes: { total: savedMinutes(t), last30Days: savedMinutes(t, addDays(t.today, -29)) },
+    // Year by year, for "a year ago it was different".
+    years: yearStats(t),
   };
+}
+
+/** Whole years, oldest first: days observed, share of hard days, feed per day, slips per week. */
+export function yearStats(t: Timeline) {
+  const years = [...new Set(t.all.filter(isObserved).map((day) => day.key.slice(0, 4)))].sort();
+  return {
+    cols: "year,days,hardShare%,avgFeedMin,slipsPerWeek,topCause",
+    rows: years.map((year) => {
+      const list = t.all.filter((day) => day.key.startsWith(year) && isObserved(day));
+      const hard = list.filter((day) => isHard(day, t.limit)).length;
+      const slips = list.reduce((sum, day) => sum + day.slips.length, 0);
+      const tags = new Map<string, number>();
+      for (const entry of list.flatMap((day) => day.entries)) {
+        for (const tag of (entry.reading ?? entry.analysis)?.tags ?? []) {
+          tags.set(tag, (tags.get(tag) ?? 0) + 1);
+        }
+      }
+      const top = [...tags.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+      return [
+        year,
+        list.length,
+        list.length ? Math.round((hard / list.length) * 100) : null,
+        average(list.filter((day) => day.feed !== null).map((day) => day.feed!)),
+        list.length ? Math.round((slips / list.length) * 7 * 10) / 10 : null,
+        top,
+      ] as const;
+    }),
+  };
+}
+
+export interface Pivot {
+  /** Stable, so a turning point is examined once. */
+  key: string;
+  day: string;
+  kind: "shift" | "record" | "relapse";
+}
+
+/**
+ * Turning points in behavior, found from the records alone (not from any model's reading):
+ * a clear shift in the share of hard days between three-week windows, the start of a record
+ * calm run, and a relapse right after a long calm run. Their entries are worth re-reading.
+ */
+export function pivots(t: Timeline): Pivot[] {
+  const found: Pivot[] = [];
+  const thisMonday = addDays(t.today, -weekdayIndex(t.today));
+  const weeks = Array.from({ length: 30 }, (_, index) => addDays(thisMonday, -7 * (29 - index)))
+    .map((monday) => {
+      const list = Array.from({ length: 7 }, (__, offset) =>
+        t.days.get(addDays(monday, offset)),
+      ).filter((day): day is Day => day !== undefined && isObserved(day) && day.key < t.today);
+      return {
+        monday,
+        observed: list.length,
+        rate: list.length ? list.filter((day) => isHard(day, t.limit)).length / list.length : 0,
+      };
+    })
+    .filter((week) => week.observed >= 3);
+  const deltas = weeks.map((week, index) => {
+    const before = weeks.slice(Math.max(0, index - 3), index);
+    const after = weeks.slice(index, index + 3);
+    if (before.length < 2 || after.length < 2) return 0;
+    const mean = (list: typeof weeks) =>
+      list.reduce((sum, item) => sum + item.rate, 0) / list.length;
+    return mean(after) - mean(before);
+  });
+  deltas.forEach((delta, index) => {
+    const around = deltas.slice(Math.max(0, index - 2), index + 3).map(Math.abs);
+    if (Math.abs(delta) >= 0.25 && Math.abs(delta) === Math.max(...around)) {
+      found.push({
+        key: `shift:${weeks[index]!.monday}`,
+        day: weeks[index]!.monday,
+        kind: "shift",
+      });
+    }
+  });
+  const runs = calmRuns(t);
+  const best = Math.max(0, ...runs.map((run) => run.days));
+  for (const run of runs) {
+    if (run.days >= Math.max(5, Math.ceil(best * 0.8))) {
+      found.push({ key: `record:${run.start}`, day: run.start, kind: "record" });
+    }
+    if (run.days >= 5 && run.hardNext3 !== null && run.hardNext3 >= 1) {
+      const day = [1, 2, 3]
+        .map((offset) => addDays(run.end, offset))
+        .find((key) => {
+          const record = t.days.get(key);
+          return record !== undefined && isHard(record, t.limit);
+        });
+      if (day) found.push({ key: `relapse:${day}`, day, kind: "relapse" });
+    }
+  }
+  const since = addDays(t.today, -365);
+  return found.filter((pivot) => pivot.day >= since).sort((a, b) => (a.day < b.day ? 1 : -1));
 }
 
 export type DeepStats = ReturnType<typeof deepStats>;

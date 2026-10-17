@@ -11,6 +11,7 @@ import { Chip } from "../components/Chip";
 import { Screen } from "../components/Screen";
 import { Stepper } from "../components/Stepper";
 import { useApp } from "../context/AppContext";
+import { useT, type Messages } from "../i18n";
 import { DEMO_MODE } from "../utils/demo";
 import { FEED_APPS } from "../utils/catalog";
 import { cn } from "../utils/cn";
@@ -30,25 +31,17 @@ import type { FeedApp, IconName } from "../utils/types";
 
 const STEPS = 3;
 
-const PROMISES: readonly { icon: IconName; title: string; text: string }[] = [
-  {
-    icon: "hand-left-outline",
-    title: "SOS-пауза на 15 секунд",
-    text: "Дыхание и заземление, пока импульс не ослабнет.",
-  },
-  {
-    icon: "swap-horizontal-outline",
-    title: "Микро-замены",
-    text: "1–3 минуты движения, задачи или факта вместо ленты.",
-  },
-  {
-    icon: "stats-chart-outline",
-    title: "Честная статистика",
-    text: "Сколько времени вы вернули себе — в книгах, сне и прогулках.",
-  },
+const PROMISES: readonly {
+  id: keyof Messages["onboarding"]["promises"];
+  icon: IconName;
+}[] = [
+  { id: "sos", icon: "hand-left-outline" },
+  { id: "replacements", icon: "swap-horizontal-outline" },
+  { id: "stats", icon: "stats-chart-outline" },
 ];
 
 export function OnboardingScreen() {
+  const t = useT();
   const { colors } = useThemeColors();
   const { completeOnboarding, loadDemoData } = useApp();
   const [step, setStep] = useState(0);
@@ -84,7 +77,7 @@ export function OnboardingScreen() {
       <View
         className="flex-row justify-center gap-2 pt-2"
         accessible
-        accessibilityLabel={`Шаг ${step + 1} из ${STEPS}`}
+        accessibilityLabel={t.onboarding.step(step + 1, STEPS)}
       >
         {Array.from({ length: STEPS }, (_, index) => (
           <View
@@ -107,33 +100,29 @@ export function OnboardingScreen() {
               StopScroll
             </AppText>
             <AppText tone="muted" className="text-center text-lg leading-7">
-              Когнитивный анти-скроллинг: перехватываем импульс до того, как лента затянет.
+              {t.onboarding.intro}
             </AppText>
           </View>
           <View className="gap-3">
             {PROMISES.map((item) => (
-              <Card key={item.title} className="flex-row items-center gap-4">
+              <Card key={item.id} className="flex-row items-center gap-4">
                 <View className="h-12 w-12 items-center justify-center rounded-2xl bg-brand-100 dark:bg-brand-900/60">
                   <Ionicons name={item.icon} size={22} color={colors.primary} />
                 </View>
                 <View className="flex-1 gap-0.5">
                   <AppText variant="label" className="text-base">
-                    {item.title}
+                    {t.onboarding.promises[item.id].title}
                   </AppText>
                   <AppText variant="caption" tone="muted">
-                    {item.text}
+                    {t.onboarding.promises[item.id].text}
                   </AppText>
                 </View>
               </Card>
             ))}
           </View>
-          <Button label="Начать" size="lg" icon="arrow-forward" onPress={next} />
+          <Button label={t.onboarding.start} size="lg" icon="arrow-forward" onPress={next} />
           {DEMO_MODE ? (
-            <Button
-              label="Посмотреть с примером данных"
-              variant="secondary"
-              onPress={loadDemoData}
-            />
+            <Button label={t.onboarding.demo} variant="secondary" onPress={loadDemoData} />
           ) : null}
         </>
       ) : null}
@@ -142,15 +131,12 @@ export function OnboardingScreen() {
         <>
           <View className="gap-2 pt-4">
             <AppText variant="overline" tone="primary">
-              Честная точка отсчёта
+              {t.onboarding.baseline.overline}
             </AppText>
             <AppText variant="title" accessibilityRole="header">
-              Сколько времени в день сейчас уходит на ленту?
+              {t.onboarding.baseline.title}
             </AppText>
-            <AppText tone="muted">
-              Примерно — по ощущениям или по «Экранному времени». Это ваш исходный уровень для
-              сравнения.
-            </AppText>
+            <AppText tone="muted">{t.onboarding.baseline.text}</AppText>
           </View>
           <Card className="gap-4">
             <AppText variant="display" className="text-center text-5xl">
@@ -166,12 +152,12 @@ export function OnboardingScreen() {
               minimumTrackTintColor={colors.primary}
               maximumTrackTintColor={colors.ringTrack}
               thumbTintColor={colors.primaryStrong}
-              accessibilityLabel="Минут в ленте в день сейчас"
+              accessibilityLabel={t.onboarding.baseline.slider}
               style={{ height: 40 }}
             />
           </Card>
           <View className="gap-3">
-            <AppText variant="label">Где залипаете чаще всего?</AppText>
+            <AppText variant="label">{t.onboarding.baseline.mainApp}</AppText>
             <View className="flex-row flex-wrap gap-2">
               {FEED_APPS.map((item) => (
                 <Chip
@@ -184,7 +170,12 @@ export function OnboardingScreen() {
               ))}
             </View>
           </View>
-          <Button label="Дальше" size="lg" icon="arrow-forward" onPress={next} />
+          <Button
+            label={t.onboarding.baseline.next}
+            size="lg"
+            icon="arrow-forward"
+            onPress={next}
+          />
         </>
       ) : null}
 
@@ -192,18 +183,16 @@ export function OnboardingScreen() {
         <>
           <View className="gap-2 pt-4">
             <AppText variant="overline" tone="primary">
-              Реалистичная цель
+              {t.onboarding.goal.overline}
             </AppText>
             <AppText variant="title" accessibilityRole="header">
-              Сколько ленты в день — нормально для вас?
+              {t.onboarding.goal.title}
             </AppText>
-            <AppText tone="muted">
-              Не нужно бросать всё сразу. Каждый день в пределах лимита продлевает серию.
-            </AppText>
+            <AppText tone="muted">{t.onboarding.goal.text}</AppText>
           </View>
           <Card className="gap-5">
             <Stepper
-              label="Дневной лимит"
+              label={t.onboarding.goal.limit}
               value={limit}
               min={LIMIT_RANGE.min}
               max={LIMIT_RANGE.max}
@@ -212,8 +201,8 @@ export function OnboardingScreen() {
               onChange={setLimit}
             />
             <Stepper
-              label="Одна «сессия» в ленте"
-              hint="Столько минут засчитаем за каждую победу над импульсом"
+              label={t.onboarding.goal.session}
+              hint={t.onboarding.goal.sessionHint}
               value={session}
               min={SESSION_RANGE.min}
               max={SESSION_RANGE.max}
@@ -223,12 +212,19 @@ export function OnboardingScreen() {
             />
           </Card>
           <AppText variant="caption" tone="muted" className="text-center">
-            Цель — минус {formatMinutes(Math.max(0, baseline - limit))} в день. Это{" "}
-            {formatMinutes(Math.max(0, baseline - limit) * 7)} в неделю, которые вернутся к вам.
+            {t.onboarding.goal.summary(
+              formatMinutes(Math.max(0, baseline - limit)),
+              formatMinutes(Math.max(0, baseline - limit) * 7),
+            )}
           </AppText>
           <View className="gap-2">
-            <Button label="Готово" size="lg" icon="checkmark-circle" onPress={finish} />
-            <Button label="Назад" variant="ghost" onPress={() => setStep(1)} />
+            <Button
+              label={t.onboarding.goal.done}
+              size="lg"
+              icon="checkmark-circle"
+              onPress={finish}
+            />
+            <Button label={t.onboarding.goal.back} variant="ghost" onPress={() => setStep(1)} />
           </View>
         </>
       ) : null}

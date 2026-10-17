@@ -3,6 +3,7 @@ import { useNavigation } from "@react-navigation/native";
 import { Pressable, View } from "react-native";
 
 import type { ProFeature } from "../navigation/types";
+import { useT } from "../i18n";
 import { useThemeColors } from "../utils/theme";
 import { AppText } from "./AppText";
 
@@ -14,13 +15,14 @@ interface LockedCardProps {
 
 /** Placeholder for a Pro-only block; tapping it opens the paywall. */
 export function LockedCard({ title, text, feature }: LockedCardProps) {
+  const t = useT();
   const navigation = useNavigation();
   const { colors } = useThemeColors();
   return (
     <Pressable
       onPress={() => navigation.navigate("Paywall", { feature })}
       accessibilityRole="button"
-      accessibilityLabel={`${title}. Доступно в StopScroll Pro`}
+      accessibilityLabel={t.common.pro.lockedCard(title)}
       className="flex-row items-center gap-4 rounded-card bg-card p-[18px] active:opacity-80 dark:bg-ink-900"
     >
       <View className="h-11 w-11 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-900">

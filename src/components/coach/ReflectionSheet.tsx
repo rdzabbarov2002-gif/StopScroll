@@ -5,6 +5,7 @@ import { TextInput, View } from "react-native";
 import { buildReflection, type Reflection } from "../../coach";
 import { useApp } from "../../context/AppContext";
 import { usePro } from "../../context/ProContext";
+import { useT } from "../../i18n";
 import { useCoachVoice } from "../../services/coachVoice";
 import { REFLECTION_TRIGGERS, getTrigger } from "../../utils/catalog";
 import { haptics } from "../../utils/haptics";
@@ -39,6 +40,7 @@ interface ReflectionSheetProps {
  */
 export function ReflectionSheet({ slip, initialTrigger, onClose }: ReflectionSheetProps) {
   const { colors } = useThemeColors();
+  const t = useT().coach.ui.reflection;
   const navigation = useNavigation();
   const { slips, reflectSlip, customReplacements } = useApp();
   const { isPro } = usePro();
@@ -79,8 +81,8 @@ export function ReflectionSheet({ slip, initialTrigger, onClose }: ReflectionShe
     <BottomSheet
       visible={slip !== null}
       onClose={onClose}
-      title={reply ? "Понимаю" : "Что произошло?"}
-      subtitle={reply ? undefined : "Без оценок — только чтобы понять, что повторяется."}
+      title={reply ? t.replyTitle : t.title}
+      subtitle={reply ? undefined : t.subtitle}
     >
       {reply ? (
         <View className="gap-4">
@@ -95,7 +97,7 @@ export function ReflectionSheet({ slip, initialTrigger, onClose }: ReflectionShe
           <View className="gap-2 pt-1">
             {replacement ? (
               <Button
-                label={`Попробовать: ${replacement.title}`}
+                label={t.tryReplacement(replacement.title)}
                 icon="sparkles-outline"
                 onPress={() => {
                   onClose();
@@ -103,7 +105,7 @@ export function ReflectionSheet({ slip, initialTrigger, onClose }: ReflectionShe
                 }}
               />
             ) : null}
-            <Button label="Спасибо" variant="secondary" onPress={onClose} />
+            <Button label={t.thanks} variant="secondary" onPress={onClose} />
           </View>
         </View>
       ) : (
@@ -128,22 +130,22 @@ export function ReflectionSheet({ slip, initialTrigger, onClose }: ReflectionShe
           <TextInput
             value={note}
             onChangeText={setNote}
-            placeholder="Или своими словами — необязательно"
+            placeholder={t.placeholder}
             placeholderTextColor={colors.textSubtle}
             multiline
             maxLength={MAX_NOTE_LENGTH}
             className="min-h-[72px] rounded-2xl bg-card px-4 py-3 text-[16px] text-black dark:bg-ink-800 dark:text-white"
             style={{ textAlignVertical: "top" }}
-            accessibilityLabel="Что произошло, своими словами"
+            accessibilityLabel={t.noteA11y}
           />
           <View className="gap-2">
             <Button
-              label="Готово"
+              label={t.done}
               size="lg"
               disabled={trigger === null && note.trim() === ""}
               onPress={answer}
             />
-            <Button label="Не сейчас" variant="ghost" onPress={onClose} />
+            <Button label={t.notNow} variant="ghost" onPress={onClose} />
           </View>
         </View>
       )}

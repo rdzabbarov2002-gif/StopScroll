@@ -1,0 +1,117 @@
+import type { Messages } from "./ru";
+
+export const tr: Messages = {
+  units: {
+    replacements: { one: "alternatif", other: "alternatif" },
+    seconds: { one: "saniye", other: "saniye" },
+  },
+
+  a11y: {
+    locked: ", Pro ile kullanılabilir",
+    doneToday: ", bugün yapıldı",
+  },
+
+  close: "Kapat",
+
+  list: {
+    title: "Alternatifler",
+    add: "Kendi alternatifinizi ekleyin",
+    filterAll: "Tümü",
+    filterMine: "Kişisel",
+    pickLabel: "Şu an için uygun",
+    pickForTrigger: (phrase: string, title: string) => `${phrase} şunu deneyin: “${title}”.`,
+    pick: (title: string) => `Akış yerine şunu deneyin: “${title}”.`,
+    triggerPhrase: {
+      boredom: "Can sıkıntısıyla akışa çekildiğinizde",
+      fatigue: "Yorgunlukla akışa çekildiğinizde",
+      stress: "Stresle akışa çekildiğinizde",
+      loneliness: "Yalnızlıkla akışa çekildiğinizde",
+      procrastination: "İşinizi bırakıp akışa çekildiğinizde",
+      autopilot: "Akışı otomatik pilotta açtığınızda",
+      relax: "Rahatlamak için akışa yöneldiğinizde",
+      sleepless: "Uyuyamayıp akışa yöneldiğinizde",
+      other: "",
+    },
+    start: "Başla",
+    emptyTitle: "Henüz boş",
+    emptyPro: "Size enerji veren bir alışkanlık ekleyin: gitar, şınav, kitaptan bir sayfa.",
+    emptyFree: "Kendi alternatifleriniz ve alışkanlıklarınız Pro ile kullanılabilir.",
+    openPro: "Pro’ya geç",
+    catalog: "Katalog",
+    today: (count: string) => `Bugün ${count}`,
+  },
+
+  card: {
+    own: "Kişisel",
+  },
+
+  detail: {
+    notFoundTitle: "Alternatif bulunamadı",
+    notFoundText: "Belki de silmişsinizdir.",
+    lockedTitle: "Bu alternatif StopScroll Pro’da",
+    lockedText: "Tüm kataloğun kilidini açın: daha fazla hareket, görev ve bilgi.",
+    fact: (index: number, total: number) => `Bilgi ${index} / ${total}`,
+    nextFact: "Sonraki bilgi",
+    countWin: (minutes: string) => `Zafer olarak say · +${minutes}`,
+    cancel: "Vazgeç",
+    delete: "Sil",
+    deleteOwn: "Bu alternatifi sil",
+    timer: "Zamanlayıcı",
+    timerDone: "Süre doldu — harika!",
+    secondsLeft: (count: number) => `${count} saniye kaldı`,
+    again: "Tekrar",
+    startTimer: (duration: string) => `Başlat · ${duration}`,
+  },
+
+  custom: {
+    title: "Kendi alternatifiniz",
+    subtitle: "Sizde işe yarayan şey: gitar, şınav, kitaptan bir sayfa.",
+    name: "Ad",
+    namePlaceholder: "Örneğin: 10 şınav",
+    nameA11y: "Alternatifin adı",
+    how: "Nasıl yapılır",
+    howPlaceholder: "İsteğe bağlı: birkaç ipucu kelime",
+    howA11y: "Alternatifin açıklaması, isteğe bağlı",
+    type: "Tür",
+    duration: "Süre",
+    save: "Alternatifi kaydet",
+  },
+
+  intercept: {
+    passed: "Mola tamamlandı",
+    title: "Dürtü zayıfladı mı?",
+    text: "Prefrontal korteksinize devreye girmesi için zaman tanıdınız. Artık seçim algoritmanın değil, sizin.",
+    whatTriggered: "Dürtüyü ne tetikledi?",
+    suggestionsFor: {
+      boredom: "Can sıkıntısı için alternatifler",
+      fatigue: "Yorgunluk için alternatifler",
+      stress: "Stres için alternatifler",
+      loneliness: "Yalnızlık için alternatifler",
+      procrastination: "Erteleme için alternatifler",
+      autopilot: "Otomatik pilot için alternatifler",
+      relax: "Rahatlamak için alternatifler",
+      sleepless: "Uykusuzluk için alternatifler",
+      other: "Diğer durumlar için alternatifler",
+    },
+    suggestionsAny: "Akışı 1–3 dakikalık bir şeyle değiştirin",
+    switched: (minutes: string) => `Başka şeye geçtim · +${minutes}`,
+    more: "15 saniye daha",
+    logSlip: "Akış kazandı — kaçamağı kaydet",
+    pause: "Mola",
+    closePause: "Molayı kapat",
+    heading: "15 saniye sessizlik",
+    wave: "Dürtü bir dalga gibidir. Geçmesine izin verin — telefon bekleyebilir.",
+    phaseA11y: (phase: string, count: number) => `${phase}. ${count} saniye kaldı`,
+    step: (index: number, total: number) => `adım ${index}/${total}`,
+  },
+
+  win: {
+    overline: "Dürtü yenildi",
+    saved: "akıştan kurtarıldı. Beyniniz dürüst dopamini kaydırarak değil, bir seçim yaparak aldı.",
+    today: "Bugün",
+    total: "Toplam kurtarılan",
+    already: "Bu şimdiden",
+    back: "Geri dön",
+    undo: "Kaydı geri al",
+  },
+};

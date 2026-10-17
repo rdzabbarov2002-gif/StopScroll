@@ -5,6 +5,7 @@ import { Keyboard, Pressable, View } from "react-native";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useT } from "../i18n";
 import { cn } from "../utils/cn";
 import { haptics } from "../utils/haptics";
 import { useThemeColors } from "../utils/theme";
@@ -29,6 +30,7 @@ const ICONS: Record<string, { active: IconName; inactive: IconName }> = {
  * separate round button on the right that starts the SOS pause from anywhere.
  */
 export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  const t = useT();
   const insets = useSafeAreaInsets();
   const { colors } = useThemeColors();
   const bottom = Math.max(insets.bottom - 8, 12);
@@ -133,8 +135,8 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
             navigation.getParent()?.navigate("Intercept");
           }}
           accessibilityRole="button"
-          accessibilityLabel="SOS-пауза"
-          accessibilityHint="Открывает 15-секундную паузу с дыханием, чтобы импульс ослаб"
+          accessibilityLabel={t.common.sos.label}
+          accessibilityHint={t.common.sos.hint}
           className="items-center justify-center rounded-full active:opacity-80"
           style={{
             width: SOS_SIZE,

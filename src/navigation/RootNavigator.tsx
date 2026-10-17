@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useApp } from "../context/AppContext";
 import { AchievementsScreen } from "../screens/AchievementsScreen";
 import { InterceptScreen } from "../screens/InterceptScreen";
+import { LanguageScreen } from "../screens/LanguageScreen";
 import { OnboardingScreen } from "../screens/OnboardingScreen";
 import { PaywallScreen } from "../screens/PaywallScreen";
 import { PrivacyScreen } from "../screens/PrivacyScreen";
@@ -59,10 +60,20 @@ export function RootNavigator() {
             component={AchievementsScreen}
             options={{ animation: "slide_from_right" }}
           />
+          <Stack.Screen
+            name="Language"
+            component={LanguageRoute}
+            options={{ animation: "slide_from_right" }}
+          />
         </>
       ) : (
         <Stack.Screen name="Onboarding" component={OnboardingScreen} />
       )}
     </Stack.Navigator>
   );
+}
+
+/** From Settings: confirming re-creates the app in the new language without the picker on top. */
+function LanguageRoute() {
+  return <LanguageScreen />;
 }
