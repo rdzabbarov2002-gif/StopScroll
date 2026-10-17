@@ -27,12 +27,12 @@ import {
   translatable,
   type Reread,
 } from "../ai/payload";
-import { aiReducer, type AiAction } from "../ai/reducer";
+import { aiReducer, deletedRecord, type AiAction } from "../ai/reducer";
 import { disputed, planReview, sameReading } from "../ai/review";
 import { challengeFinished, needsDeep, questionDue } from "../ai/schedule";
 import { createInitialAiState, loadAiState, saveAiState } from "../ai/storage";
 import type { AiAnalytics, AiEntry, AiForecast, AiState, EntryOutcome } from "../ai/types";
-import { getLanguage, m, useLanguage } from "../i18n";
+import { getLanguage, m, useLanguage, type LanguageCode } from "../i18n";
 import { dayKey } from "../utils/date";
 import { createId } from "../utils/persistedState";
 import { useNow } from "../utils/useNow";
@@ -202,7 +202,13 @@ export function AiProvider({ children }: { children: ReactNode }) {
   const runRef = useRef<() => Promise<void>>(async () => undefined);
   // Bumped by a reset: an answer to a request sent before it is about erased data and is dropped.
   const generation = useRef(0);
-  const translateFailures = useRef(0);
+  /** A translation in progress: what is already translated, and when to try again. */
+  const translation = useRef<{
+    language: LanguageCode | null;
+    done: Record<string, string>;
+    retryAt: number;
+    failures: number;
+  }>({ language: null, done: {}, retryAt: 0, failures: 0 });
 
   /** Remembers the failure and comes back by itself once the pause is over. */
   const fail = useCallback((task: AiTask, error: unknown) => {
@@ -245,63 +251,64 @@ export function AiProvider({ children }: { children: ReactNode }) {
     }
     if (questionDue(stateRef.current, now)) apply({ type: "showQuestion", at: now });
 
-    // 0. The memory was written in another language: translate it once (the light model).
+    // 0. The memory was written in another language: translate it (the light model). It never
+    // holds up the analysis: on failure it is tried again later, keeping what was translated.
     const language = getLanguage();
     const before = stateRef.current;
-    if (before.memory && before.memoryLanguage && before.memoryLanguage !== language) {
+    if (
+      before.memory &&
+      before.memoryLanguage &&
+      before.memoryLanguage !== language &&
+      now >= translation.current.retryAt
+    ) {
+      if (translation.current.language !== language) {
+        translation.current = { language, done: {}, retryAt: 0, failures: 0 };
+      }
+      const done = translation.current.done;
       setSync({ status: "working", task: "translate", error: null });
       try {
-        const items = translatable(before);
-        const translations: Record<string, string> = {};
-        let offset = 0;
-        for (const chunk of chunks(items)) {
+        for (const chunk of chunks(
+          translatable(before).filter((item) => !Object.hasOwn(done, item)),
+        )) {
+          // Turned off, reset or another language meanwhile: nothing more is sent.
+          if (!current() || getLanguage() !== language) return current();
           const raw = await postAi("/translate", { texts: chunk }, TIMEOUTS.translate);
           const texts = isRecord(raw) && Array.isArray(raw.texts) ? raw.texts : [];
           if (texts.length !== chunk.length) throw new AiRequestError("unusable");
-          texts.forEach((value, at) => {
-            if (typeof value === "string" && value.trim()) {
-              translations[items[offset + at]!] = value.trim();
-            }
+          chunk.forEach((original, at) => {
+            const value = texts[at];
+            done[original] = typeof value === "string" && value.trim() ? value.trim() : original;
           });
-          offset += chunk.length;
         }
-        // The language changed again meanwhile: start over with the new one.
         if (!current() || getLanguage() !== language) return current();
-        apply({
-          type: "translated",
-          language,
-          translations,
-          yesNo: [m().ai.yes, m().ai.no],
-        });
+        apply({ type: "translated", language, translations: done, yesNo: [m().ai.yes, m().ai.no] });
+        translation.current = { language: null, done: {}, retryAt: 0, failures: 0 };
         return true;
-      } catch (error) {
+      } catch {
         if (!current()) return false;
-        // The translation must never hold up the analysis: after a few failures (or at once if
-        // the server has no such route) the memory stays as it is and the next deep analysis
-        // rewrites it in the new language.
-        translateFailures.current += 1;
-        const kind = error instanceof AiRequestError ? error.kind : "unusable";
-        if (kind === "server" || translateFailures.current >= 3) {
-          translateFailures.current = 0;
-          apply({ type: "translated", language, translations: {}, yesNo: [m().ai.yes, m().ai.no] });
-          return true;
-        }
-        fail("translate", error);
-        return false;
+        const failures = translation.current.failures + 1;
+        // 2 minutes, then 10, 30, … up to 6 hours.
+        const wait = Math.min(6 * 60, 2 * 5 ** Math.min(failures - 1, 3)) * MINUTE;
+        translation.current = { ...translation.current, failures, retryAt: Date.now() + wait };
+        setSync({ status: "idle", task: null, error: null });
+        return true;
       }
     }
 
     // 1. New entries, oldest first. The same words again reuse the earlier reading.
     for (const item of [...stateRef.current.entries].reverse()) {
       if (item.status !== "pending") continue;
-      const source = duplicateOf(item, stateRef.current.entries);
+      const source = duplicateOf(item, stateRef.current.entries, language);
       if (source?.analysis) {
         apply({
           type: "entryAnalyzed",
           id: item.id,
           analysis: { ...source.analysis, analyzedAt: now },
           votes: [],
-          reading: source.reading ? { ...source.reading, votes: [], at: now } : undefined,
+          // A first reading of its own: never checked, whatever happened to the earlier one.
+          reading: source.reading
+            ? { ...source.reading, votes: [], at: now, by: "entry", check: "none" }
+            : undefined,
         });
       }
     }
@@ -337,7 +344,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
               ? {
                   type: "entryAnalyzed",
                   id: item.id,
-                  analysis: result.analysis,
+                  analysis: { ...result.analysis, language },
                   votes: result.votes.filter((vote) => known.has(vote.id)),
                 }
               : { type: "entryFailed", id: item.id, countAttempt: true },
@@ -365,7 +372,12 @@ export function AiProvider({ children }: { children: ReactNode }) {
     setSync({ status: "working", task: "deep", error: null });
     try {
       const plan = planReview(ai, timeline(), now);
-      if (plan.blind.length) {
+      // A retry after a failed deep analysis doesn't check other entries again: the disputes
+      // from the last check are still waiting.
+      const checked = ai.entries.some(
+        (entry) => entry.readAt !== null && (ai.deepAt === null || entry.readAt > ai.deepAt),
+      );
+      if (plan.blind.length && !checked) {
         const sent = plan.blind.map((item) => item.entry);
         const raw = await postAi("/entry", blindPayload(sent), TIMEOUTS.entry);
         if (!current()) return false;
@@ -414,6 +426,11 @@ export function AiProvider({ children }: { children: ReactNode }) {
       if (!result) throw new AiRequestError("unusable");
       const at = Date.now();
       const record = isRecord(raw) ? raw : {};
+      // Entries deleted while the request ran: the next analysis must forget what rested on them.
+      const remaining = new Set(latest.entries.map((entry) => entry.id));
+      const deletedMeanwhile = state.entries
+        .filter((entry) => sentIds.includes(entry.id) && !remaining.has(entry.id))
+        .map(deletedRecord);
       const active = new Set(result.memory.beliefs.filter(isActive).map((belief) => belief.id));
       const tips = new Set(
         result.memory.beliefs
@@ -433,6 +450,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
           .filter((answer) => !answer.inMemory)
           .map((answer) => answer.questionId),
         sentDeleted: state.deletedSinceDeep.length,
+        deletedMeanwhile,
         memory: result.memory,
         language,
         readIds: rereads.map((item) => item.entry.id),

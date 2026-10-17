@@ -90,6 +90,7 @@ const analysis = (overrides: Partial<EntryAnalysis> = {}): EntryAnalysis => ({
   tags: ["усталость", "работа"],
   gist: "устал после работы, открыл ленту дома",
   conf: 70,
+  language: null,
   analyzedAt: NOW,
   ...overrides,
 });
@@ -681,6 +682,7 @@ describe("re-reading old entries", () => {
       sentEntryIds: [],
       sentAnswerIds: [],
       sentDeleted: 0,
+      deletedMeanwhile: [],
       memory: result.memory,
       language: "ru",
       readIds: [old.id],
@@ -752,6 +754,7 @@ describe("re-reading old entries", () => {
       sentEntryIds: [],
       sentAnswerIds: [],
       sentDeleted: 0,
+      deletedMeanwhile: [],
       memory: memory(),
       language: "ru",
       readIds: [stuck.id],
@@ -906,6 +909,8 @@ describe("the deep analysis changes the memory under the app's evidence rules", 
         beliefs: [
           belief("z1", "zone", "Вечер пятницы", "supported", {
             zone: { weekday: 4, from: 19, to: 23 },
+            // The user said it is no longer so — the evidence a supported belief needs to end.
+            answers: { support: 0, against: 1 },
           }),
         ],
         chapters: [{ month: "2026-08", note: "Старая глава" }],
@@ -939,6 +944,120 @@ describe("the deep analysis changes the memory under the app's evidence rules", 
     expect(result.memory.changes).toEqual(["Вечера стали легче."]);
     expect(result.memory.events.map((event) => event.date)).toEqual(["2026-09", "2026-10-02"]);
     expect(result.memory.chapters.map((chapter) => chapter.month)).toEqual(["2026-08", "2026-09"]);
+  });
+
+  it("ends, replaces and drops beliefs only under the evidence rules", () => {
+    const strong = (id: string, extra: Partial<Belief> = {}) =>
+      belief(id, "hypothesis", `Гипотеза ${id}`, "established", extra);
+    const state = stateWith({
+      memory: memory({
+        beliefs: [
+          strong("h1"),
+          strong("h2", { answers: { support: 0, against: 1 } }),
+          strong("h3", { flips: [NOW - 30 * DAY, NOW - 20 * DAY, NOW - 10 * DAY] }),
+          ...[1, 2, 3, 4].map((n) => belief(`p${n}`, "tip", `Совет ${n}`, "proposed")),
+        ],
+      }),
+    });
+    const result = applyDeep(
+      state,
+      deep([
+        // No evidence that it stopped; the user's "no" is; a frozen one can't change.
+        op({ op: "scope", id: "h1", until: "2026-09" }),
+        op({ op: "scope", id: "h2", until: "2026-09" }),
+        op({ op: "scope", id: "h3", until: "2026-09" }),
+      ]),
+      context(state),
+    )!;
+    expect(byId(result, "h1").until).toBeNull();
+    expect(byId(result, "h2").until).toBe("2026-09");
+    expect(byId(result, "h3").until).toBeNull();
+    expect(result.rejected).toEqual([
+      expect.stringMatching(/^scope h1: needs evidence that it stopped/),
+      expect.stringMatching(/^scope h3: status keeps changing/),
+    ]);
+
+    // Replacing a hypothesis with a tip may not push the tips over their limit.
+    const swap = applyDeep(
+      state,
+      deep([
+        op({ op: "supersede", id: "h2", kind: "tip", text: "Совет вместо гипотезы", why: "x" }),
+      ]),
+      context(state),
+    )!;
+    expect(byId(swap, "h2").status).toBe("established");
+    expect(swap.rejected[0]).toMatch(/already 4 active tips/);
+  });
+
+  it("drops a once-strong belief only while the independent evidence is against it", () => {
+    const weakened = belief("h1", "hypothesis", "Прогулки помогают", "weakened", {
+      statusAt: NOW - 6 * DAY,
+      history: [{ at: NOW - 6 * DAY, text: "Прогулки помогают", status: "established" }],
+      // The user has confirmed it since.
+      answers: { support: 2, against: 0 },
+    });
+    const state = stateWith({ memory: memory({ beliefs: [weakened] }) });
+    const kept = applyDeep(
+      state,
+      deep([op({ op: "retire", id: "h1", why: "x" })]),
+      context(state),
+    )!;
+    expect(byId(kept, "h1").status).toBe("weakened");
+    expect(kept.rejected[0]).toMatch(/not against it/);
+    // Never believed: dropped after the wait without more ado.
+    const proposal = { ...weakened, history: [], answers: { support: 0, against: 0 } };
+    const plain = stateWith({ memory: memory({ beliefs: [proposal] }) });
+    const dropped = applyDeep(plain, deep([op({ op: "retire", id: "h1" })]), context(plain))!;
+    expect(byId(dropped, "h1").status).toBe("retired");
+  });
+
+  it("lets the records and the user's answers confirm what entries rarely vote on", () => {
+    const zone = belief("z1", "zone", "Вечер", "proposed", {
+      zone: { weekday: null, from: 20, to: 23 },
+      answers: { support: 1, against: 0 },
+    });
+    const state = stateWith({ memory: memory({ beliefs: [zone] }) });
+    // One answer (×2) is enough without a single vote; nothing at all is not.
+    const confirmed = applyDeep(state, deep([op({ op: "confirm", id: "z1" })]), context(state))!;
+    expect(byId(confirmed, "z1").status).toBe("supported");
+    const bare = stateWith({
+      memory: memory({ beliefs: [{ ...zone, answers: { support: 0, against: 0 } }] }),
+    });
+    const refused = applyDeep(bare, deep([op({ op: "confirm", id: "z1" })]), context(bare))!;
+    expect(byId(refused, "z1").status).toBe("proposed");
+  });
+
+  it("never cites a deleted entry and never reuses an id", () => {
+    const kept = entry(2, 21, {}, [{ id: "h7", effect: "support" }]);
+    const state = stateWith({ entries: [kept] });
+    const result = applyDeep(
+      state,
+      deep([op({ kind: "hypothesis", text: "Новая гипотеза", cites: ["r1", "r2"] })]),
+      // r2 was deleted while the request ran.
+      context(state, {
+        refs: new Map([
+          ["r1", kept.id],
+          ["r2", "gone"],
+        ]),
+      }),
+    )!;
+    const added = result.memory.beliefs.at(-1)!;
+    // h7 is still voted for by an old entry, so the new one gets h8.
+    expect(added).toMatchObject({ id: "h8", cites: [kept.id] });
+  });
+
+  it("keeps every active belief when the memory is loaded, cutting only old history", () => {
+    const history = Array.from({ length: 90 }, (_, n) =>
+      belief(`h${n + 10}`, "hypothesis", `Старая ${n}`, "retired", { statusAt: NOW - n * DAY }),
+    );
+    const active = belief("h200", "hypothesis", "Новая", "proposed");
+    const loaded = parseMemory(
+      JSON.parse(JSON.stringify(memory({ beliefs: [...history, active] }))),
+    )!;
+    expect(loaded.beliefs.map((item) => item.id)).toContain("h200");
+    expect(loaded.beliefs.filter((item) => item.status === "retired")).toHaveLength(60);
+    // The newest history stays.
+    expect(loaded.beliefs[0]!.id).toBe("h10");
   });
 
   it("counts the user's answers and the experiments' results as evidence", () => {
@@ -996,6 +1115,7 @@ describe("what goes to ChatGPT", () => {
     const blind = blindPayload([state.entries[1]!]);
     expect(blind.memory).toEqual({
       profile: null,
+      triggers: [],
       zones: [],
       hypotheses: [],
       tips: [],
@@ -1033,15 +1153,71 @@ describe("what goes to ChatGPT", () => {
       22,
       "очень  устал после работы, пришёл домой и сразу открыл ленту!",
     );
-    expect(duplicateAnalysis(repeated, [repeated, ...state.entries])).toMatchObject({
+    expect(duplicateAnalysis(repeated, [repeated, ...state.entries], "ru")).toMatchObject({
       cause: "усталость",
     });
     const other = pending(0, 22, "Поругался с другом");
-    expect(duplicateAnalysis(other, [other, ...state.entries])).toBeNull();
+    expect(duplicateAnalysis(other, [other, ...state.entries], "ru")).toBeNull();
   });
 });
 
 describe("changing the app's language", () => {
+  it("translates the reading's cause too, so new readings in the new language still match", () => {
+    const seen = entry(1, 21);
+    const state = aiReducer(stateWith({ entries: [seen] }), {
+      type: "translated",
+      language: "en",
+      translations: { усталость: "tiredness", работа: "work" },
+      yesNo: ["Yes", "No"],
+    });
+    expect(state.entries[0]!.reading).toMatchObject({
+      cause: "tiredness",
+      tags: ["tiredness", "work"],
+    });
+    expect(state.entries[0]!.analysis!.cause).toBe("усталость");
+    expect(
+      sameReading(state.entries[0]!.reading!, state.entries[0]!.analysis, {
+        cause: "tiredness after work",
+        tags: [],
+        enough: true,
+      }),
+    ).toBe(true);
+  });
+
+  it("keeps the memory marked untranslated when a deep analysis runs before the translation", () => {
+    const pendingTranslation = stateWith({ memoryLanguage: "ru" });
+    const next = aiReducer(pendingTranslation, {
+      type: "deepUpdated",
+      at: NOW,
+      recordsKey: "k",
+      sentEntryIds: [],
+      sentAnswerIds: [],
+      sentDeleted: 0,
+      deletedMeanwhile: [{ date: TODAY, time: "19:00", cause: "скука" }],
+      memory: memory(),
+      language: "en",
+      readIds: [],
+      readings: [],
+      pivotKey: null,
+      questions: [],
+      challenge: null,
+    });
+    expect(next.memoryLanguage).toBe("ru");
+    // An entry deleted while that analysis ran is reported to the next one.
+    expect(next.deletedSinceDeep).toEqual([{ date: TODAY, time: "19:00", cause: "скука" }]);
+  });
+
+  it("keeps stored yes/no answers when loading and reuses an analysis only in its language", () => {
+    const meta = sanitizeAiMeta({
+      questionQueue: [{ text: "Is it so?", kind: "yes_no", options: ["Yes", "No"], about: null }],
+    });
+    expect(meta.questionQueue[0]!.options).toEqual(["Yes", "No"]);
+    const old = entry(3, 9);
+    const again = pending(0, 9);
+    expect(duplicateAnalysis(again, [again, old], "ru")).not.toBeNull();
+    expect(duplicateAnalysis(again, [again, old], "en")).toBeNull();
+  });
+
   it("translates the coach's own texts once, keeping what happened meanwhile", () => {
     const seen = entry(1, 21, {}, [{ id: "h1", effect: "support" }]);
     let state = stateWith({
@@ -1153,6 +1329,7 @@ describe("AI reducer", () => {
       sentEntryIds: [sent.id],
       sentAnswerIds: [],
       sentDeleted: 1,
+      deletedMeanwhile: [],
       memory: memory({ conclusion: "Новый вывод" }),
       language: "ru",
       readIds: [],
@@ -1266,6 +1443,7 @@ describe("when to spend a request", () => {
             sentEntryIds: state.entries.map((item) => item.id),
             sentAnswerIds: [],
             sentDeleted: 0,
+            deletedMeanwhile: [],
             memory: memory(),
             language: "ru",
             readIds: [],

@@ -11,6 +11,7 @@ import type {
   AiEntry,
   AiMemory,
   AiState,
+  DeletedEntry,
   EntryAnalysis,
   EntryReading,
   EntryVote,
@@ -51,6 +52,8 @@ export type AiAction =
       sentAnswerIds: string[];
       /** How many of `deletedSinceDeep` went with this analysis. */
       sentDeleted: number;
+      /** Entries sent with it but deleted while it ran: the next analysis is told. */
+      deletedMeanwhile: DeletedEntry[];
       memory: AiMemory;
       language: LanguageCode;
       /** Entries whose original text was sent, and what the analysis concluded about them. */
@@ -80,6 +83,18 @@ export type AiAction =
   | { type: "reset" };
 
 const MAX_ANSWERS = 60;
+
+const pad = (value: number) => String(value).padStart(2, "0");
+
+/** What is left of a deleted entry for the next analysis: when it was and its cause, no text. */
+export function deletedRecord(entry: AiEntry): DeletedEntry {
+  const date = new Date(entry.timestamp);
+  return {
+    date: dayKey(entry.timestamp),
+    time: `${pad(date.getHours())}:${pad(date.getMinutes())}`,
+    cause: entry.analysis?.cause ?? null,
+  };
+}
 const MAX_PAST_CHALLENGES = 20;
 
 const updateEntry = (state: AiState, id: string, change: (entry: AiEntry) => AiEntry): AiState => ({
@@ -120,8 +135,6 @@ export function aiReducer(state: AiState, action: AiAction): AiState {
     case "deleteEntry": {
       const removed = state.entries.find((entry) => entry.id === action.id);
       if (!removed) return state;
-      const date = new Date(removed.timestamp);
-      const pad = (value: number) => String(value).padStart(2, "0");
       return {
         ...state,
         // Its votes leave with it (they live in the entry); its id leaves the memory's references.
@@ -129,14 +142,7 @@ export function aiReducer(state: AiState, action: AiAction): AiState {
         memory: forgetEntry(state.memory, action.id),
         // The memory already took it in: tell the next analysis to drop what rested on it.
         deletedSinceDeep: removed.inMemory
-          ? [
-              ...state.deletedSinceDeep,
-              {
-                date: dayKey(removed.timestamp),
-                time: `${pad(date.getHours())}:${pad(date.getMinutes())}`,
-                cause: removed.analysis?.cause ?? null,
-              },
-            ].slice(-50)
+          ? [...state.deletedSinceDeep, deletedRecord(removed)].slice(-50)
           : state.deletedSinceDeep,
       };
     }
@@ -241,12 +247,20 @@ export function aiReducer(state: AiState, action: AiAction): AiState {
           sentAnswers.has(answer.questionId) ? { ...answer, inMemory: true } : answer,
         ),
         memory: action.memory,
-        memoryLanguage: action.language,
+        // A memory still waiting for its translation stays marked with its old language: the
+        // translation runs later (what this analysis wrote in the new language stays as is).
+        memoryLanguage:
+          state.memory === null || state.memoryLanguage === action.language
+            ? action.language
+            : state.memoryLanguage,
         deepAt: action.at,
         memorySince: state.memorySince ?? action.at,
         deepCount: state.deepCount + 1,
         deepRecordsKey: action.recordsKey,
-        deletedSinceDeep: state.deletedSinceDeep.slice(action.sentDeleted),
+        deletedSinceDeep: [
+          ...state.deletedSinceDeep.slice(action.sentDeleted),
+          ...action.deletedMeanwhile,
+        ].slice(-50),
         pivotsSeen: action.pivotKey
           ? [...state.pivotsSeen, action.pivotKey].slice(-40)
           : state.pivotsSeen,

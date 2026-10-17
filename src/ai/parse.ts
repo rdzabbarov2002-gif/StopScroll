@@ -1,4 +1,5 @@
 import { m } from "../i18n";
+import { isLanguage } from "../i18n/languages";
 import type {
   AiChallenge,
   AiMemory,
@@ -65,7 +66,7 @@ export const titled = (value: unknown): TitledNote | null => {
   return title ? { title, note: text(value.note) ?? "" } : null;
 };
 
-export const parseVotes = (value: unknown, limit = 6): EntryVote[] => {
+export const parseVotes = (value: unknown, limit = 8): EntryVote[] => {
   const seen = new Set<string>();
   return list(value, limit, (item) => {
     if (!isRecord(item)) return null;
@@ -103,6 +104,7 @@ export function parseEntryAnalysis(
     tags: texts(raw.tags, 4, 40).map((tag) => tag.toLowerCase()),
     gist: text(raw.gist, 160),
     conf,
+    language: isLanguage(raw.language) ? raw.language : null,
     analyzedAt: typeof raw.analyzedAt === "number" ? raw.analyzedAt : analyzedAt,
   };
 }
@@ -193,7 +195,22 @@ const dated = (value: unknown, limit: number) =>
     return date && note ? { date, note } : null;
   });
 
-const BELIEF_LIMIT = 80;
+/** Historical (refuted, replaced, time-limited) beliefs kept; active ones are never cut. */
+const HISTORICAL_LIMIT = 60;
+
+/** Every active belief, plus the newest historical ones — in the stored order. */
+function keepBeliefs(beliefs: Belief[]): Belief[] {
+  const active = (belief: Belief) =>
+    ["proposed", "supported", "established", "weakened"].includes(belief.status) &&
+    belief.until === null;
+  const historical = new Set(
+    beliefs
+      .filter((belief) => !active(belief))
+      .sort((a, b) => b.statusAt - a.statusAt)
+      .slice(0, HISTORICAL_LIMIT),
+  );
+  return beliefs.filter((belief) => active(belief) || historical.has(belief));
+}
 
 /** The stored memory, current version; or an earlier version, converted (nothing is dropped). */
 export function parseMemory(raw: unknown): AiMemory | null {
@@ -212,7 +229,7 @@ export function parseMemory(raw: unknown): AiMemory | null {
     improvements: texts(raw.improvements, 3),
     worsenings: texts(raw.worsenings, 3),
     events: dated(raw.events, 24),
-    beliefs: list(raw.beliefs, BELIEF_LIMIT, parseBelief),
+    beliefs: keepBeliefs(list(raw.beliefs, 300, parseBelief)),
     corrections: list(raw.corrections, 60, (item) => {
       if (!isRecord(item) || typeof item.at !== "number") return null;
       const was = text(item.was, 200);
@@ -366,18 +383,29 @@ function migrateMemory(raw: Record<string, unknown>): AiMemory | null {
 
 export { newBelief };
 
-const parseQueued = (raw: unknown): QueuedQuestion | null => {
+/**
+ * A question from the server gets the app's own yes/no answers; a stored one keeps the answers it
+ * was saved with (it is read before the app's language is applied).
+ */
+const parseQueued = (raw: unknown, stored = false): QueuedQuestion | null => {
   if (!isRecord(raw)) return null;
   const question = text(raw.text, 200);
   const kind = oneOf(raw.kind, ["yes_no", "choice"] as const);
   if (!question || !kind) return null;
-  const options = kind === "yes_no" ? [m().ai.yes, m().ai.no] : texts(raw.options, 6, 60);
+  const saved = stored && Array.isArray(raw.options) ? texts(raw.options, 2, 60) : [];
+  const options =
+    kind === "yes_no"
+      ? saved.length === 2
+        ? saved
+        : [m().ai.yes, m().ai.no]
+      : texts(raw.options, 6, 60);
   return options.length >= 2
     ? { text: question, kind, options, about: kind === "yes_no" ? text(raw.about, 20) : null }
     : null;
 };
 
-export const parseQuestions = (raw: unknown): QueuedQuestion[] => list(raw, 2, parseQueued);
+export const parseQuestions = (raw: unknown, stored = false): QueuedQuestion[] =>
+  list(raw, 2, (item) => parseQueued(item, stored));
 
 export function parseQuestion(raw: unknown, id: string, askedAt: number): AiQuestion | null {
   const question = parseQueued(raw);

@@ -203,10 +203,21 @@ export function applyDeep(state: AiState, raw: unknown, ctx: DeepContext): DeepR
   };
   const flipping = (belief: Belief) =>
     belief.flips.filter((at) => ctx.now - at < 60 * DAY).length >= 3;
+  // Only entries that still exist: one deleted while the request ran is not a citation.
+  const existing = new Set(state.entries.map((entry) => entry.id));
   const cites = (value: unknown) =>
     texts(value, 4, 12)
       .map((ref) => ctx.refs.get(ref))
-      .filter((id): id is string => Boolean(id));
+      .filter((id): id is string => id !== undefined && existing.has(id));
+  // Ids are never reused: a dropped belief's id may still sit in old entries' votes.
+  const taken = [
+    ...entries.flatMap((entry) =>
+      [entry.reading, ...entry.past].flatMap(
+        (reading) => reading?.votes.map((vote) => vote.id) ?? [],
+      ),
+    ),
+    ...previous.corrections.map((item) => item.beliefId).filter((id): id is string => id !== null),
+  ].map((id) => ({ id }));
   const activeOf = (kind: BeliefKind) =>
     beliefs.filter((belief) => belief.kind === kind && isActive(belief)).length;
 
@@ -251,6 +262,14 @@ export function applyDeep(state: AiState, raw: unknown, ctx: DeepContext): DeepR
           refuse(kind, id, "too many beliefs dropped in one analysis");
           continue;
         }
+        if (beliefKind !== belief.kind && activeOf(beliefKind) >= ACTIVE_LIMIT[beliefKind]) {
+          refuse(
+            kind,
+            id,
+            `already ${ACTIVE_LIMIT[beliefKind]} active ${beliefKind}s — weaken, retire or supersede one`,
+          );
+          continue;
+        }
         const s = strengthOf(belief);
         if (
           belief.status !== "proposed" &&
@@ -293,7 +312,7 @@ export function applyDeep(state: AiState, raw: unknown, ctx: DeepContext): DeepR
         continue;
       }
       const created = newBelief(
-        nextId(beliefs, PREFIX[beliefKind]),
+        nextId([...beliefs, ...taken], PREFIX[beliefKind]),
         beliefKind,
         statement,
         note ?? "",
@@ -346,42 +365,30 @@ export function applyDeep(state: AiState, raw: unknown, ctx: DeepContext): DeepR
       belief.cites = [...new Set([...cited, ...belief.cites])].slice(0, 4);
       continue;
     }
-    if (kind === "scope") {
-      const until =
-        typeof op.until === "string" && /^\d{4}-\d{2}$/.test(op.until) && op.until <= ctx.month
-          ? op.until
-          : null;
-      if (!until) {
-        refuse(kind, id, "until must be a past or current month, YYYY-MM");
-        continue;
-      }
-      belief.until = until;
-      belief.history = [
-        { at: ctx.now, text: belief.text, status: belief.status },
-        ...belief.history,
-      ].slice(0, 4);
-      continue;
-    }
-
-    // Status changes: confirm, weaken, retire.
+    // Status changes: confirm, weaken, retire, scope — all under the same evidence rules.
     if (!isActive(belief)) {
       refuse(kind, id, `it is ${belief.status}`);
       continue;
     }
-    const s = strengthOf(belief);
+    const print = footprint(belief, ctx.timeline);
+    const s = strength(belief, votes.get(belief.id), print);
     if (flipping(belief) && belief.answers.support + belief.answers.against === 0) {
       refuse(kind, id, "status keeps changing; frozen until the user's answers decide");
       continue;
     }
     if (kind === "confirm") {
       if (belief.status === "proposed") {
-        if (s.support >= 3 && s.support >= 2 * s.against && s.independentSupport >= 1)
-          setStatus(belief, "supported");
+        // Entries that show it and one independent confirmation — or, for what entries rarely
+        // vote on (dangerous periods, triggers), the records and the user's answers alone.
+        const byEntries = s.support >= 3 && s.support >= 2 * s.against && s.independentSupport >= 1;
+        const byIndependent =
+          s.independentSupport >= 2 && s.independentSupport > 2 * s.independentAgainst;
+        if (byEntries || byIndependent) setStatus(belief, "supported");
         else
           refuse(
             kind,
             id,
-            "needs 3+ supporting entries, twice the contrary, and one independent confirmation",
+            "needs 3+ supporting entries with one independent confirmation, or 2+ independent confirmations",
           );
       } else if (belief.status === "supported") {
         if (
@@ -414,6 +421,38 @@ export function applyDeep(state: AiState, raw: unknown, ctx: DeepContext): DeepR
       } else refuse(kind, id, "needs independent evidence against it");
       continue;
     }
+    if (kind === "scope") {
+      // "It was true, but no longer": it leaves the active memory, so it counts as a drop, and a
+      // supported belief needs evidence that it stopped (the records, the user's answers).
+      const until =
+        typeof op.until === "string" && /^\d{4}-\d{2}$/.test(op.until) && op.until <= ctx.month
+          ? op.until
+          : null;
+      if (!until) {
+        refuse(kind, id, "until must be a past or current month, YYYY-MM");
+        continue;
+      }
+      if (drops >= MAX_DROPS) {
+        refuse(kind, id, "too many beliefs dropped in one analysis");
+        continue;
+      }
+      const strong = belief.status === "supported" || belief.status === "established";
+      const stopped =
+        print.verdict === "failing" ||
+        s.independentAgainst >= 1 ||
+        belief.answers.against > belief.answers.support;
+      if (strong && !stopped) {
+        refuse(kind, id, "needs evidence that it stopped (the records or the user's answers)");
+        continue;
+      }
+      belief.until = until;
+      belief.history = [
+        { at: ctx.now, text: belief.text, status: belief.status },
+        ...belief.history,
+      ].slice(0, 4);
+      drops += 1;
+      continue;
+    }
     if (kind === "retire") {
       if (drops >= MAX_DROPS) {
         refuse(kind, id, "too many beliefs dropped in one analysis");
@@ -427,9 +466,23 @@ export function applyDeep(state: AiState, raw: unknown, ctx: DeepContext): DeepR
         else refuse(kind, id, "a supported belief is first weakened, with independent evidence");
         continue;
       }
-      if (belief.status === "weakened" && !answered && ctx.now - belief.statusAt < 5 * DAY) {
-        refuse(kind, id, "weakened less than 5 days ago");
-        continue;
+      if (belief.status === "weakened" && !answered) {
+        if (ctx.now - belief.statusAt < 5 * DAY) {
+          refuse(kind, id, "weakened less than 5 days ago");
+          continue;
+        }
+        // The second step for something it once believed: the independent evidence must still
+        // be against it (the user may have confirmed it meanwhile).
+        const wasStrong = belief.history.some(
+          (item) => item.status === "supported" || item.status === "established",
+        );
+        if (
+          wasStrong &&
+          !(s.independentAgainst >= 1 && s.independentAgainst >= s.independentSupport)
+        ) {
+          refuse(kind, id, "the independent evidence is not against it (any more)");
+          continue;
+        }
       }
       const was = belief.status;
       setStatus(belief, "retired");

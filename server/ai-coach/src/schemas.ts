@@ -52,7 +52,7 @@ export const ENTRY_SCHEMA = object({
       tags: strings(3),
       gist: str,
       conf,
-      votes: votes(6),
+      votes: votes(8),
     },
     MAX_ENTRIES,
   ),

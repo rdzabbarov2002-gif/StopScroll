@@ -35,6 +35,8 @@ export interface EntryAnalysis {
   gist: string | null;
   /** How sure the first reading was: 40 (a guess), 70 (follows from context), 95 (said outright). */
   conf: number;
+  /** The language it was written in (null — before languages existed, i.e. Russian). */
+  language: LanguageCode | null;
   analyzedAt: number;
 }
 

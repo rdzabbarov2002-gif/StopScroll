@@ -87,8 +87,8 @@ For each entry (n is its number):
 - cause, emotion, context, behavior — short; null for what is unclear. behavior is the kind of behavior, e.g. opening on autopilot, escaping a feeling, resting, putting off a task.
 - tags — 1–3 lowercase nouns naming the cause; reuse memory.tags when the meaning fits, so the same cause always gets the same tag.
 - gist — the essence of the entry for the long-term memory, up to 90 characters, without judgement.
-- insight — one non-obvious observation: a real link to the memory (a recurring scenario, a dangerous period, a hypothesis) or to an earlier episode in "similar" ("date | outcome | gist" — e.g. what helped then). If there is nothing beyond retelling the entry — null.
-- votes — items of memory.hypotheses and memory.tips this entry clearly supports or contradicts, by id. A tip: support when the entry shows it helped, against when it was tried and didn't. No clear relation — empty; a mentioned topic alone is not a vote.
+- insight — one non-obvious observation: a real link to the memory (a trigger, a dangerous period, a hypothesis) or to an earlier episode in "similar" ("date | outcome | gist" — e.g. what helped then). If there is nothing beyond retelling the entry — null.
+- votes — items of memory.hypotheses, memory.triggers, memory.zones and memory.tips this entry clearly supports or contradicts, by id. A trigger or zone: support when this entry is an instance of it, against when the entry clearly goes against it (e.g. the zone's time passed calmly). A tip: support when the entry shows it helped, against when it was tried and didn't. No clear relation — empty; a mentioned topic alone is not a vote.
 - enough = false when the entry doesn't say enough for a conclusion; then missing — what exactly is missing.
 - conf — how directly the entry gives the cause: 95 stated outright, 70 follows from the context, 40 a guess.
 - memory.corrections are conclusions corrected earlier ("was → now"): don't repeat the old mistake.`;

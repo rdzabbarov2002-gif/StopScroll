@@ -23,7 +23,15 @@ for (const arm of arms) if (!ARMS[arm]) throw new Error(`unknown arm ${arm}`);
 const entries = readJson("entries.json").slice(0, options.limit ? Number(options.limit) : undefined);
 const memory = readJson("memory.json");
 // The same digest the app sends (src/ai/payload.ts entryPayload / blindPayload).
-const EMPTY_MEMORY = { profile: null, zones: [], hypotheses: [], tips: [], corrections: [], tags: [] };
+const EMPTY_MEMORY = {
+  profile: null,
+  triggers: [],
+  zones: [],
+  hypotheses: [],
+  tips: [],
+  corrections: [],
+  tags: [],
+};
 
 if (!options.mock && !process.env.OPENAI_API_KEY) {
   console.error("OPENAI_API_KEY is not set (or run with --mock to check the pipeline only).");

@@ -252,7 +252,7 @@ export function sanitizeAiMeta(value: unknown): Omit<AiState, "entries"> {
     deepCount: typeof value.deepCount === "number" && value.deepCount >= 0 ? value.deepCount : 0,
     deepRecordsKey: typeof recordsKey === "string" ? recordsKey : null,
     question: parseQuestion(value.question, "", 0),
-    questionQueue: parseQuestions(value.questionQueue),
+    questionQueue: parseQuestions(value.questionQueue, true),
     askedRecently: (Array.isArray(value.askedRecently) ? value.askedRecently : [])
       .filter((item): item is string => typeof item === "string")
       .map((item) => item.slice(0, 200))

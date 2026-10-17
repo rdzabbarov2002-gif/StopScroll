@@ -1,3 +1,4 @@
+import type { LanguageCode } from "../i18n/languages";
 import { dayKey } from "../utils/date";
 import {
   DAY_MS,
@@ -56,7 +57,11 @@ export function topTags(entries: readonly AiEntry[], size: number, now = Date.no
 }
 
 /** An earlier entry with the same words, already analyzed — its analysis fits this one too. */
-export function duplicateOf(entry: AiEntry, entries: readonly AiEntry[]): AiEntry | null {
+export function duplicateOf(
+  entry: AiEntry,
+  entries: readonly AiEntry[],
+  language: LanguageCode,
+): AiEntry | null {
   const words = normalize(entry.text);
   if (!words) return null;
   return (
@@ -64,6 +69,8 @@ export function duplicateOf(entry: AiEntry, entries: readonly AiEntry[]): AiEntr
       (other) =>
         other.id !== entry.id &&
         other.analysis !== null &&
+        // An analysis in another language would show up untranslated under the new entry.
+        (other.analysis.language ?? "ru") === language &&
         Math.abs(entry.timestamp - other.timestamp) <= DUPLICATE_WINDOW_DAYS * DAY_MS &&
         normalize(other.text) === words,
     ) ?? null
@@ -73,7 +80,8 @@ export function duplicateOf(entry: AiEntry, entries: readonly AiEntry[]): AiEntr
 export const duplicateAnalysis = (
   entry: AiEntry,
   entries: readonly AiEntry[],
-): EntryAnalysis | null => duplicateOf(entry, entries)?.analysis ?? null;
+  language: LanguageCode,
+): EntryAnalysis | null => duplicateOf(entry, entries, language)?.analysis ?? null;
 
 const OUTCOME = { resisted: "resisted", opened: "opened" } as const;
 
@@ -133,6 +141,12 @@ function digestHypotheses(memory: AiMemory, entries: readonly AiEntry[]) {
   return [...best, ...open].map(({ belief }) => ({ id: belief.id, text: belief.text }));
 }
 
+const digest = (active: readonly Belief[], kind: Belief["kind"]) =>
+  active
+    .filter((belief) => belief.kind === kind)
+    .slice(0, 5)
+    .map((belief) => ({ id: belief.id, text: belief.text }));
+
 /** /entry: the new entries and a short digest of the memory (never the history). */
 export function entryPayload(
   batch: readonly AiEntry[],
@@ -144,12 +158,11 @@ export function entryPayload(
   return {
     memory: {
       profile: memory?.profile.slice(0, 300) || null,
-      zones: active.filter((belief) => belief.kind === "zone").map((belief) => belief.text),
+      // With ids, so an entry can vote for or against each of them.
+      triggers: digest(active, "trigger"),
+      zones: digest(active, "zone"),
       hypotheses: memory ? digestHypotheses(memory, entries) : [],
-      tips: active
-        .filter((belief) => belief.kind === "tip")
-        .slice(0, 3)
-        .map((belief) => ({ id: belief.id, text: belief.text })),
+      tips: digest(active, "tip"),
       // Recent corrections, so a mistake fixed in the memory isn't repeated in new readings.
       corrections: (memory?.corrections ?? [])
         .filter((item) => now - item.at < 120 * DAY_MS)
@@ -170,7 +183,15 @@ export function entryPayload(
 /** /entry for the independent check: the same model and prompt, but no memory at all. */
 export function blindPayload(batch: readonly AiEntry[]) {
   return {
-    memory: { profile: null, zones: [], hypotheses: [], tips: [], corrections: [], tags: [] },
+    memory: {
+      profile: null,
+      triggers: [],
+      zones: [],
+      hypotheses: [],
+      tips: [],
+      corrections: [],
+      tags: [],
+    },
     entries: batch.map((entry, index) => ({
       n: index + 1,
       when: when(entry.timestamp),
@@ -395,7 +416,12 @@ function mapTexts(
   yesNo: readonly [string, string],
 ): Translated {
   const tag = (value: string) => next(value).toLowerCase();
-  const reading = (item: EntryReading): EntryReading => ({ ...item, tags: item.tags.map(tag) });
+  // The cause too: it is compared with new readings (in the new language) by its words.
+  const reading = (item: EntryReading): EntryReading => ({
+    ...item,
+    cause: item.cause === null ? null : next(item.cause),
+    tags: item.tags.map(tag),
+  });
   const challenge = (item: AiChallenge): AiChallenge => ({
     ...item,
     title: next(item.title),
@@ -441,7 +467,16 @@ function mapTexts(
     },
     entries: state.entries.map((entry) =>
       entry.reading
-        ? { ...entry, reading: reading(entry.reading), past: entry.past.map(reading) }
+        ? {
+            ...entry,
+            reading: reading(entry.reading),
+            past: entry.past.map(reading),
+            blind: entry.blind && {
+              ...entry.blind,
+              cause: entry.blind.cause === null ? null : next(entry.blind.cause),
+              tags: entry.blind.tags.map(tag),
+            },
+          }
         : entry,
     ),
     challenge: state.challenge && challenge(state.challenge),
@@ -475,5 +510,10 @@ export function applyTranslations(
   translations: Readonly<Record<string, string>>,
   yesNo: readonly [string, string],
 ): Translated {
-  return mapTexts(state, (value) => translations[value] ?? value, yesNo);
+  // Own keys only: a text like "constructor" must not find Object's own properties.
+  return mapTexts(
+    state,
+    (value) => (Object.hasOwn(translations, value) ? translations[value]! : value),
+    yesNo,
+  );
 }
