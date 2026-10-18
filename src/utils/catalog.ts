@@ -153,18 +153,13 @@ function defineReplacement(
   data: Omit<Replacement, "id" | "title" | "description" | "steps"> & { id: ItemId },
 ): Replacement {
   const text = () => m().catalog.items[data.id];
-  return {
-    ...data,
-    get title() {
-      return text().title;
-    },
-    get description() {
-      return text().description;
-    },
-    get steps() {
-      return text().steps;
-    },
-  };
+  // Never a spread in the same literal as the getters: compiled for React Native (Hermes) such a
+  // spread reads every getter once, freezing the language the app started in.
+  return Object.defineProperties({ ...data } as Replacement, {
+    title: { get: () => text().title, enumerable: true },
+    description: { get: () => text().description, enumerable: true },
+    steps: { get: () => text().steps, enumerable: true },
+  });
 }
 
 export const REPLACEMENTS: readonly Replacement[] = [
@@ -380,21 +375,22 @@ function defineExercise(
   data: Omit<Exercise, "title" | "subtitle" | "prompts"> & { prompts: readonly number[] },
 ): Exercise {
   const text = () => m().catalog.exercises[data.id];
-  return {
-    ...data,
-    get title() {
-      return text().title;
+  // No spread next to the getters (see defineReplacement).
+  return Object.defineProperties(
+    {
+      ...data,
+      prompts: data.prompts.map((seconds, index) => ({
+        seconds,
+        get text() {
+          return text().prompts[index] ?? "";
+        },
+      })),
+    } as unknown as Exercise,
+    {
+      title: { get: () => text().title, enumerable: true },
+      subtitle: { get: () => text().subtitle, enumerable: true },
     },
-    get subtitle() {
-      return text().subtitle;
-    },
-    prompts: data.prompts.map((seconds, index) => ({
-      seconds,
-      get text() {
-        return text().prompts[index] ?? "";
-      },
-    })),
-  };
+  );
 }
 
 export const EXERCISES: readonly Exercise[] = [
@@ -466,11 +462,12 @@ function defineEquivalent(
   premium?: boolean,
 ): Equivalent {
   const text = () => m().catalog.equivalents[id];
+  // No spread next to the getters (see defineReplacement).
   return {
     id,
     icon,
     unitMinutes,
-    ...(premium ? { premium } : {}),
+    premium: premium === true ? true : undefined,
     get unit() {
       return text().unit;
     },

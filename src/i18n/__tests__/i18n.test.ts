@@ -78,6 +78,31 @@ describe("plural rules", () => {
 describe("the current language", () => {
   afterEach(() => setLanguage("ru"));
 
+  it("switches the catalogs' texts too (no copy of them is frozen at startup)", () => {
+    /* eslint-disable @typescript-eslint/no-require-imports */
+    const catalog = require("../../utils/catalog") as typeof import("../../utils/catalog");
+    const { ACHIEVEMENTS } =
+      require("../../utils/achievements") as typeof import("../../utils/achievements");
+    /* eslint-enable @typescript-eslint/no-require-imports */
+    const snapshot = () => [
+      catalog.REPLACEMENTS[0]!.title,
+      catalog.REPLACEMENTS[0]!.steps[0],
+      catalog.EXERCISES[0]!.title,
+      catalog.EXERCISES[0]!.prompts[0]!.text,
+      catalog.EQUIVALENTS[0]!.caption,
+      catalog.TRIGGERS[0]!.label,
+      catalog.CATEGORIES[0]!.label,
+      ACHIEVEMENTS[0]!.title,
+    ];
+    const russian = snapshot();
+    setLanguage("en");
+    const english = snapshot();
+    english.forEach((text, index) => expect(text).not.toBe(russian[index]));
+    expect(english[0]).toBe(
+      CATALOG.en.catalog.items[catalog.REPLACEMENTS[0]!.id as "squats"].title,
+    );
+  });
+
   it("switches every message at once", () => {
     const days = { one: "день", few: "дня", many: "дней", other: "дня" };
     expect(getLanguage()).toBe("ru");

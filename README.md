@@ -33,12 +33,18 @@ npm run web                  # быстрый просмотр в браузер
 `eas build --profile preview`): папки `ios/` и `android/` не хранятся в репозитории, их генерирует
 `npx expo prebuild` из `app.json`, плагинов и `targets/`.
 
+В Expo Go AI-коуч работает, если в `.env.local` задан `EXPO_PUBLIC_AI_URL` (адрес развёрнутого
+`server/ai-coach`, см. ниже); без него приложение работает без AI-анализа. Еженедельное напоминание
+в Expo Go на Android недоступно (Expo Go не поддерживает уведомления с SDK 53): кнопка включения
+ничего не делает, остальное приложение не затронуто.
+
 Проверки:
 
 ```bash
 npm run typecheck  # tsc --noEmit
 npm run lint       # ESLint (eslint-config-expo)
 npm test           # Jest: коуч, редьюсер, хранилище, статистика, аналитика, отчёт, достижения, виджеты
+npx jest src/__tests__/app.e2e.test.tsx --preset jest-expo/android  # всё приложение как Android
 ```
 
 ## Дизайн
