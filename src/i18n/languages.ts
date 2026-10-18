@@ -5,9 +5,6 @@
 export const LANGUAGES = [
   { code: "ru", nativeName: "Русский", englishName: "Russian", locale: "ru-RU" },
   { code: "en", nativeName: "English", englishName: "English", locale: "en-US" },
-  { code: "tr", nativeName: "Türkçe", englishName: "Turkish", locale: "tr-TR" },
-  { code: "de", nativeName: "Deutsch", englishName: "German", locale: "de-DE" },
-  { code: "fr", nativeName: "Français", englishName: "French", locale: "fr-FR" },
 ] as const;
 
 export type LanguageCode = (typeof LANGUAGES)[number]["code"];

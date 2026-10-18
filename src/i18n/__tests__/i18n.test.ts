@@ -23,11 +23,16 @@ const shape = (value: unknown) =>
 describe("message catalogs", () => {
   const source = CATALOG.ru;
 
+  it("covers exactly Russian and English", () => {
+    expect(LANGUAGE_CODES).toEqual(["ru", "en"]);
+    expect(Object.keys(CATALOG)).toEqual(["ru", "en"]);
+  });
+
   it.each(LANGUAGE_CODES.filter((code) => code !== "ru"))(
     "%s has every message of the Russian source, with the same parameters",
     (code) => {
       expect(shape(CATALOG[code])).toEqual(shape(source));
-      // A language may need fewer parameters (Turkish keeps "3 gün" singular), never more.
+      // A language may need fewer parameters, never more.
       const russian = new Map(leaves(source));
       const extra = leaves(CATALOG[code])
         .filter(([path, item]) => {
@@ -63,12 +68,6 @@ describe("plural rules", () => {
       "one",
       "few",
       "many",
-      "other",
-    ]);
-    expect([0, 1, 1.5, 2].map((n) => pluralCategory("fr", n))).toEqual([
-      "one",
-      "one",
-      "one",
       "other",
     ]);
     expect([0, 1, 2].map((n) => pluralCategory("en", n))).toEqual(["other", "one", "other"]);

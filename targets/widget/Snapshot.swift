@@ -10,7 +10,7 @@ struct Snapshot: Codable {
     let category: String
   }
 
-  /// The app's language code ("ru", "en", "tr", "de", "fr"). Snapshots saved before the app spoke
+  /// The app's language code ("ru" or "en"). Snapshots saved before the app spoke
   /// other languages have none — read it as `lang`.
   let language: String?
   /// The local day ("YYYY-MM-DD") the "today" numbers belong to.

@@ -72,90 +72,35 @@ const { AI_META_KEY } = require("../ai/storage") as typeof import("../ai/storage
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 type Lang = import("../i18n").LanguageCode;
-const LANGS: Lang[] = ["ru", "en", "tr", "de", "fr"];
-const NATIVE: Record<Lang, string> = {
-  ru: "Русский",
-  en: "English",
-  tr: "Türkçe",
-  de: "Deutsch",
-  fr: "Français",
-};
+const LANGS: Lang[] = ["ru", "en"];
+const NATIVE: Record<Lang, string> = { ru: "Русский", en: "English" };
+/** The picker's title before a language is picked: every language's word for "Language". */
+const PICKER_TITLE = "Язык · Language";
 
 /* ------------------------------------------------------------------------------------------- */
 /* The AI server stand-in: the contract of server/ai-coach, answers in the requested language.  */
 
 const P = {
-  cause: {
-    ru: "усталость после работы",
-    en: "tiredness after work",
-    tr: "iş sonrası yorgunluk",
-    de: "Müdigkeit nach der Arbeit",
-    fr: "la fatigue après le travail",
-  },
-  emotion: {
-    ru: "опустошённость",
-    en: "drained",
-    tr: "tükenmişlik",
-    de: "Erschöpfung",
-    fr: "épuisement",
-  },
-  tag: { ru: "усталость", en: "tiredness", tr: "yorgunluk", de: "müdigkeit", fr: "fatigue" },
+  cause: { ru: "усталость после работы", en: "tiredness after work" },
+  emotion: { ru: "опустошённость", en: "drained" },
+  tag: { ru: "усталость", en: "tiredness" },
   profile: {
     ru: "Лента чаще всего побеждает вечером после работы.",
     en: "The feed wins most often in the evening after work.",
-    tr: "Akış en çok işten sonra akşamları kazanıyor.",
-    de: "Der Feed gewinnt meist abends nach der Arbeit.",
-    fr: "Le fil l’emporte surtout le soir après le travail.",
   },
   conclusion: {
     ru: "Похоже, лента побеждает не от скуки, а от вечерней усталости.",
     en: "It looks like the feed wins not out of boredom but out of evening tiredness.",
-    tr: "Görünüşe göre akış can sıkıntısından değil, akşam yorgunluğundan kazanıyor.",
-    de: "Offenbar gewinnt der Feed nicht aus Langeweile, sondern aus abendlicher Müdigkeit.",
-    fr: "Il semble que le fil l’emporte non par ennui, mais par fatigue du soir.",
   },
-  trigger: {
-    ru: "Приход домой после работы",
-    en: "Getting home after work",
-    tr: "İşten eve dönüş",
-    de: "Heimkommen nach der Arbeit",
-    fr: "Le retour à la maison après le travail",
-  },
+  trigger: { ru: "Приход домой после работы", en: "Getting home after work" },
   hypothesis: {
     ru: "Вечерние срывы связаны с усталостью",
     en: "Evening slips are tied to tiredness",
-    tr: "Akşam kaçamakları yorgunlukla bağlantılı",
-    de: "Abendliche Ausrutscher hängen mit Müdigkeit zusammen",
-    fr: "Les écarts du soir sont liés à la fatigue",
   },
-  zone: {
-    ru: "Вечер после работы",
-    en: "Evening after work",
-    tr: "İş sonrası akşam",
-    de: "Abend nach der Arbeit",
-    fr: "Le soir après le travail",
-  },
-  tip: {
-    ru: "Десять минут отдыха без телефона",
-    en: "Ten minutes of rest without the phone",
-    tr: "Telefonsuz on dakika dinlenme",
-    de: "Zehn Minuten Pause ohne Handy",
-    fr: "Dix minutes de repos sans téléphone",
-  },
-  question: {
-    ru: "Бывает ли так в выходные?",
-    en: "Does it happen on weekends too?",
-    tr: "Hafta sonları da oluyor mu?",
-    de: "Passiert das auch am Wochenende?",
-    fr: "Cela arrive-t-il aussi le week-end ?",
-  },
-  challenge: {
-    ru: "Десять минут тишины",
-    en: "Ten quiet minutes",
-    tr: "On dakika sessizlik",
-    de: "Zehn ruhige Minuten",
-    fr: "Dix minutes au calme",
-  },
+  zone: { ru: "Вечер после работы", en: "Evening after work" },
+  tip: { ru: "Десять минут отдыха без телефона", en: "Ten minutes of rest without the phone" },
+  question: { ru: "Бывает ли так в выходные?", en: "Does it happen on weekends too?" },
+  challenge: { ru: "Десять минут тишины", en: "Ten quiet minutes" },
 } satisfies Record<string, Record<Lang, string>>;
 
 const say = (key: keyof typeof P, lang: Lang) => P[key][lang];
@@ -366,7 +311,6 @@ async function type(label: string, value: string) {
 
 async function go(route: string, params?: object) {
   await act(async () => {
-     
     (navigationRef.navigate as any)(route, params);
   });
   await wait(80);
@@ -391,7 +335,7 @@ async function close() {
 /** The first launch: a language, then onboarding. */
 async function firstLaunch(lang: Lang) {
   await launch();
-  await until(() => visible("Language · "), "the language picker");
+  await until(() => visible(PICKER_TITLE), "the language picker");
   await tap(NATIVE[lang]);
   await tap(CATALOG[lang].language.continue);
   const o = CATALOG[lang].onboarding;
@@ -484,20 +428,23 @@ jest.setTimeout(60_000);
 describe("StopScroll as a React Native app", () => {
   it("asks for the language on the very first launch and nothing else is reachable", async () => {
     await launch();
-    await until(() => visible("Language · Dil"), "the picker");
+    await until(() => visible(PICKER_TITLE), "the picker");
+    // Only the two languages are offered.
+    expect(i18n.LANGUAGES.map((item) => item.nativeName)).toEqual(["Русский", "English"]);
+    expect(visible("Русский") && visible("English")).toBe(true);
     // Continue does nothing until a language is picked.
     const before = screenTexts().join(" ");
     await tap("Continue").catch(() => undefined);
     expect(screenTexts().join(" ")).toBe(before);
     expect(navigationRef.isReady()).toBe(false);
-    await tap("Deutsch");
-    await tap("Weiter");
-    await until(() => visible(CATALOG.de.onboarding.start), "German onboarding");
+    await tap("English");
+    await tap("Continue");
+    await until(() => visible(CATALOG.en.onboarding.start), "English onboarding");
     // Saved: the next launch goes straight on.
     await close();
     await launch();
-    await until(() => visible(CATALOG.de.onboarding.start), "onboarding after a relaunch");
-    expect(visible("Language · Dil")).toBe(false);
+    await until(() => visible(CATALOG.en.onboarding.start), "onboarding after a relaunch");
+    expect(visible(PICKER_TITLE)).toBe(false);
   });
 
   it.each(LANGS)("works end to end in %s: entries, deep analysis, every screen", async (lang) => {
@@ -580,24 +527,25 @@ describe("StopScroll as a React Native app", () => {
     await tapIn("ConsentCard", CATALOG.en.ai.consent.allow);
     await until(() => visible(say("conclusion", "en")), "the English conclusion");
 
-    // Three switches without waiting, then one more after it settles.
-    for (const lang of ["de", "fr", "tr"] as Lang[]) await switchLanguage(lang);
-    await go("Main", { screen: "AI" });
-    await until(() => visible(say("conclusion", "tr")), "the Turkish conclusion", 10000);
-    expect(visible(CATALOG.tr.ai.screen.title)).toBe(true);
-    expect(visible(say("trigger", "tr"))).toBe(true);
-    let meta = await storedMeta();
-    expect(meta.memoryLanguage).toBe("tr");
-
-    await switchLanguage("ru");
+    // Three switches without waiting (back to the memory's own language in between), then one
+    // more after it settles.
+    for (const lang of ["ru", "en", "ru"] as Lang[]) await switchLanguage(lang);
     await go("Main", { screen: "AI" });
     await until(() => visible(say("conclusion", "ru")), "the Russian conclusion", 10000);
-    meta = await storedMeta();
+    expect(visible(CATALOG.ru.ai.screen.title)).toBe(true);
+    expect(visible(say("trigger", "ru"))).toBe(true);
+    let meta = await storedMeta();
     expect(meta.memoryLanguage).toBe("ru");
-    expect(meta.memory!.beliefs.map((belief) => belief.text)).toContain(say("trigger", "ru"));
     // The entry's analysis of the day stays as it was shown (English).
     await tap("Came home tired and scrolled for an hour before dinner");
     expect(visible(say("cause", "en"))).toBe(true);
+
+    await switchLanguage("en");
+    await go("Main", { screen: "AI" });
+    await until(() => visible(say("conclusion", "en")), "the English conclusion again", 10000);
+    meta = await storedMeta();
+    expect(meta.memoryLanguage).toBe("en");
+    expect(meta.memory!.beliefs.map((belief) => belief.text)).toContain(say("trigger", "en"));
   });
 
   it("keeps analysing when the translation fails, and translates later", async () => {
@@ -607,10 +555,10 @@ describe("StopScroll as a React Native app", () => {
     await tapIn("ConsentCard", CATALOG.en.ai.consent.allow);
     await until(() => visible(say("conclusion", "en")), "the English conclusion");
     failing = new Set(["/translate"]);
-    await switchLanguage("de");
-    await writeEntry("de", "Nach dem Abendessen direkt Reels geöffnet, ohne Grund");
+    await switchLanguage("ru");
+    await writeEntry("ru", "После ужина сразу открыл рилс, без причины");
     await until(
-      () => calls.some((call) => call.path === "/entry" && call.language === "de"),
+      () => calls.some((call) => call.path === "/entry" && call.language === "ru"),
       "the new entry analysed while the translation waits",
     );
     expect((await storedMeta()).memoryLanguage).toBe("en");
@@ -680,7 +628,7 @@ describe("StopScroll as a React Native app", () => {
 
     await launch();
     // The language is asked once; everything learned before is still there.
-    await until(() => visible("Language · Dil"), "the picker for an old install");
+    await until(() => visible(PICKER_TITLE), "the picker for an old install");
     await tap("Русский");
     await tap("Продолжить");
     await go("Main", { screen: "AI" });

@@ -10,7 +10,7 @@
  */
 
 /** The app's languages (the same codes as the app's src/i18n/languages.ts). */
-export const LANGUAGES = ["ru", "en", "tr", "de", "fr"] as const;
+export const LANGUAGES = ["ru", "en"] as const;
 export type Language = (typeof LANGUAGES)[number];
 
 export const isLanguage = (value: unknown): value is Language =>
@@ -19,9 +19,6 @@ export const isLanguage = (value: unknown): value is Language =>
 const LANGUAGE_NAME: Record<Language, string> = {
   ru: "Russian",
   en: "English",
-  tr: "Turkish",
-  de: "German",
-  fr: "French",
 };
 
 /**
@@ -39,23 +36,6 @@ const ADDRESS: Record<Language, { formal: string; informal: string; neutral: str
     formal: 'Address the user as "you".',
     informal: 'Address the user as "you", in a warm, casual tone.',
     neutral: "Never assume the user's gender.",
-  },
-  tr: {
-    formal: 'Address the user politely, as "siz" (plural verb forms).',
-    informal: 'Address the user informally, as "sen".',
-    neutral: "Never assume the user's gender.",
-  },
-  de: {
-    formal: 'Address the user formally, as "Sie".',
-    informal: 'Address the user informally, as "du".',
-    neutral:
-      "Avoid nouns and forms that reveal the user's gender (no Nutzer/Nutzerin about the user; rephrase).",
-  },
-  fr: {
-    formal: 'Address the user formally, as "vous".',
-    informal: 'Address the user informally, as "tu".',
-    neutral:
-      "Avoid agreement that reveals the user's gender: rephrase («la fatigue a pris le dessus», not «vous étiez fatigué»).",
   },
 };
 

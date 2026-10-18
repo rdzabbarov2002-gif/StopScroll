@@ -17,7 +17,7 @@ export const ru = {
    * - hint: a line under the label on the quick cards;
    * - ask: the user's answer in the coach's "Что произошло?" after a slip (first person);
    * - noun: the cause as a bare noun in the coach's sentences ("основная причина — усталость",
-   *   "Поздний вечер и усталость …"); in French it carries its article ("la fatigue");
+   *   "Поздний вечер и усталость …");
    * - because: an adverbial phrase in the coach's sentences ("срывы чаще всего из-за усталости");
    * - reason: an adverbial phrase that completes "Чаще всего срывы случаются по вечерам …"
    *   (the analytics summary, polite address);

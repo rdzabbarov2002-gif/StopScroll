@@ -215,11 +215,11 @@ export interface EquivalentValue {
 
 /**
  * "1,5 книги", "12 прогулок"; "1.5 books". `forms` are the current language's words:
- * [one, few, many] in Russian, [singular, plural, plural] in the other languages.
+ * [one, few, many] in Russian, [singular, plural, plural] in English.
  */
 export function formatQuantity(value: number, forms: readonly [string, string, string]): string {
   // Russian uses the genitive singular after a fraction: "1,5 книги", "0,3 часа сна" — the
-  // `other` form. French keeps the singular below 2: "1,5 livre".
+  // `other` form.
   const word = selectPlural(getLanguage(), value, {
     one: forms[0],
     few: forms[1],

@@ -2,8 +2,7 @@ import type { LanguageCode } from "./languages";
 
 /**
  * Plural forms of a word after a number. `few` and `many` are used by Russian only;
- * the other languages need `one` and `other` (Turkish keeps the noun singular, so its
- * `one` and `other` are usually the same word).
+ * English needs `one` and `other`.
  */
 export interface PluralForms {
   one: string;
@@ -24,10 +23,6 @@ const RULES: Record<LanguageCode, (count: number) => PluralCategory> = {
     return "many";
   },
   en: (count) => (Math.abs(count) === 1 ? "one" : "other"),
-  de: (count) => (Math.abs(count) === 1 ? "one" : "other"),
-  tr: (count) => (Math.abs(count) === 1 ? "one" : "other"),
-  // French: 0 and 1 take the singular ("0 jour", "1,5 jour").
-  fr: (count) => (Math.abs(count) < 2 ? "one" : "other"),
 };
 
 export function pluralCategory(language: LanguageCode, count: number): PluralCategory {

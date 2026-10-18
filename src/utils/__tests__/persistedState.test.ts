@@ -125,6 +125,14 @@ describe("sanitizePersistedState", () => {
     expect(state.lastSeenReport).toBe("2026-10-05");
   });
 
+  it("keeps Russian and English, and asks again for a language the app no longer offers", () => {
+    expect(sanitizePersistedState({ language: "ru" }).language).toBe("ru");
+    expect(sanitizePersistedState({ language: "en" }).language).toBe("en");
+    for (const removed of ["tr", "de", "fr"]) {
+      expect(sanitizePersistedState({ language: removed }).language).toBeNull();
+    }
+  });
+
   it("keeps only the most recent days of the scroll log", () => {
     const log: Record<string, number> = {};
     for (let index = 0; index < MAX_SCROLL_DAYS + 10; index += 1) {

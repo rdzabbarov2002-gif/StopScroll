@@ -2,7 +2,7 @@
  * Language-independent text helpers for comparing short texts on the device: a reading made
  * without the memory against the stored one, a new belief against the graveyard, a new entry
  * against past episodes. Word stems (first five letters of longer words) survive most
- * inflection in Russian, German, French and Turkish well enough for "is this about the same".
+ * inflection in Russian well enough for "is this about the same".
  */
 
 export const normalize = (value: string) =>

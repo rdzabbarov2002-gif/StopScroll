@@ -1,5 +1,5 @@
 import type { LanguageCode } from "../i18n/languages";
-import { de, en, fr, ru, tr } from "../i18n/messages/common";
+import { en, ru } from "../i18n/messages/common";
 import type { Messages as CommonMessages, Week } from "../i18n/messages/common/ru";
 import { selectPlural, type PluralForms } from "../i18n/plural";
 import { getLanguage } from "../i18n/store";
@@ -10,7 +10,7 @@ import type { TimeOfDay } from "./types";
  * from its folder: other areas' message files import these formatters, and going through the full
  * catalog in `i18n/index.ts` would make an import cycle.
  */
-const COMMON: Record<LanguageCode, CommonMessages> = { ru, en, tr, de, fr };
+const COMMON: Record<LanguageCode, CommonMessages> = { ru, en };
 const t = () => COMMON[getLanguage()];
 
 /** "3 дня", "3 days" — `countOf` without the full catalog. */

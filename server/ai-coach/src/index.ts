@@ -13,7 +13,7 @@
  * POST /translate  the memory's texts → the same texts in the app's new language (once, after
  *                  the user changes the language)
  *
- * Every request carries `language` (ru, en, tr, de, fr): every text for the user comes back in
+ * Every request carries `language` (ru, en): every text for the user comes back in
  * that language.
  *
  * Everything that is plain arithmetic — counts, streaks, records, percentages, the daily
@@ -263,7 +263,8 @@ export async function handle(request: Request, env: Env, client?: OpenAI): Promi
     body = null;
   }
   if (!isRecord(body) || !route.validate(body)) return json(env, 400, { error: "bad_request" });
-  // The app's language; an older app without it gets Russian, as before.
+  // The app's language; a request without it (an older app) or with one no longer offered gets
+  // Russian.
   const { language, ...payload } = body;
 
   try {

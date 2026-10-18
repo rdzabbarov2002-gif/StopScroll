@@ -49,7 +49,4 @@ function build(language: LanguageCode): Messages {
 export const CATALOG: Record<LanguageCode, Messages> = {
   ru: build("ru"),
   en: build("en"),
-  tr: build("tr"),
-  de: build("de"),
-  fr: build("fr"),
 };
