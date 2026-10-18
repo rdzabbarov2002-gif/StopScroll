@@ -33,6 +33,16 @@ npm run web                  # быстрый просмотр в браузер
 `eas build --profile preview`): папки `ios/` и `android/` не хранятся в репозитории, их генерирует
 `npx expo prebuild` из `app.json`, плагинов и `targets/`.
 
+**Без компьютера, только с телефона** — всё делает GitHub Actions:
+
+1. Сервер AI-коуча: секреты репозитория `CLOUDFLARE_API_TOKEN` (шаблон «Edit Cloudflare Workers»),
+   `CLOUDFLARE_ACCOUNT_ID`, `OPENAI_API_KEY`, затем Actions → **Deploy AI server** → Run workflow.
+   Адрес сервера из итога запуска — в переменную репозитория `AI_URL`.
+2. Приложение в Expo Go: секрет `EXPO_TOKEN` (expo.dev → Access tokens), затем Actions →
+   **Expo Go update** → Run workflow. В Expo Go войдите в тот же аккаунт Expo — StopScroll
+   появится на главной (ветка `expo-go`). Дальше обновление публикуется при каждом изменении
+   приложения.
+
 В Expo Go AI-коуч работает, если в `.env.local` задан `EXPO_PUBLIC_AI_URL` (адрес развёрнутого
 `server/ai-coach`, см. ниже); без него приложение работает без AI-анализа. Еженедельное напоминание
 в Expo Go на Android недоступно (Expo Go не поддерживает уведомления с SDK 53): кнопка включения

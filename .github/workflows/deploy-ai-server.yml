@@ -1,0 +1,81 @@
+# Deploys server/ai-coach to Cloudflare Workers and stores the OpenAI key as its secret — no
+# computer needed. One-time setup: repository Settings → Secrets and variables → Actions →
+# Secrets: CLOUDFLARE_API_TOKEN ("Edit Cloudflare Workers" token), CLOUDFLARE_ACCOUNT_ID,
+# OPENAI_API_KEY; optional APP_TOKEN (then the same value in the AI_TOKEN variable).
+# Runs by hand (Actions → Deploy AI server → Run workflow) and on changes to the server.
+name: Deploy AI server
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "server/ai-coach/**"
+      - ".github/workflows/deploy-ai-server.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-ai-server
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server/ai-coach
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      APP_TOKEN: ${{ secrets.APP_TOKEN }}
+    steps:
+      - name: Check the secrets
+        id: secrets
+        working-directory: .
+        run: |
+          missing=""
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID OPENAI_API_KEY; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -z "$missing" ]; then echo "ready=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          message="Add the repository secrets:$missing (Settings → Secrets and variables → Actions)."
+          # A push before the setup is skipped quietly; a manual run says what is missing.
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then echo "::error::$message"; exit 1; fi
+          echo "::notice::$message"
+
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.ready == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.secrets.outputs.ready == 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/ai-coach/package-lock.json
+      - if: steps.secrets.outputs.ready == 'true'
+        run: npm ci
+      - if: steps.secrets.outputs.ready == 'true'
+        run: npm run typecheck
+
+      - name: Deploy
+        if: steps.secrets.outputs.ready == 'true'
+        run: npx wrangler@4 deploy 2>&1 | tee deploy.log
+      - name: Store the secrets in the Worker
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          printf '%s' "$OPENAI_API_KEY" | npx wrangler@4 secret put OPENAI_API_KEY
+          if [ -n "$APP_TOKEN" ]; then printf '%s' "$APP_TOKEN" | npx wrangler@4 secret put APP_TOKEN; fi
+
+      - name: Summary
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          url=$(grep -oE 'https://[A-Za-z0-9.-]+\.workers\.dev' deploy.log | head -1 || true)
+          {
+            echo "## AI server deployed"
+            echo
+            echo "Address: ${url:-see the Deploy step}"
+            echo
+            echo "Put this address into the repository variable **AI_URL** (Settings → Secrets and variables → Actions → Variables) so the app uses it."
+          } >> "$GITHUB_STEP_SUMMARY"

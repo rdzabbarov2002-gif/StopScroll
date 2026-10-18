@@ -1,0 +1,97 @@
+# Publishes the app to your Expo account (EAS Update), so it opens in Expo Go on the phone without
+# a computer running `npm start`. Expo Go loads such updates only for projects you own: sign in to
+# Expo Go with the same account, the project appears on its Home tab.
+# One-time setup: repository Settings → Secrets and variables → Actions → Secrets: EXPO_TOKEN
+# (expo.dev → Account settings → Access tokens). Variables AI_URL / AI_TOKEN connect the AI coach.
+# The project is linked to the account and set up for updates only inside the run; nothing is
+# committed. Runs by hand (Actions → Expo Go update → Run workflow) and on every app change.
+name: Expo Go update
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "server/**"
+      - "docs/**"
+      - "**/*.md"
+      - ".github/workflows/deploy-ai-server.yml"
+      - ".github/workflows/web-preview.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: expo-go-update
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - name: Check the secret
+        id: secrets
+        run: |
+          if [ -n "$EXPO_TOKEN" ]; then echo "ready=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          message="Add the repository secret EXPO_TOKEN (Settings → Secrets and variables → Actions)."
+          # A push before the setup is skipped quietly; a manual run says what is missing.
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then echo "::error::$message"; exit 1; fi
+          echo "::notice::$message"
+
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.ready == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.secrets.outputs.ready == 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - uses: expo/expo-github-action@v8
+        if: steps.secrets.outputs.ready == 'true'
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - if: steps.secrets.outputs.ready == 'true'
+        run: npm ci
+
+      - name: Link the project to the Expo account and set it up for updates
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          npx expo install expo-updates
+          eas init --non-interactive --force
+          node -e '
+            const fs = require("fs");
+            const config = JSON.parse(fs.readFileSync("app.json", "utf8"));
+            const id = config.expo.extra?.eas?.projectId;
+            if (!id) throw new Error("eas init did not link the project");
+            // The runtime Expo Go understands: the SDK version.
+            config.expo.runtimeVersion = { policy: "sdkVersion" };
+            config.expo.updates = { ...config.expo.updates, url: `https://u.expo.dev/${id}` };
+            fs.writeFileSync("app.json", JSON.stringify(config, null, 2));
+          '
+
+      - name: Publish
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          EXPO_PUBLIC_AI_URL: ${{ vars.AI_URL }}
+          EXPO_PUBLIC_AI_TOKEN: ${{ vars.AI_TOKEN }}
+          MESSAGE: ${{ github.event.head_commit.message || 'Manual run' }}
+        run: |
+          eas update --branch expo-go --message "$(printf '%s' "$MESSAGE" | head -n 1)" \
+            --environment preview --non-interactive
+
+      - name: Summary
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          AI_URL: ${{ vars.AI_URL }}
+        run: |
+          {
+            echo "## Published to Expo"
+            echo
+            echo "Open **Expo Go** on the phone, sign in with the same Expo account, and pick **StopScroll** on the Home tab (branch **expo-go**)."
+            if [ -z "$AI_URL" ]; then
+              echo
+              echo "The AI coach is off: the repository variable **AI_URL** is empty."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
