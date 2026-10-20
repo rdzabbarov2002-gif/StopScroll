@@ -1,6 +1,7 @@
 # Checks the deployed AI server with the requests the app itself sends (server/ai-coach/eval/
-# smoke.json): entry analysis, deep analysis and memory translation, in Russian and English.
-# No key needed here — the server uses its own. A handful of calls, a few cents.
+# smoke.json): entry analysis, deep analysis and memory translation, in Russian and English;
+# "extended" sends 47 situations (smoke-extended.json). No key needed here — the server uses its
+# own. Quick: a few cents; extended: about half a dollar.
 # Run: Actions → Check AI server → Run workflow (the address defaults to the AI_URL variable).
 name: Check AI server
 
@@ -10,6 +11,11 @@ on:
       url:
         description: "Server address (empty: the AI_URL repository variable)"
         required: false
+      set:
+        description: "quick — 6 requests, a few cents; extended — 47 situations, about $0.5"
+        type: choice
+        options: [quick, extended]
+        default: quick
 
 permissions:
   contents: read
@@ -31,4 +37,5 @@ jobs:
         env:
           URL: ${{ inputs.url || vars.AI_URL }}
           AI_TOKEN: ${{ vars.AI_TOKEN }}
-        run: node --no-warnings --import ./eval/ts-hooks.mjs eval/smoke.mjs "$URL"
+          SET: ${{ inputs.set == 'extended' && 'smoke-extended.json' || 'smoke.json' }}
+        run: node --no-warnings --import ./eval/ts-hooks.mjs eval/smoke.mjs "$URL" "$SET"
