@@ -1,0 +1,34 @@
+# Checks the deployed AI server with the requests the app itself sends (server/ai-coach/eval/
+# smoke.json): entry analysis, deep analysis and memory translation, in Russian and English.
+# No key needed here — the server uses its own. A handful of calls, a few cents.
+# Run: Actions → Check AI server → Run workflow (the address defaults to the AI_URL variable).
+name: Check AI server
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Server address (empty: the AI_URL repository variable)"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # The app's own code reads the answers.
+      - run: npm ci
+      - name: Send the app's requests
+        working-directory: server/ai-coach
+        env:
+          URL: ${{ inputs.url || vars.AI_URL }}
+          AI_TOKEN: ${{ vars.AI_TOKEN }}
+        run: node --no-warnings --import ./eval/ts-hooks.mjs eval/smoke.mjs "$URL"

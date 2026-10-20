@@ -1,0 +1,426 @@
+[
+  {
+    "name": "Разбор записи (ru)",
+    "path": "/entry",
+    "body": {
+      "memory": {
+        "profile": null,
+        "triggers": [],
+        "zones": [],
+        "hypotheses": [],
+        "tips": [],
+        "corrections": [],
+        "tags": []
+      },
+      "entries": [
+        {
+          "n": 1,
+          "when": "2026-10-20 Tue 02:51",
+          "outcome": "opened",
+          "text": "Пришёл домой без сил после длинной смены, хотел полежать пять минут и залип в ленте на час",
+          "similar": []
+        }
+      ],
+      "language": "ru"
+    }
+  },
+  {
+    "name": "Entry analysis (en)",
+    "path": "/entry",
+    "body": {
+      "memory": {
+        "profile": null,
+        "triggers": [],
+        "zones": [],
+        "hypotheses": [],
+        "tips": [],
+        "corrections": [],
+        "tags": []
+      },
+      "entries": [
+        {
+          "n": 1,
+          "when": "2026-10-20 Tue 02:51",
+          "outcome": "opened",
+          "text": "Came home exhausted after a long shift, meant to rest for five minutes and scrolled the feed for an hour",
+          "similar": []
+        }
+      ],
+      "language": "en"
+    }
+  },
+  {
+    "name": "Глубокий анализ (ru)",
+    "path": "/deep",
+    "body": {
+      "today": "2026-10-20 Tuesday",
+      "memory": null,
+      "newEntries": [
+        "r1 | 2026-10-20 Tue 02:51 | opened | conf 70 | усталость | усталость после работы | Пришёл домой без сил после длинной смены, хотел полежать пять минут и залип в ленте на час"
+      ],
+      "entriesWaiting": 0,
+      "reread": [],
+      "answers": [],
+      "deleted": [],
+      "stats": {
+        "today": "2026-10-20 Tue",
+        "dailyLimitMinutes": 60,
+        "coverage": {
+          "since": "2026-10-20",
+          "observedDays": 1,
+          "entries": 1,
+          "slips": 0,
+          "wins": 0
+        },
+        "months": {
+          "cols": "month,days,hard,slips,morning,day,evening,night,entries,opened,avgFeedMin,hardestDay",
+          "rows": [
+            [
+              "2026-10",
+              1,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              1,
+              null,
+              null
+            ]
+          ]
+        },
+        "weeks": {
+          "cols": "monday,slips,entries,opened,hardDays,inLimit,feedLogged,avgFeedMin",
+          "rows": [
+            [
+              "2026-10-19",
+              0,
+              1,
+              1,
+              1,
+              0,
+              0,
+              null
+            ]
+          ]
+        },
+        "hours": {
+          "slips": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "entries": [
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "weekdays": {
+          "last8Weeks": [
+            "0/0",
+            "0/0",
+            "0/0",
+            "0/0",
+            "0/0",
+            "0/0",
+            "0/0"
+          ],
+          "allTime": [
+            "0/0",
+            "0/0",
+            "0/0",
+            "0/0",
+            "0/0",
+            "0/0",
+            "0/0"
+          ]
+        },
+        "streaks": {
+          "current": 0,
+          "best": 0,
+          "runs": []
+        },
+        "causes": [
+          "усталость 1 (30d: 1)"
+        ],
+        "savedMinutes": {
+          "total": 0,
+          "last30Days": 0
+        },
+        "years": {
+          "cols": "year,days,hardShare%,avgFeedMin,slipsPerWeek,topCause",
+          "rows": [
+            [
+              "2026",
+              1,
+              100,
+              null,
+              0,
+              "усталость"
+            ]
+          ]
+        }
+      },
+      "challenges": [],
+      "currentChallenge": null,
+      "askedRecently": [],
+      "chapterDue": null,
+      "policy": {
+        "questions": true,
+        "challenge": true
+      },
+      "language": "ru"
+    }
+  },
+  {
+    "name": "Deep analysis (en)",
+    "path": "/deep",
+    "body": {
+      "today": "2026-10-20 Tuesday",
+      "memory": null,
+      "newEntries": [
+        "r1 | 2026-10-20 Tue 02:51 | opened | conf 70 | tiredness | tiredness after work | Came home exhausted after a long shift, meant to rest for five minutes and scrolled the feed for an hour"
+      ],
+      "entriesWaiting": 0,
+      "reread": [],
+      "answers": [],
+      "deleted": [],
+      "stats": {
+        "today": "2026-10-20 Tue",
+        "dailyLimitMinutes": 60,
+        "coverage": {
+          "since": "2026-10-20",
+          "observedDays": 1,
+          "entries": 1,
+          "slips": 0,
+          "wins": 0
+        },
+        "months": {
+          "cols": "month,days,hard,slips,morning,day,evening,night,entries,opened,avgFeedMin,hardestDay",
+          "rows": [
+            [
+              "2026-10",
+              1,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              1,
+              null,
+              null
+            ]
+          ]
+        },
+        "weeks": {
+          "cols": "monday,slips,entries,opened,hardDays,inLimit,feedLogged,avgFeedMin",
+          "rows": [
+            [
+              "2026-10-19",
+              0,
+              1,
+              1,
+              1,
+              0,
+              0,
+              null
+            ]
+          ]
+        },
+        "hours": {
+          "slips": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "entries": [
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "weekdays": {
+          "last8Weeks": [
+            "0/0",
+            "0/0",
+            "0/0",
+            "0/0",
+            "0/0",
+            "0/0",
+            "0/0"
+          ],
+          "allTime": [
+            "0/0",
+            "0/0",
+            "0/0",
+            "0/0",
+            "0/0",
+            "0/0",
+            "0/0"
+          ]
+        },
+        "streaks": {
+          "current": 0,
+          "best": 0,
+          "runs": []
+        },
+        "causes": [
+          "tiredness 1 (30d: 1)"
+        ],
+        "savedMinutes": {
+          "total": 0,
+          "last30Days": 0
+        },
+        "years": {
+          "cols": "year,days,hardShare%,avgFeedMin,slipsPerWeek,topCause",
+          "rows": [
+            [
+              "2026",
+              1,
+              100,
+              null,
+              0,
+              "tiredness"
+            ]
+          ]
+        }
+      },
+      "challenges": [],
+      "currentChallenge": null,
+      "askedRecently": [],
+      "chapterDue": null,
+      "policy": {
+        "questions": true,
+        "challenge": true
+      },
+      "language": "en"
+    }
+  },
+  {
+    "name": "Перевод памяти en → ru",
+    "path": "/translate",
+    "body": {
+      "texts": [
+        "The feed wins most often in the evening after work.",
+        "It looks like the feed wins not out of boredom but out of evening tiredness.",
+        "Getting home after work",
+        "Evening slips are tied to tiredness",
+        "Evening after work",
+        "Ten minutes of rest without the phone",
+        "tiredness after work",
+        "tiredness",
+        "Ten quiet minutes",
+        "Does it happen on weekends too?"
+      ],
+      "language": "ru"
+    }
+  },
+  {
+    "name": "Memory translation ru → en",
+    "path": "/translate",
+    "body": {
+      "texts": [
+        "Лента чаще всего побеждает вечером после работы.",
+        "Похоже, лента побеждает не от скуки, а от вечерней усталости.",
+        "Приход домой после работы",
+        "Вечерние срывы связаны с усталостью",
+        "Вечер после работы",
+        "Десять минут отдыха без телефона",
+        "усталость после работы",
+        "усталость",
+        "Десять минут тишины",
+        "Бывает ли так в выходные?"
+      ],
+      "language": "en"
+    }
+  }
+]

@@ -33,11 +33,14 @@ npm run web                  # быстрый просмотр в браузер
 `eas build --profile preview`): папки `ios/` и `android/` не хранятся в репозитории, их генерирует
 `npx expo prebuild` из `app.json`, плагинов и `targets/`.
 
-**Без компьютера, только с телефона** — всё делает GitHub Actions:
+**Без компьютера, только с телефона:**
 
-1. Сервер AI-коуча: секреты репозитория `CLOUDFLARE_API_TOKEN` (шаблон «Edit Cloudflare Workers»),
-   `CLOUDFLARE_ACCOUNT_ID`, `OPENAI_API_KEY`, затем Actions → **Deploy AI server** → Run workflow.
-   Адрес сервера из итога запуска — в переменную репозитория `AI_URL`.
+1. Сервер AI-коуча: в Cloudflare → Workers & Pages → Create application → Import a repository →
+   StopScroll; Deploy command `npx wrangler deploy`, Advanced settings → Path `/server/ai-coach`.
+   Cloudflare сам выпускает сервер из репозитория. Ключ — в Worker → Settings → Variables and
+   Secrets → `OPENAI_API_KEY` с галочкой Secret (в GitHub ключ не нужен). Адрес сервера — в
+   переменную репозитория `AI_URL`; проверка: Actions → **Check AI server** → Run workflow
+   (запросы приложения на русском и английском, несколько центов).
 2. Приложение в Expo Go: секрет `EXPO_TOKEN` (expo.dev → Access tokens), затем Actions →
    **Expo Go update** → Run workflow. В Expo Go войдите в тот же аккаунт Expo — StopScroll
    появится на главной (ветка `expo-go`). Дальше обновление публикуется при каждом изменении
