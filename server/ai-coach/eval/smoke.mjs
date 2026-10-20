@@ -22,6 +22,10 @@ if (!/^https?:\/\/\S+$/.test(base)) {
   process.exit(2);
 }
 const set = process.argv[3] || "smoke.json";
+// Optional: only these request numbers, e.g. "37-47".
+const [from, to] = String(process.argv[4] || "1-9999")
+  .split("-")
+  .map(Number);
 
 const CYRILLIC = /[А-Яа-яЁё]/;
 /** Russian answers have Russian words; English ones have none. */
@@ -130,11 +134,15 @@ function read(path, body, answer) {
   }
   // /translate: one text back for every text sent, in the same order.
   const texts = Array.isArray(answer.texts) ? answer.texts : [];
+  const empty = texts.flatMap((item, at) =>
+    typeof item === "string" && item.trim() ? [] : [at + 1],
+  );
   const problems =
-    texts.length === body.texts.length &&
-    texts.every((item) => typeof item === "string" && item.trim())
+    texts.length === body.texts.length && !empty.length
       ? []
-      : [`sent ${body.texts.length} texts, got ${texts.length} usable`];
+      : [
+          `sent ${body.texts.length} texts, got ${texts.length}${empty.length ? `, empty: #${empty.join(", #")}` : ""}`,
+        ];
   return {
     problems,
     texts,
@@ -148,6 +156,7 @@ const requests = readJson(set);
 const rows = [];
 const details = [];
 for (const [index, request] of requests.entries()) {
+  if (index + 1 < from || index + 1 > (to || from)) continue;
   const started = performance.now();
   let status = 0;
   let answer = {};
@@ -214,4 +223,5 @@ const report = [
 ].join("\n");
 console.log(`\n${report}`);
 if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${report}\n`);
-process.exit(failed ? 1 : 0);
+// Not process.exit(): it would cut the report while stdout is still being written.
+process.exitCode = failed ? 1 : 0;

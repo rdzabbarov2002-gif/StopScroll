@@ -16,6 +16,9 @@ on:
         type: choice
         options: [quick, extended]
         default: quick
+      only:
+        description: "Only these request numbers, e.g. 37-47 (empty: all)"
+        required: false
 
 permissions:
   contents: read
@@ -38,4 +41,5 @@ jobs:
           URL: ${{ inputs.url || vars.AI_URL }}
           AI_TOKEN: ${{ vars.AI_TOKEN }}
           SET: ${{ inputs.set == 'extended' && 'smoke-extended.json' || 'smoke.json' }}
-        run: node --no-warnings --import ./eval/ts-hooks.mjs eval/smoke.mjs "$URL" "$SET"
+          ONLY: ${{ inputs.only }}
+        run: node --no-warnings --import ./eval/ts-hooks.mjs eval/smoke.mjs "$URL" "$SET" "$ONLY"
