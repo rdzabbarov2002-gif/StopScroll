@@ -2,7 +2,8 @@
 # a computer running `npm start`. Expo Go loads such updates only for projects you own: sign in to
 # Expo Go with the same account, the project appears on its Home tab.
 # One-time setup: repository Settings → Secrets and variables → Actions → Secrets: EXPO_TOKEN
-# (expo.dev → Account settings → Access tokens). Variables AI_URL / AI_TOKEN connect the AI coach.
+# (expo.dev → Account settings → Access tokens). The AI coach uses the deployed server (the AI_URL
+# variable overrides it).
 # The project is linked to the account and set up for updates only inside the run; nothing is
 # committed. Runs by hand (Actions → Expo Go update → Run workflow) and on every app change.
 name: Expo Go update
@@ -74,7 +75,8 @@ jobs:
       - name: Publish
         if: steps.secrets.outputs.ready == 'true'
         env:
-          EXPO_PUBLIC_AI_URL: ${{ vars.AI_URL }}
+          # The deployed server/ai-coach; the AI_URL variable overrides it.
+          EXPO_PUBLIC_AI_URL: ${{ vars.AI_URL || 'https://stopscroll-ai-coach.rdzabbarov2002.workers.dev' }}
           EXPO_PUBLIC_AI_TOKEN: ${{ vars.AI_TOKEN }}
           MESSAGE: ${{ github.event.head_commit.message || 'Manual run' }}
         run: |
@@ -83,15 +85,9 @@ jobs:
 
       - name: Summary
         if: steps.secrets.outputs.ready == 'true'
-        env:
-          AI_URL: ${{ vars.AI_URL }}
         run: |
           {
             echo "## Published to Expo"
             echo
             echo "Open **Expo Go** on the phone, sign in with the same Expo account, and pick **StopScroll** on the Home tab (branch **expo-go**)."
-            if [ -z "$AI_URL" ]; then
-              echo
-              echo "The AI coach is off: the repository variable **AI_URL** is empty."
-            fi
           } >> "$GITHUB_STEP_SUMMARY"
